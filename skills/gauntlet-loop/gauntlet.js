@@ -297,6 +297,64 @@ const AB_VOTE_SCHEMA = {
 }
 
 // ---------------------------------------------------------------------------
+// REPORT DISPATCH
+//
+// One report path per run — a halt and a completion never coexist in a
+// single run, so there is nothing to disambiguate. Every exit funnels
+// through here: the three early halts (gate 6, gate 7, an empty round 1)
+// and the final verdict. This has to run BEFORE each early `return`, not
+// after the run completes, or a halted run's blind artifacts never reach
+// disk and SKILL.md's promise to carry them into a rerun is unkeepable.
+//
+// Failure here must not turn a halt into a crash: if the reporter throws or
+// returns nothing, the run's own result still returns, with report_path
+// null rather than a path that was never actually written.
+// ---------------------------------------------------------------------------
+
+async function writeReport(runObject) {
+  if (!WANT_REPORT) return null
+  phase('Report')
+  const reportPath = `${SCRATCH}/gauntlet-report.md`
+  let written = null
+  try {
+    written = await agent(
+      `Write a run report to ${reportPath}. You have no Read tool: everything you need is below,
+and anything not below did not happen as far as this report is concerned.
+
+Reproduce, do not summarise away, whatever the run below actually contains. A completed run
+carries the verdict, the bar and which form it took, the calibration result INCLUDING BOTH
+ARMS, the margin tally, every finding with its anchor and its cross-check outcome, the
+comparison result if present, and enforced / not_enforced lists. A halted run carries none
+of that — its report IS the halt: which stage stopped it, why, and whatever blind artifacts
+(such as bar or need) survived the halt to be carried into a rerun. Write down what is
+there; do not invent what is not, and do not apologise for the run being short.
+
+If an enforced or not_enforced list is present, reproduce both verbatim. The not_enforced
+list is the part a reader is most likely to skip and most needs — give it its own section
+with its own heading, not a footnote.
+
+Head the file with a one-line status a reader can scan, then the run identity: artifact
+path, lens keys, calibration verdict — whichever of those the run actually carries. Do not
+add praise, do not add recommendations of your own, and do not resolve a contested finding
+— a split is a result, not a defect in the report.
+
+THE RUN
+${JSON.stringify(runObject, null, 2)}`,
+      { label: 'report:write', phase: 'Report', agentType: AT.reporter }
+    )
+  } catch (e) {
+    log(`report: writer threw instead of returning — ${e && e.message ? e.message : e} — the run's own result still returns`)
+    return null
+  }
+  if (!written) {
+    log("report: writer returned nothing — the run's own result still returns")
+    return null
+  }
+  log(`report written to ${reportPath} — the run survives this session`)
+  return reportPath
+}
+
+// ---------------------------------------------------------------------------
 // PHASE: DESIGN (gate 2 — no veto)
 // ---------------------------------------------------------------------------
 
@@ -431,7 +489,7 @@ if (dead.length) {
 
 if (!bar.criteria || bar.criteria.length < 2) {
   log('gate 6 leaves fewer than two criteria that can fire — there is no bar, so there is nothing for critics to review against.')
-  return {
+  const halt = {
     verdict: 'NO VERDICT',
     stage: 'gate 6',
     why: 'the blind bar could not produce two criteria that fire in both directions, even after a correction pass',
@@ -439,6 +497,8 @@ if (!bar.criteria || bar.criteria.length < 2) {
     lenses: LENSES.map(l => l.key),
     note: 'Gate 6 firing here usually means the need restatement is too abstract to write criteria against. Supply args.need yourself and rerun.',
   }
+  halt.report_path = await writeReport(halt)
+  return halt
 }
 
 log(`gate 3/5/6: ${bar.criteria.length} criteria, form=${bar.gate3_form}, written blind${barRepaired ? ', one correction pass' : ''}`)
@@ -661,7 +721,7 @@ if (!calibration) calibration = { verdict: 'NO VERDICT', why: 'calibration did n
 
 if (calibration.verdict === 'NO VERDICT') {
   log('gate 7 returned NO VERDICT — the panel does not spawn. This is the designed outcome, not a failure of the run.')
-  return {
+  const halt = {
     verdict: 'NO VERDICT',
     stage: 'gate 7',
     why: calibration.why,
@@ -673,6 +733,8 @@ if (calibration.verdict === 'NO VERDICT') {
     calibration_lens_fallback: calLensFallback,
     note: 'A halted run\'s blind artifacts survive it. Carry `bar` and `need` into the rerun.',
   }
+  halt.report_path = await writeReport(halt)
+  return halt
 }
 
 // ---------------------------------------------------------------------------
@@ -691,7 +753,9 @@ const round1 = (await parallel(
 )).filter(Boolean)
 
 if (!round1.length) {
-  return { verdict: 'NO VERDICT', stage: 'round 1', why: 'every critic returned empty', bar: bar.bar_text, need: NEED }
+  const halt = { verdict: 'NO VERDICT', stage: 'round 1', why: 'every critic returned empty', bar: bar.bar_text, need: NEED }
+  halt.report_path = await writeReport(halt)
+  return halt
 }
 log(`round 1: ${round1.length}/${LENSES.length} critics returned`)
 
@@ -977,35 +1041,10 @@ const verdict = {
 // The source method's answer to a long expensive run is a live page you can
 // watch and stop. This runtime cannot serve one, but the failure it prevents is
 // the same: a run whose only output is a value in a session that ends. One
-// agent, no Read, writes down what it was handed.
+// agent, no Read, writes down what it was handed — via writeReport(), defined
+// above, which is the same call every early halt makes before it returns.
 // ---------------------------------------------------------------------------
 
-if (WANT_REPORT) {
-  phase('Report')
-  const reportPath = `${SCRATCH}/gauntlet-report.md`
-  const written = await agent(
-    `Write a run report to ${reportPath}. You have no Read tool: everything you need is below,
-and anything not below did not happen as far as this report is concerned.
-
-Reproduce, do not summarise away: the verdict, the bar and which form it took, the
-calibration result INCLUDING BOTH ARMS, the margin tally, every finding with its anchor and
-its cross-check outcome, the comparison result if present, and both the enforced and
-not_enforced lists verbatim. The not_enforced list is the part a reader is most likely to
-skip and most needs; give it its own section with its own heading, not a footnote.
-
-Head the file with a one-line status a reader can scan, then the date-free run identity
-(artifact path, lens keys, calibration verdict). Do not add praise, do not add
-recommendations of your own, and do not resolve a contested finding — a split is a result,
-not a defect in the report.
-
-THE RUN
-${JSON.stringify(verdict, null, 2)}`,
-    { label: 'report:write', phase: 'Report', agentType: AT.reporter }
-  )
-  if (written) {
-    verdict.report_path = reportPath
-    log(`report written to ${reportPath} — the run survives this session`)
-  }
-}
+verdict.report_path = await writeReport(verdict)
 
 return verdict

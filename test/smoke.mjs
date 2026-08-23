@@ -235,6 +235,7 @@ const GATE6_SCENARIO = {
   'gate2:design': DESIGN_HAPPY,
   'gate5:blind-bar': BAR_DEAD,
   'gate6:bar-repair': BAR_DEAD,
+  'report:write': 'wrote the gate-6 halt report to disk',
 }
 
 // Seeder returns a seeded_path but no control_path, on both attempts. This
@@ -256,11 +257,16 @@ const GATE7_SCENARIO = {
   'gate5:blind-bar': BAR_HAPPY,
   'gate7:seeder-1': seedNoControl(1),
   'gate7:seeder-2': seedNoControl(2),
+  'report:write': 'wrote the gate-7 halt report to disk',
 }
 
 // ---------------------------------------------------------------------------
 // ASSERTIONS
 // ---------------------------------------------------------------------------
+
+// Both `gate7-void-twice` and `gate6-halt` run against BASE_ARGS, so a
+// report they carry lands at this path — SCRATCH + the fixed filename.
+const EXPECT_REPORT_PATH = `${BASE_ARGS.scratch}/gauntlet-report.md`
 
 function assertHappy(result) {
   if (!result) { fail('happy: gauntlet.js returned nothing'); return }
@@ -270,12 +276,18 @@ function assertHappy(result) {
   const perFinding = result.margin && result.margin.per_finding
   if (!Array.isArray(perFinding) || perFinding.length === 0) fail(`happy: margin.per_finding = ${JSON.stringify(perFinding)}, want a non-empty array`)
   if (!Array.isArray(result.enforced) || result.enforced.length === 0) fail(`happy: enforced = ${JSON.stringify(result.enforced)}, want a non-empty array`)
+  if (result.report_path !== EXPECT_REPORT_PATH) fail(`happy: report_path = ${JSON.stringify(result.report_path)}, want ${JSON.stringify(EXPECT_REPORT_PATH)}`)
 }
 
 function assertGate6Halt(result) {
   if (!result) { fail('gate6-halt: gauntlet.js returned nothing'); return }
   if (result.verdict !== 'NO VERDICT') fail(`gate6-halt: verdict = ${JSON.stringify(result.verdict)}, want 'NO VERDICT'`)
   if (result.stage !== 'gate 6') fail(`gate6-halt: stage = ${JSON.stringify(result.stage)}, want 'gate 6'`)
+  // A halted run must still write its report — the blind artifacts (need,
+  // lenses) it carries have to survive into a rerun, not vanish with the
+  // session. This is the behavior this task added: before it, a halt wrote
+  // nothing and report_path was never set.
+  if (result.report_path !== EXPECT_REPORT_PATH) fail(`gate6-halt: report_path = ${JSON.stringify(result.report_path)}, want ${JSON.stringify(EXPECT_REPORT_PATH)} — a halt must still dispatch the reporter`)
 }
 
 function assertGate7VoidTwice(result) {
@@ -286,6 +298,9 @@ function assertGate7VoidTwice(result) {
   // Critical: a VOID must not consume the retry, so two VOIDs must leave
   // misses at 0 — if this is nonzero, VOID and MISS accounting have merged.
   if (result.misses !== 0) fail(`gate7-void-twice: misses = ${JSON.stringify(result.misses)}, want 0 (a VOID must not consume the retry)`)
+  // Same rationale as gate6-halt: this halt carries `bar` and `need` — the
+  // report is what lets a rerun pick them up instead of re-paying gate 5.
+  if (result.report_path !== EXPECT_REPORT_PATH) fail(`gate7-void-twice: report_path = ${JSON.stringify(result.report_path)}, want ${JSON.stringify(EXPECT_REPORT_PATH)} — a halt must still dispatch the reporter`)
 }
 
 // ---------------------------------------------------------------------------
