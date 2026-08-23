@@ -92,14 +92,3 @@ The ≤2-round cap contradicts the source head-on. Take it as a cost decision, n
 the method. Where a reference exemplar exists, prefer the build lane — it is the
 mode with the track record. Note also that the name is contested: several public
 repos ship `gauntlet-loop` as Shumer's build loop.
-
-`docs/2026-08-01-gauntlet-adoption-loop.md` is the adaptation this skill grew out of
-and the authority `SKILL.md` cites for four properties: frozen bars, ≤2 rounds
-terminal, fresh-context critics per round, builder never grades itself.
-
-That program self-applied the method to four mechanism transplants and produced
-**0 merges, 2 drops, 1 open, 2 deferred**. The primitives survived as process —
-fresh critics caught real defects in both loops — and every mechanism they judged
-was rejected by its own pre-registered bar. Read that as the honest prior: this
-tooling is good at killing proposals, and has not yet been shown to be good at
-promoting them.

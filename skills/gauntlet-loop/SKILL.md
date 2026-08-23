@@ -78,7 +78,7 @@ it.
 
 ## Running the panel
 
-**Protocol lives elsewhere:** `../../docs/2026-08-01-gauntlet-adoption-loop.md` — frozen bars, ≤2 rounds terminal, fresh-context critics per round, builder never grades itself. That is the authority **for those four properties, and only those**: its topology is one builder against one critic on an adopt/drop decision, not a panel. It says nothing about how many agents a panel spawns or in what order. `critic-prompt.md` gives prompt *bodies* — critic, round 2, verifier — and no roster either. So the roster lives here, because it lives nowhere else.
+**Four properties are load-bearing and owned here:** frozen bars, ≤2 rounds terminal, fresh-context critics per round, and the author never grading its own artifact. They were carried over from a one-builder-against-one-critic adopt/drop loop, whose topology is not a panel — it fixes those four and says nothing about how many agents a panel spawns or in what order. `critic-prompt.md` gives prompt *bodies* — critic, round 2, verifier — and no roster either. So the roster lives here, because it lives nowhere else.
 
 **Roster — what actually gets spawned.** Every gate that is not self-run is a separate agent; that IS the mechanism. Run in one context, gates 3 and 5–7 are graded by the party with an incentive to pass them, and the verdict measures nothing.
 
