@@ -119,8 +119,30 @@ for (const forbidden of RUNTIME_FORBIDDEN) {
   if (loopCode.includes(forbidden)) fail(`loop.js contains "${forbidden}" outside a comment — this throws in the real Workflow runtime`)
 }
 
+// NO ROUND CAP. The primary source contains no round language at all — its
+// stop clauses are "it should keep going", "Don't stop until…" and "/loop until
+// it's utterly perfect" — and the meta-prompt forbids the parameter by name:
+// "Do not prescribe the architecture, exact decomposition, or a fixed number of
+// rounds." A cap is the easiest thing in this file to reintroduce, because it
+// makes tests terminate and makes runs feel safe, and it would be the one
+// change that quietly turns the loop back into a bounded pipeline.
+//
+// This scans STRIPPED source, so the comments that explain the absence do not
+// trip it. It cannot catch every possible cap — someone determined could write
+// `if (round > n) break` with a computed n — so it is a tripwire on the known
+// names, not a proof. The behavioural proof is in test/loop.test.mjs, where an
+// unbounded run must run past the old default until the harness stops it.
+const CAP_NAMES = ['maxRounds', 'MAX_ROUNDS', 'HARD_CAP', 'ROUND_CAP', 'maxIterations']
+
+console.log('drift-guard: loop.js has no round cap (the source forbids a fixed round count)')
+for (const name of CAP_NAMES) {
+  if (loopCode.includes(name)) {
+    fail(`loop.js contains "${name}" outside a comment — the loop's terminators are a win, an operator cancel and a budget. A round cap is "the arbitrary final round" the source forbids.`)
+  }
+}
+
 if (failures) {
   console.error(`\ndrift-guard: ${failures} failure(s) — the script and its prompt authority have diverged.`)
   process.exit(1)
 }
-console.log(`\ndrift-guard: OK — ${PINNED.length} contract elements + ${GATE_SEMANTICS.length} gate semantics pinned, gates 0/1/4 absent from script, loop.js clean of ${RUNTIME_FORBIDDEN.length} forbidden runtime APIs.`)
+console.log(`\ndrift-guard: OK — ${PINNED.length} contract elements + ${GATE_SEMANTICS.length} gate semantics pinned, gates 0/1/4 absent from script, loop.js clean of ${RUNTIME_FORBIDDEN.length} forbidden runtime APIs and ${CAP_NAMES.length} round-cap names.`)

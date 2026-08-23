@@ -131,6 +131,14 @@ export async function runGauntlet(opts) {
 //                express (e.g. returning nothing to simulate a dead critic).
 // opts.builder - optional function(round, prompt) -> BUILD_SCHEMA-shaped
 //                object (or null). Defaults to a fixed, harmless report.
+// opts.breaker - optional function(round) -> true/'PRESENT' | false/'ABSENT'
+//                | null (a dead probe) | a raw BREAKER_SCHEMA object. Defaults
+//                to the token always being present. This is how a test bounds a
+//                run now that loop.js has no round cap: `r => r <= 2` runs
+//                exactly two rounds and then reports the operator's cancel.
+// opts.runawayGuard - optional int, default 50. The harness throws if the loop
+//                reaches a round beyond it. Protects the suite from hanging;
+//                it is not a cap on loop.js.
 // opts.budget  - optional budget stub ({ total, remaining() }), forwarded
 //                as-is. Defaults to no budget target (remaining => Infinity),
 //                matching runGauntlet's default.
@@ -161,9 +169,40 @@ export async function runLoop(opts) {
     return opts.roundFallback || DEFAULT_ROUND_FALLBACK
   }
 
+  // loop.js has no round cap by design, so a stub whose breaker never trips and
+  // whose critic never picks the candidate would spin forever. This guard is
+  // the HARNESS protecting itself, not a cap on the thing under test: it throws
+  // loudly rather than ending a run quietly, so "the loop did not stop" shows up
+  // as a failure with a name instead of a hung suite. Raise it per test with
+  // opts.runawayGuard when a test legitimately needs more rounds.
+  const RUNAWAY_GUARD = opts.runawayGuard || 50
+
   async function agent(prompt, o) {
     const label = (o && o.label) || '(unlabeled)'
     prompts.push({ label, prompt, agentType: o && o.agentType, phase: o && o.phase })
+
+    const guardRound = roundOf(label)
+    if (guardRound != null && guardRound > RUNAWAY_GUARD) {
+      throw new Error(
+        `harness runaway guard: the loop reached round ${guardRound} (> ${RUNAWAY_GUARD}) without stopping. ` +
+        'Either the test forgot to bound the run with opts.breaker/opts.budget/a winning round, or loop.js ' +
+        'stopped honouring one of its terminators.'
+      )
+    }
+
+    // The circuit breaker. Default: the token is always present, so a test that
+    // says nothing about it runs until something else stops it.
+    // opts.breaker(round) -> true/'PRESENT' | false/'ABSENT' | null (dead probe)
+    //                        | a raw BREAKER_SCHEMA-shaped object
+    if (label.endsWith(':breaker')) {
+      const round = roundOf(label)
+      if (typeof opts.breaker !== 'function') return { token: 'PRESENT', evidence: 'stub: token present' }
+      const v = opts.breaker(round)
+      if (v === null) return null
+      if (v && typeof v === 'object') return v
+      const token = (v === true || v === 'PRESENT') ? 'PRESENT' : 'ABSENT'
+      return { token, evidence: `stub: ${token} at round ${round}` }
+    }
 
     if (label.endsWith(':ab')) {
       const round = roundOf(label)

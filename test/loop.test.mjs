@@ -6,6 +6,7 @@ import { runLoop, ok, eq } from './harness.mjs'
 // reason that has nothing to do with loop.js's actual behavior.
 const CANDIDATE = '/tmp/x/mybuild.html'
 const REFERENCE = '/tmp/x/theoriginal.html'
+const TOKEN = '/tmp/x/run.token'
 const GOAL = 'a goal worth looping over'
 
 // It stops when the candidate wins. Steered to win at round 3: exactly 3
@@ -13,7 +14,7 @@ const GOAL = 'a goal worth looping over'
 // another build.
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
     rounds: [
       { candidateWins: false, gap: 'GAP-ROUND-1' },
       { candidateWins: false, gap: 'GAP-ROUND-2' },
@@ -33,10 +34,11 @@ const GOAL = 'a goal worth looping over'
 // rounds and B on odd, and position_balance must match.
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, maxRounds: 4 },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 4,
     rounds: [],
   })
-  eq(r.result.outcome.status, 'CAP', 'ran to the cap without the candidate ever winning')
+  eq(r.result.outcome.status, 'CANCELLED', 'ran to the operator cancel without the candidate ever winning')
   eq(r.result.history.length, 4, 'four rounds ran')
   eq(r.result.history.map(h => h.candidateSide), ['B', 'A', 'B', 'A'], 'candidate is B on odd rounds, A on even rounds')
   eq(r.result.position_balance, '2 as A / 2 as B', 'reported position_balance matches the alternation')
@@ -49,7 +51,8 @@ const GOAL = 'a goal worth looping over'
 // ARTIFACT line.
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, maxRounds: 3 },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 3,
     rounds: [],
   })
   const criticPrompts = r.prompts.filter(p => p.label.endsWith(':ab'))
@@ -66,7 +69,7 @@ const GOAL = 'a goal worth looping over'
 // path, no ARTIFACT A/B markers, no winner leak.
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
     rounds: [
       { candidateWins: false, gap: 'THE-ONE-SPECIFIC-GAP-FOR-ROUND-1' },
       { candidateWins: true, gap: 'unused-because-round-2-wins' },
@@ -86,7 +89,8 @@ const GOAL = 'a goal worth looping over'
 // with distinct, sequential labels — not one continued agent.
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, maxRounds: 3 },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 3,
     rounds: [],
   })
   const criticLabels = r.labels.filter(l => l.endsWith(':ab'))
@@ -95,18 +99,95 @@ const GOAL = 'a goal worth looping over'
   console.log('loop: fresh critic per round, distinct labels OK')
 }
 
-// Cap: with maxRounds:2 and a critic that never picks the candidate, the
-// loop must stop at CAP after exactly 2 rounds.
+// The circuit breaker is the stop. With a critic that never picks the candidate
+// and a token removed after round 2, the loop must end CANCELLED after exactly
+// 2 rounds — and the breaker must be probed BEFORE each critic, so the cancel
+// costs one cheap probe rather than a critic and a builder.
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, maxRounds: 2 },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 2,
     rounds: [],
   })
-  eq(r.result.outcome.status, 'CAP', 'hits the cap when the critic never picks the candidate')
-  eq(r.result.rounds, 2, 'exactly 2 rounds ran')
-  eq(r.labels.filter(l => l.endsWith(':ab')).length, 2, 'exactly 2 critics spawned')
+  eq(r.result.outcome.status, 'CANCELLED', 'removing the token stops the loop with status CANCELLED')
+  eq(r.result.rounds, 2, 'exactly 2 rounds completed before the cancel')
+  eq(r.labels.filter(l => l.endsWith(':ab')).length, 2, 'exactly 2 critics spawned — the cancelled round never spawned one')
   eq(r.labels.filter(l => l.endsWith(':build')).length, 2, 'exactly 2 builders spawned')
-  console.log('loop: maxRounds cap stops the loop at exactly 2 rounds OK')
+  eq(r.labels.filter(l => l.endsWith(':breaker')).length, 3, 'the breaker was probed 3 times: rounds 1 and 2 passed, round 3 reported the cancel')
+  eq(r.labels[0], 'round-1:breaker', 'the very first spawn of the run is the breaker, not the critic')
+  ok(/removed the run token/.test(r.result.outcome.why), 'the outcome names the operator cancel as the reason')
+  ok(r.result.outcome.why.includes(TOKEN), 'the outcome names the token path, so the operator can tell which run stopped')
+  console.log('loop: removing the run token stops the loop at the round boundary, before the next critic OK')
+}
+
+// The breaker is checked before the CRITIC, and the critic is the first thing a
+// round spawns — so a cancel at round N+1 must leave the critic count at N.
+// Ordering, not just counting: for every round, its breaker precedes its critic.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 3,
+    rounds: [],
+  })
+  for (const round of [1, 2, 3]) {
+    const b = r.labels.indexOf(`round-${round}:breaker`)
+    const c = r.labels.indexOf(`round-${round}:ab`)
+    ok(b !== -1 && c !== -1, `round ${round} spawned both a breaker and a critic`)
+    ok(b < c, `round ${round}: the breaker probe (${b}) came before the critic (${c})`)
+  }
+  ok(!r.labels.includes('round-4:ab'), 'the cancelled round spawned no critic')
+  ok(r.labels.includes('round-4:breaker'), 'the cancelled round spawned only the breaker')
+  console.log('loop: every round probes the breaker before spawning its critic OK')
+}
+
+// A dead breaker fails SAFE. A probe that returns nothing must stop the run,
+// not wave it through — failing open here is an uncancellable loop with no cap,
+// the single outcome the mechanism exists to prevent.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => (r === 1 ? true : null),
+    rounds: [],
+    runawayGuard: 5,
+  })
+  eq(r.result.outcome.status, 'CANCELLED', 'a breaker that returns nothing stops the run rather than continuing')
+  eq(r.result.rounds, 1, 'exactly 1 round completed before the dead probe')
+  ok(r.logs.some(l => /the breaker returned nothing at round 2/.test(l)), 'a WARNING names the dead probe rather than reporting it as an operator cancel')
+  console.log('loop: a breaker that returns nothing fails SAFE and stops the loop OK')
+}
+
+// A breaker that answers anything other than PRESENT is also a stop. The enum
+// says PRESENT|ABSENT, but the check must not be `=== 'ABSENT'` — an
+// out-of-enum answer is a broken probe, and broken probes stop the run.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => (r === 1 ? true : { token: 'MAYBE', evidence: 'a probe that ignored its schema' }),
+    rounds: [],
+    runawayGuard: 5,
+  })
+  eq(r.result.outcome.status, 'CANCELLED', 'a non-PRESENT answer stops the run, whatever word it used')
+  eq(r.result.rounds, 1, 'exactly 1 round completed')
+  console.log('loop: only PRESENT continues the loop — any other answer stops it OK')
+}
+
+// The breaker agent type is pinned, and it must be the isolated one. If this
+// ever resolves to the critic or the builder, the probe is no longer a third
+// party and the enforced bullet about it becomes false.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 1,
+    rounds: [],
+  })
+  const probe = r.prompts.find(p => p.label === 'round-1:breaker')
+  ok(probe, 'a breaker probe ran')
+  eq(probe.agentType, 'gauntlet-loop:gauntlet-breaker', 'the breaker agent type is exactly gauntlet-loop:gauntlet-breaker')
+  ok(probe.prompt.includes(TOKEN), 'the probe is told which path to test')
+  ok(!probe.prompt.includes(CANDIDATE), 'the probe is never told the candidate path')
+  ok(!probe.prompt.includes(REFERENCE), 'the probe is never told the reference path')
+  ok(!probe.prompt.includes(GOAL), 'the probe is never told the goal')
+  console.log('loop: the breaker is a third party — pinned agent type, and blind to goal and both artifacts OK')
 }
 
 // Budget stop: a budget whose remaining() falls below the reserve after
@@ -115,7 +196,7 @@ const GOAL = 'a goal worth looping over'
   let calls = 0
   const budget = { total: 100000000, remaining: () => (calls++ === 0 ? 100000000 : 10) }
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
     rounds: [{ candidateWins: false, gap: 'GAP-ROUND-1' }],
     budget,
   })
@@ -131,7 +212,7 @@ const GOAL = 'a goal worth looping over'
 {
   let threw = false
   try {
-    await runLoop({ args: { candidate: CANDIDATE, reference: REFERENCE } })
+    await runLoop({ args: { candidate: CANDIDATE, reference: REFERENCE, token: TOKEN } })
   } catch (e) {
     threw = true
     ok(/args\.goal is required/.test(e.message), 'missing-goal error names the missing arg')
@@ -151,7 +232,7 @@ const GOAL = 'a goal worth looping over'
 {
   let threw = false
   try {
-    await runLoop({ args: { goal: GOAL, candidate: CANDIDATE } })
+    await runLoop({ args: { goal: GOAL, candidate: CANDIDATE, token: TOKEN } })
   } catch (e) {
     threw = true
     ok(/args\.reference is required/.test(e.message), 'missing-reference error names the missing arg')
@@ -165,7 +246,7 @@ console.log('loop: required args throw, and the reference error explains why a b
 // calls use gauntlet-loop:gauntlet-builder. Pinned by exact equality.
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
     rounds: [
       { candidateWins: false, gap: 'GAP-ROUND-1' },
       { candidateWins: true, gap: 'unused' },
@@ -186,64 +267,109 @@ console.log('loop: required args throw, and the reference error explains why a b
 // true, per artifact under review at .superpowers/sdd/2026-08-23-gauntlet-first-run.
 // ---------------------------------------------------------------------------
 
-// #2/#7: round-count claim must be conditional on outcome.status, and the
-// default (no maxRounds, no budget) invocation must state the fixed cap
-// plainly instead of contradicting its own WARNING.
+// THERE IS NO ROUND CAP. This is the load-bearing test for the whole change:
+// with the token always present, no budget, and a critic that never picks the
+// candidate, nothing in loop.js stops the run. The old code stopped at 8. The
+// proof is that the HARNESS's own runaway guard has to be the thing that fires
+// — if loop.js still had a hidden default, this test would end quietly instead.
+{
+  let threw = null
+  try {
+    await runLoop({
+      args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+      rounds: [],
+      runawayGuard: 12,
+    })
+  } catch (e) { threw = e }
+  ok(threw, 'an unbounded run does NOT stop on its own — no round cap exists in loop.js')
+  ok(/harness runaway guard/.test(threw.message), 'it was the harness that stopped it, not loop.js')
+  ok(/round 13/.test(threw.message), 'the loop ran past 8 — the old default cap is gone, not merely raised')
+  console.log('loop: no round cap — an unbounded run runs past the old 8-round default until the harness stops it OK')
+}
+
+// ...and the NOTE that replaces the old cap WARNING must name the token as the
+// thing that will stop the run, because with no budget it is the only thing.
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE }, // no maxRounds, no budget
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN }, // no budget
+    breaker: r => r <= 1,
     rounds: [],
   })
-  eq(r.result.outcome.status, 'CAP', 'default invocation with no maxRounds/budget hits a cap')
-  eq(r.result.rounds, 8, 'the default cap is 8 rounds')
-  const claim = r.result.enforced.find(b => /round count|FIXED cap/i.test(b))
-  ok(claim, 'a round-count claim is present in enforced')
-  ok(/FIXED cap of 8 rounds/.test(claim), 'the default CAP run states the fixed cap plainly')
-  ok(!/no fixed round count/i.test(claim), 'the CAP claim does not also assert "no fixed round count"')
-  ok(r.logs.some(l => /WARNING: no maxRounds and no budget target/.test(l)), 'the honest default-cap WARNING is still logged')
-  console.log('loop: default invocation honestly reports the fixed 8-round cap instead of contradicting its own warning OK')
+  const note = r.logs.find(l => /no budget target set/.test(l))
+  ok(note, 'a run with no budget says so')
+  ok(note.includes(TOKEN), 'the note names the token path — the operator cannot cancel a path they were never told')
+  ok(/no round cap/.test(note), 'the note states plainly that there is no round cap')
+  const claim = r.result.enforced.find(b => /no round cap existed/.test(b))
+  ok(claim, 'the enforced round-count claim leads with the absence of a cap')
+  ok(/OPERATOR removed the run token/.test(claim), 'a CANCELLED run attributes the stop to the operator, not to a limit')
+  console.log('loop: the no-budget NOTE names the token, and CANCELLED credits the operator OK')
 }
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
     rounds: [{ candidateWins: true, gap: 'unused' }],
   })
-  const claim = r.result.enforced.find(b => /round count/i.test(b))
-  ok(/no fixed round count/i.test(claim), 'a WON run correctly keeps the "no fixed round count" claim')
-  console.log('loop: WON outcome keeps the no-fixed-round-count claim OK')
+  const claim = r.result.enforced.find(b => /no round cap existed/.test(b))
+  ok(claim, 'a WON run states that no round cap existed')
+  ok(/stopped on the candidate winning/.test(claim), 'and names the win as the reason it stopped')
+  console.log('loop: WON outcome reports the win as the terminator, with no cap to mention OK')
 }
 {
   let calls = 0
   const budget = { total: 100000000, remaining: () => (calls++ === 0 ? 100000000 : 10) }
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
     rounds: [{ candidateWins: false, gap: 'GAP-ROUND-1' }],
     budget,
   })
-  const claim = r.result.enforced.find(b => /round count/i.test(b))
-  ok(/ended on budget/.test(claim), 'a BUDGET run reports ending on budget, not a fixed round count')
-  console.log('loop: BUDGET outcome round-count claim reflects the actual stop reason OK')
+  const claim = r.result.enforced.find(b => /no round cap existed/.test(b))
+  ok(claim, 'a BUDGET run also states that no round cap existed')
+  ok(/pre-committed budget target/.test(claim), 'and attributes the stop to the budget, distinctly from an operator cancel')
+  ok(!/removed the run token/.test(claim), 'a budget stop is not reported as a cancel')
+  console.log('loop: BUDGET outcome is reported as its own terminator, distinct from a cancel OK')
 }
 
-// #7: an explicit maxRounds:0 must cap at zero rounds, not silently fall
-// through to the 8-round default (the old `|| null` treated 0 as absent).
+// A token that is absent at the FIRST check must stop the run before it spends
+// anything. This is the mistyped-path case: the operator names a token that was
+// never created, and the failure has to be cheap and self-explaining rather
+// than a run that quietly does nothing or, worse, one that runs uncancellable.
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, maxRounds: 0 },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: () => false,
     rounds: [],
   })
-  eq(r.result.outcome.status, 'CAP', 'maxRounds:0 is an explicit cap, not "no cap supplied"')
-  eq(r.result.rounds, 0, 'zero rounds ran when maxRounds is explicitly 0')
-  eq(r.labels.filter(l => l.endsWith(':ab')).length, 0, 'no critic spawned when maxRounds is explicitly 0')
-  ok(!r.logs.some(l => /WARNING: no maxRounds and no budget target/.test(l)), 'explicit maxRounds:0 does not trigger the "no maxRounds" warning')
-  console.log('loop: maxRounds:0 caps at zero rounds instead of silently defaulting to 8 OK')
+  eq(r.result.outcome.status, 'CANCELLED', 'an absent token stops the run immediately')
+  eq(r.result.rounds, 0, 'zero rounds ran')
+  eq(r.labels.filter(l => l.endsWith(':ab')).length, 0, 'no critic was spawned')
+  eq(r.labels.filter(l => l.endsWith(':build')).length, 0, 'no builder was spawned')
+  eq(r.labels, ['round-1:breaker'], 'the entire run cost one breaker probe and nothing else')
+  ok(/never created/.test(r.result.outcome.why), 'the reason distinguishes "never created" from a mid-run cancel')
+  ok(/check the path/.test(r.result.outcome.why), 'and tells the operator what to check')
+  console.log('loop: a token absent at the first check stops the run for the price of one probe OK')
+}
+
+// args.token is required, and the error has to explain why rather than just
+// naming the field — a missing token means a run with no stop at all.
+{
+  let threw = false
+  try {
+    await runLoop({ args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE } })
+  } catch (e) {
+    threw = true
+    ok(/args\.token is required/.test(e.message), 'missing-token error names the missing arg')
+    ok(/no round cap/.test(e.message), 'the error explains that the token is the stop, since there is no cap')
+    ok(/cancel-loop/.test(e.message), 'the error names the command that removes it')
+  }
+  ok(threw, 'missing args.token throws')
+  console.log('loop: args.token is required, and the error says why a run without one cannot be stopped OK')
 }
 
 // #3: the spawn count is not history.length. A critic that returns null at
 // round 2 means two critics were spawned but only one produced a verdict.
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
     critic: (round, s) => {
       if (round === 1) return { winner: s.referenceSide, why: 'why', gap: 'GAP-1', inspected: 'inspected' }
       return null
@@ -263,7 +389,8 @@ console.log('loop: required args throw, and the reference error explains why a b
 // — nothing stops several gaps being packed into that one field.
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, maxRounds: 1 },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 1,
     rounds: [],
   })
   const gapBullet = r.result.enforced.find(b => /gap SLOT/i.test(b))
@@ -277,7 +404,8 @@ console.log('loop: required args throw, and the reference error explains why a b
 // lacks, not to what it "could not fix" — it still holds Bash.
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, maxRounds: 1 },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 1,
     rounds: [],
   })
   const writeBullet = r.result.enforced.find(b => /no Write or Edit/i.test(b))
@@ -293,7 +421,8 @@ console.log('loop: required args throw, and the reference error explains why a b
 // say so instead of asserting blindness it did not buy.
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: 'https://example.com/theoriginal.html', maxRounds: 1 },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: 'https://example.com/theoriginal.html', token: TOKEN },
+    breaker: r => r <= 1,
     rounds: [],
   })
   ok(r.logs.some(l => /WARNING: args\.reference does not look like an absolute filesystem path/.test(l)), 'a URL reference triggers the loud runtime warning')
@@ -304,7 +433,8 @@ console.log('loop: required args throw, and the reference error explains why a b
 }
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: 'the original Call of Duty main menu, side by side', maxRounds: 1 },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: 'the original Call of Duty main menu, side by side', token: TOKEN },
+    breaker: r => r <= 1,
     rounds: [],
   })
   ok(r.logs.some(l => /WARNING: args\.reference does not look like an absolute filesystem path/.test(l)), 'a prose reference triggers the loud runtime warning')
@@ -313,7 +443,8 @@ console.log('loop: required args throw, and the reference error explains why a b
 }
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, maxRounds: 1 },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 1,
     rounds: [],
   })
   ok(!r.logs.some(l => /WARNING: args\.reference does not look like/.test(l)), 'a comparable-path reference triggers no blindness warning')
@@ -329,7 +460,7 @@ console.log('loop: required args throw, and the reference error explains why a b
 {
   const budget = { total: 100000000, remaining: 10 } // number, not a function
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
     rounds: [],
     budget,
   })
@@ -340,7 +471,7 @@ console.log('loop: required args throw, and the reference error explains why a b
 {
   const budget = { total: 100000000, remaining: () => { throw new Error('boom') } }
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
     rounds: [],
     budget,
   })
@@ -359,7 +490,7 @@ console.log('loop: required args throw, and the reference error explains why a b
 {
   const WHY = 'WHY-FIELD-shading is flat, audio is missing, and the menu has no transitions'
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
     rounds: [
       { candidateWins: false, gap: 'THE-ONE-GAP-FOR-ROUND-1', why: WHY },
       { candidateWins: true },
@@ -388,7 +519,8 @@ for (const [ref, what] of [
   ['~/x/theoriginal.html', 'a tilde path'],
 ]) {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: CANDIDATE, reference: ref, maxRounds: 1 },
+    args: { goal: GOAL, candidate: CANDIDATE, reference: ref, token: TOKEN },
+    breaker: r => r <= 1,
     rounds: [],
   })
   ok(r.logs.some(l => /WARNING: args\.reference does not look like an absolute filesystem path/.test(l)), `${what} triggers the blindness warning`)
@@ -402,7 +534,8 @@ console.log('loop: protocol-relative, Windows, relative and tilde references all
 // name rather than reported as a reference problem.
 {
   const r = await runLoop({
-    args: { goal: GOAL, candidate: 'mybuild.html', reference: REFERENCE, maxRounds: 1 },
+    args: { goal: GOAL, candidate: 'mybuild.html', reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 1,
     rounds: [],
   })
   ok(r.logs.some(l => /WARNING: args\.candidate does not look like an absolute filesystem path/.test(l)), 'a non-path candidate is named in the warning, not blamed on the reference')

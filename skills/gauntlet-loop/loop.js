@@ -1,7 +1,7 @@
 export const meta = {
   name: 'gauntlet-loop',
-  description: 'The loop: a builder and a fresh blind critic per round, A/B against a real reference, one gap back each time, until the candidate wins or the budget stops it',
-  whenToUse: 'When you have a goal and a concrete reference artifact that is better than what you have. This is the method the name refers to; gauntlet.js is a different instrument (a review panel) that does not loop.',
+  description: 'The loop: a builder and a fresh blind critic per round, A/B against a real reference, one gap back each time. No round cap — it runs until the candidate wins or the operator stops it',
+  whenToUse: 'When you have a goal and a concrete reference artifact that is better than what you have. This is the method the name refers to; gauntlet.js is a different instrument (a review panel) that does not loop. Start it with /gauntlet-loop:loop, stop it with /gauntlet-loop:cancel-loop.',
   phases: [
     { title: 'Loop', detail: 'build → blind A/B → one gap → build again' },
   ],
@@ -53,18 +53,37 @@ export const meta = {
 //                  letting it ship unexamined.
 //   args.inspect   (optional) how to look at the artifacts — a command to run,
 //                  a thing to open. Passed verbatim to the critic.
-//   args.maxRounds (optional) a safety cap, NOT a target. Omit it and the loop
-//                  runs on budget alone, which is the faithful behaviour.
+//   args.token     (required) absolute path to the RUN TOKEN — a file whose
+//                  EXISTENCE means "keep looping". Removing it stops the run at
+//                  the next round boundary. This is the circuit breaker, and it
+//                  is the operator's half of the source's stop rule: "Keep
+//                  looping until our output wins or I stop the run."
+//
+// There is deliberately no round cap and no `args.maxRounds`. The baseline
+// prompt contains no round language at all — its three stop clauses are "it
+// should keep going", "Don't stop until each sub-agent is utterly wowed" and
+// "/loop until it's utterly perfect", every one of them conditioned on quality.
+// The meta-prompt forbids the parameter by name: "Do not prescribe the
+// architecture, exact decomposition, or a fixed number of rounds", and the
+// guide adds "there should be no arbitrary final round." A cap this file chose
+// for itself — even a large one, even a documented one — is the arbitrary final
+// round wearing a different label. So the terminators are exactly the two the
+// source names, plus the two any real program needs:
+//
+//   WON       the candidate beat the reference in a blind A/B  (source)
+//   CANCELLED the operator removed the run token               (source: "or I stop the run")
+//   BUDGET    the operator's token target ran out              (an operator stop, pre-committed)
+//   ERROR     an agent returned nothing
+//
+// Nothing else stops this loop. If no budget is set and nobody cancels, it runs
+// until the candidate wins or the host's own runaway backstop trips. That is
+// the method, and it is why the token is required rather than optional.
 
 const GOAL = args && args.goal
 const CANDIDATE = args && args.candidate
 const REFERENCE = args && args.reference
 const INSPECT = (args && args.inspect) || null
-// An explicit maxRounds:0 is a real cap (run zero rounds), not "unset". The
-// old `(args.maxRounds) || null` treated 0 as falsy and silently fell through
-// to the 8-round default — on the one parameter that governs spend, in a repo
-// whose thesis is cost gating. Test the value's presence, not its truthiness.
-const MAX_ROUNDS = (args && args.maxRounds != null) ? args.maxRounds : null
+const TOKEN = args && args.token
 
 if (!GOAL) throw new Error('args.goal is required')
 if (!CANDIDATE) throw new Error('args.candidate is required — an absolute path, built if absent')
@@ -72,6 +91,12 @@ if (!REFERENCE) throw new Error(
   'args.reference is required. The bar is the most important part of this method: without a ' +
   'concrete thing to compare against, the critic invents its own comparison and approves ' +
   'everything. If you have no reference, you do not have a gauntlet loop — you have a builder.'
+)
+if (!TOKEN) throw new Error(
+  'args.token is required — an absolute path to a file whose existence means "keep looping". ' +
+  'This loop has no round cap by design, so the token IS the stop: removing it ends the run at ' +
+  'the next round boundary. Create it before launching (the /gauntlet-loop:loop command does), ' +
+  'and remove it with /gauntlet-loop:cancel-loop. A run with no token is a run nobody can stop.'
 )
 
 // ---------------------------------------------------------------------------
@@ -136,11 +161,76 @@ function budgetLeft() {
     return 0
   }
 }
-if (MAX_ROUNDS == null && !(budget && budget.total)) {
-  log('WARNING: no maxRounds and no budget target. The source says not to fix a round count, ' +
-      'but something has to stop this. Defaulting to 8 rounds — set a budget to do better.')
+if (!(budget && budget.total)) {
+  log('NOTE: no budget target set. This loop has no round cap, so the only things that will ' +
+      `stop it are the candidate winning, an agent failing, or you removing the run token at ` +
+      `${TOKEN} (/gauntlet-loop:cancel-loop). That is the faithful configuration, and it means ` +
+      'nobody but you will stop it. Set a budget target if you want a pre-committed ceiling.')
 }
-const HARD_CAP = MAX_ROUNDS != null ? MAX_ROUNDS : (budget && budget.total ? 40 : 8)
+
+// ---------------------------------------------------------------------------
+// THE CIRCUIT BREAKER.
+//
+// The run token is a file on disk. This script cannot see it: a Workflow script
+// has no filesystem access, and loop.js may not import or require anything (the
+// drift guard enforces that, because those calls throw in the real runtime).
+// So the check has to be delegated, and the choice of WHO checks is the whole
+// design:
+//
+//   not the critic  — it holds Bash and is the blind party. Handing it a path
+//                     inside the run's own scratch layout gives it one more
+//                     thread to pull on when working out which artifact is
+//                     ours. Round 1 of the first live run had a critic identify
+//                     both sides by diffing them against the filesystem; the
+//                     answer to that is not to hand the next one a map.
+//   not the builder — it is the party being stopped. A cancel signal read and
+//                     reported by the thing it cancels is a self-report, and
+//                     this file's own rule is that a quantity derived
+//                     downstream of the decision under test cannot audit it.
+//   a third party   — an agent whose entire tool allowlist is Bash, which never
+//                     sees the goal, the artifacts, or the verdict, and whose
+//                     only output is whether one named path exists.
+//
+// It costs one cheap spawn per round. That is the price of the property being
+// structural instead of promised.
+//
+// It fails SAFE, exactly like budgetLeft(): a breaker that returns nothing, or
+// anything other than a clear PRESENT, stops the run. Failing open here would
+// mean an uncancellable loop with no cap, which is the one outcome this
+// mechanism exists to prevent.
+// ---------------------------------------------------------------------------
+const BREAKER_SCHEMA = {
+  type: 'object',
+  required: ['token'],
+  properties: {
+    token: { type: 'string', enum: ['PRESENT', 'ABSENT'], description: 'PRESENT if the file exists, ABSENT if it does not. Report what the test returned; do not guess and do not create the file.' },
+    evidence: { type: 'string', description: 'the exact command you ran and its exact output' },
+  },
+}
+
+async function tokenPresent(round) {
+  const probe = await agent(
+    `Report whether ONE file exists. This is the whole task — do not read it, do not create it,
+do not modify it, and do not look at anything else on the filesystem.
+
+    ${TOKEN}
+
+Run exactly this and report what it prints:
+
+    test -e ${JSON.stringify(TOKEN)} && echo PRESENT || echo ABSENT
+
+Return that word in \`token\`, and the command plus its literal output in \`evidence\`. If the
+command cannot be run at all, return ABSENT — a breaker that cannot be read is a breaker that
+has failed, and this run stops rather than continuing uncancellable.`,
+    { label: `round-${round}:breaker`, phase: 'Loop', schema: BREAKER_SCHEMA, agentType: 'gauntlet-loop:gauntlet-breaker' }
+  )
+  if (!probe) {
+    log(`WARNING: the breaker returned nothing at round ${round} — treating the run as cancelled rather than continuing a loop nobody can stop`)
+    return false
+  }
+  if (probe.token !== 'PRESENT') return false
+  return true
+}
 
 const AB_SCHEMA = {
   type: 'object',
@@ -193,16 +283,28 @@ const history = []
 let round = 0
 let outcome = null
 let criticSpawns = 0 // every agent() call for a critic, including ones that return null — NOT history.length
+let breakerSpawns = 0 // every breaker probe, including the one that reports the cancel
 
 while (true) {
   round++
 
-  if (round > HARD_CAP) {
-    outcome = { status: 'CAP', why: `hit the ${HARD_CAP}-round cap without the candidate winning` }
-    break
-  }
+  // Budget first: it is free to check, so a run that is already out of money
+  // does not pay for a breaker probe to be told so.
   if (budgetLeft() < ROUND_RESERVE) {
     outcome = { status: 'BUDGET', why: `stopped with ~${Math.round(budgetLeft() / 1000)}k left — under the ${ROUND_RESERVE / 1000}k a round needs` }
+    break
+  }
+  // Then the breaker, BEFORE the critic — so a cancel costs at most one cheap
+  // probe, never a critic and a builder. Round 1 checks too: that is what
+  // catches a mistyped token path before the run spends anything real.
+  breakerSpawns++
+  if (!(await tokenPresent(round))) {
+    outcome = {
+      status: 'CANCELLED',
+      why: round === 1
+        ? `the run token at ${TOKEN} was already absent before round 1 — either the operator cancelled immediately, or it was never created (check the path)`
+        : `the operator removed the run token at ${TOKEN}; stopped at the round ${round} boundary after ${history.length} completed round(s)`,
+    }
     break
   }
 
@@ -323,30 +425,34 @@ know, and a fresh critic decides next round. Report what you changed, factually.
 }
 
 // ---------------------------------------------------------------------------
-// Report. A loop that stopped on budget or cap has NOT failed — the source is
-// explicit that the bar need not be reachable and that the operator stopping is
-// the normal ending. What matters is whether the gaps were getting smaller.
+// Report. A loop the operator stopped has NOT failed — the source is explicit
+// that the bar need not be reachable and that the operator stopping is the
+// normal ending: "A hard bar does not need to be realistically reachable. My
+// game did not become better than Call of Duty. I stopped the run while it was
+// still improving." What matters is whether the gaps were getting smaller.
 // ---------------------------------------------------------------------------
 
 const sidesUsed = history.map(h => h.candidateSide)
 const balanced = sidesUsed.filter(x => x === 'A').length + ' as A / ' + sidesUsed.filter(x => x === 'B').length + ' as B'
 
-// Honest per-outcome round-count claim. "No fixed round count" is true of a
-// WON run and false of the far more common default CAP run — this file's own
-// HARD_CAP is a fixed number the moment neither maxRounds nor a budget is
-// supplied. State what actually happened instead of a claim that contradicts
-// the WARNING already logged above.
+// Honest per-outcome round-count claim. No branch here can say "no fixed round
+// count" and be lying, because there is no longer a number to hide: the cap was
+// removed, not raised. What each branch still has to be honest about is WHICH
+// terminator fired, since "the operator stopped it" and "it ran out of money"
+// and "it won" are three different results that prose flattens into "it ended".
 const ROUND_COUNT_CLAIM = (() => {
   if (outcome.status === 'WON') {
-    return `no fixed round count bound this run — it stopped at round ${outcome.round} on the candidate winning, ahead of the ${HARD_CAP}-round cap`
+    return `no round cap existed and none was needed — the loop ran ${outcome.round} round(s) and stopped on the candidate winning the blind A/B`
   }
-  if (outcome.status === 'CAP') {
-    return `this run hit a FIXED cap of ${HARD_CAP} rounds${MAX_ROUNDS != null ? ' (operator-set via args.maxRounds)' : ' — the undocumented default, since neither maxRounds nor a budget was supplied'} without the candidate winning; round count was NOT open-ended here`
+  if (outcome.status === 'CANCELLED') {
+    return history.length === 0
+      ? `no round cap existed; the run never started a round because the token at ${TOKEN} was absent at the first check`
+      : `no round cap existed — the loop ran ${history.length} round(s) and stopped because the OPERATOR removed the run token, which is the source's own second terminator ("until our output wins or I stop the run"). The candidate had not won when it stopped`
   }
   if (outcome.status === 'BUDGET') {
-    return `the loop ended on budget after ${history.length} round(s), not a fixed round count`
+    return `no round cap existed — the loop ran ${history.length} round(s) and stopped on the operator's pre-committed budget target, not on a round count`
   }
-  return `the loop ended in ${outcome.status} after ${history.length} round(s) — neither a win, a budget stop, nor a completed cap`
+  return `no round cap existed — the loop ended in ${outcome.status} after ${history.length} round(s), which is a failure to continue rather than any of the three real stops (win, operator cancel, budget)`
 })()
 
 return {
@@ -370,6 +476,8 @@ return {
     'the builder ran as an agent type with no Agent/ListAgents/SendMessage — it could not reach or spawn a critic',
     'the builder was handed the gap STRING and nothing else from the verdict — the critic\'s `why` field is not forwarded (it is collected and recorded, but never reaches the build prompt), and the builder never learned the sides, the critic\'s identity, or the run\'s history',
     'one gap SLOT is required per round by the schema (AB_SCHEMA.gap is in `required`) — the critic cannot omit a gap entirely (see not_enforced for what this does not buy)',
+    `the run was interruptible at EVERY round boundary: the token at ${TOKEN} was checked ${breakerSpawns} time(s), before the critic spawned each round, by an agent type whose whole tool allowlist is Bash and which never saw the goal, either artifact, or any verdict`,
+    'the breaker fails SAFE — a probe that returns nothing, or anything other than PRESENT, stops the run. An uncancellable loop cannot be produced by the breaker failing',
     ROUND_COUNT_CLAIM,
   ],
 
@@ -383,11 +491,15 @@ return {
     'AB_SCHEMA.gap is a free-text string: nothing stops several gaps being packed into it (e.g. "Gap 1: ... Gap 2: ..."). Only one gap SLOT is enforced, not one gap.',
     'Nothing verifies that the named gap is really the LARGEST — only that exactly one slot came back.',
     'No calibration: this loop never checks that the critic could have failed. gauntlet.js\'s gate 7 does that and is not wired in here.',
+    'The breaker is checked at ROUND BOUNDARIES, not continuously. Removing the token while a critic or builder is mid-flight does not abort that agent — the run stops before the next round starts. To stop a round already in progress, kill the workflow itself.',
+    'Nothing stops the token being re-created after a cancel. The breaker reports the state at each boundary; it does not latch.',
+    'With no budget target set, there is no pre-committed ceiling at all — the run continues until it wins, an agent fails, or the operator cancels. That is the source\'s design, not an oversight, and it means an unattended run is bounded only by the host\'s own runaway backstop.',
   ],
 
   reading_note:
-    'Stopping on BUDGET or CAP is not failure. The source is explicit that a hard bar "does not ' +
-    'need to be realistically reachable" and that the operator stopping is the normal ending. ' +
-    'Read `gaps_in_order` instead: if the gaps got smaller and more specific, the loop was working. ' +
-    'If round 8 names the same gap as round 1, it was not — and that is the signal to read, not the verdict.',
+    'Stopping on CANCELLED or BUDGET is not failure. The source is explicit that a hard bar "does ' +
+    'not need to be realistically reachable" and that the operator stopping is the normal ending — ' +
+    'Shumer stopped his own run "while it was still improving". Read `gaps_in_order` instead: if the ' +
+    'gaps got smaller and more specific, the loop was working. If the last round names the same gap ' +
+    'as the first, it was not — and that is the signal to read, not the verdict.',
 }
