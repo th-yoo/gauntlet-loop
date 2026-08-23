@@ -1,13 +1,14 @@
-// Loads gauntlet.js into a stubbed agent runtime so the orchestration can be
-// exercised offline. The script is plain JS meant to run inside an async
-// function with injected globals, which is exactly what AsyncFunction gives us.
+// Loads a Workflow script from skills/gauntlet-loop/ into a stubbed agent
+// runtime so the orchestration can be exercised offline. Scripts are plain JS
+// meant to run inside an async function with injected globals, which is
+// exactly what AsyncFunction gives us.
 
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const SRC = join(ROOT, 'skills', 'gauntlet-loop', 'gauntlet.js')
+const SKILLS_DIR = join(ROOT, 'skills', 'gauntlet-loop')
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 
@@ -20,6 +21,24 @@ export function eq(actual, expected, msg) {
   const e = JSON.stringify(expected)
   if (a !== e) throw new Error(`ASSERT FAILED: ${msg}\n  expected: ${e}\n  actual:   ${a}`)
 }
+
+// ---------------------------------------------------------------------------
+// Generic loader — the one place the AsyncFunction wiring lives. Any script
+// in skills/gauntlet-loop/ is plain top-level code sharing the same five
+// injected globals (agent, parallel, pipeline, log, phase) plus args/budget.
+// `export const meta` is stripped because these are not ES modules at
+// runtime; the Workflow harness loads them as scripts, not imports.
+// ---------------------------------------------------------------------------
+function loadWorkflowScript(filename) {
+  const src = readFileSync(join(SKILLS_DIR, filename), 'utf8').replace('export const meta', 'const meta')
+  return new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', src)
+}
+
+// ---------------------------------------------------------------------------
+// gauntlet.js — unchanged from the original single-script harness. Every
+// existing test in orchestration.test.mjs depends on this behaving exactly
+// as before.
+// ---------------------------------------------------------------------------
 
 // opts.design    - object returned for the gate2:design call
 // opts.bar       - object returned for the gate5:blind-bar call
@@ -87,9 +106,106 @@ export async function runGauntlet(opts) {
   const phase = () => {}
   const budget = { total: null, spent: () => 0, remaining: () => Infinity }
 
-  const src = readFileSync(SRC, 'utf8').replace('export const meta', 'const meta')
-  const fn = new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', src)
+  const fn = loadWorkflowScript('gauntlet.js')
   const result = await fn(agent, parallel, pipeline, log, phase, opts.args, budget)
 
   return { result, prompts, labels: prompts.map(p => p.label) }
+}
+
+// ---------------------------------------------------------------------------
+// loop.js — drives a SEQUENCE of rounds rather than a single pass. The test
+// controls what each round's critic returns (does the candidate win, and
+// what gap comes back), and optionally what the builder returns and how the
+// budget behaves.
+//
+// opts.args    - passed straight through as the script's `args` global
+// opts.rounds  - array, one entry per round, 0-indexed by round-1:
+//                  { candidateWins: bool, gap, why, inspected, margin }
+//                Rounds beyond the array's length (or when the array is
+//                omitted/empty) get opts.roundFallback, defaulting to a
+//                critic that never picks the candidate — this is what lets a
+//                cap/budget test run N rounds without enumerating each one.
+// opts.critic  - optional function(round, {candidateSide, referenceSide})
+//                -> verdict-shaped object (or null), overriding opts.rounds
+//                entirely. Use this when a test needs logic opts.rounds can't
+//                express (e.g. returning nothing to simulate a dead critic).
+// opts.builder - optional function(round, prompt) -> BUILD_SCHEMA-shaped
+//                object (or null). Defaults to a fixed, harmless report.
+// opts.budget  - optional budget stub ({ total, remaining() }), forwarded
+//                as-is. Defaults to no budget target (remaining => Infinity),
+//                matching runGauntlet's default.
+//
+// The critic side is resolved by reading the ACTUAL prompt text for which
+// path was rendered as "ARTIFACT A: <path>" — not by recomputing loop.js's
+// alternation formula here. Duplicating that formula in the stub would let a
+// broken alternation in loop.js sail through undetected.
+// ---------------------------------------------------------------------------
+
+const DEFAULT_ROUND_FALLBACK = { candidateWins: false, gap: 'fallback gap — the critic never picks the candidate', why: 'fallback why', inspected: 'fallback inspected' }
+
+export async function runLoop(opts) {
+  opts = opts || {}
+  const prompts = []
+  const CANDIDATE = opts.args && opts.args.candidate
+
+  function roundOf(label) {
+    const m = /^round-(\d+):/.exec(label)
+    return m ? Number(m[1]) : null
+  }
+
+  // Only used when opts.critic is not supplied — see the branch in agent()
+  // below, which handles opts.critic directly against the real prompt.
+  function specForRound(round) {
+    const rounds = opts.rounds || []
+    if (round - 1 < rounds.length && rounds[round - 1] !== undefined) return rounds[round - 1]
+    return opts.roundFallback || DEFAULT_ROUND_FALLBACK
+  }
+
+  async function agent(prompt, o) {
+    const label = (o && o.label) || '(unlabeled)'
+    prompts.push({ label, prompt, agentType: o && o.agentType, phase: o && o.phase })
+
+    if (label.endsWith(':ab')) {
+      const round = roundOf(label)
+      const candidateIsA = CANDIDATE != null && prompt.includes(`ARTIFACT A: ${CANDIDATE}`)
+      const candidateSide = candidateIsA ? 'A' : 'B'
+      const referenceSide = candidateIsA ? 'B' : 'A'
+
+      if (typeof opts.critic === 'function') {
+        const spec = opts.critic(round, { candidateSide, referenceSide })
+        return spec
+      }
+
+      const spec = specForRound(round)
+      if (spec === null || spec === undefined) return spec
+      const winner = spec.winner !== undefined ? spec.winner : (spec.candidateWins ? candidateSide : referenceSide)
+      return {
+        winner,
+        why: spec.why !== undefined ? spec.why : 'why',
+        gap: spec.gap !== undefined ? spec.gap : `gap-round-${round}`,
+        inspected: spec.inspected !== undefined ? spec.inspected : 'inspected',
+        margin: spec.margin,
+      }
+    }
+
+    if (label.endsWith(':build')) {
+      const round = roundOf(label)
+      if (typeof opts.builder === 'function') return opts.builder(round, prompt)
+      return { changed: `did round ${round}`, where: 'candidate.js' }
+    }
+
+    return null
+  }
+
+  const parallel = async thunks => Promise.all(thunks.map(t => t()))
+  const pipeline = async () => []
+  const logs = []
+  const log = m => logs.push(m)
+  const phase = () => {}
+  const budget = opts.budget || { total: null, remaining: () => Infinity }
+
+  const fn = loadWorkflowScript('loop.js')
+  const result = await fn(agent, parallel, pipeline, log, phase, opts.args, budget)
+
+  return { result, prompts, labels: prompts.map(p => p.label), logs }
 }
