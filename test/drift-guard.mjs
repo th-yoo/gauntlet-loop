@@ -91,6 +91,14 @@ const ALLOWLIST = [
   { agent: 'gauntlet-judge', forbidden: ['Read', 'Grep', 'Glob', 'Bash', 'Agent', 'ListAgents', 'SendMessage', 'WebSearch', 'WebFetch'], buys: 'cannot form its own opinion of the artifact and grade the critic against that' },
 ]
 
+// A disclosure that can be deleted without failing a test is not a
+// disclosure. Each of these MUST appear verbatim in gauntlet.js's
+// `not_enforced` prose — this pins the disclosure itself, not just the
+// property it discloses.
+const DISCLOSURES = [
+  'general shell and can write files',
+]
+
 let failures = 0
 const fail = m => { console.error(`  FAIL  ${m}`); failures++ }
 
@@ -133,6 +141,11 @@ for (const a of ALLOWLIST) {
   }
 }
 
+console.log('drift-guard: required disclosures present in gauntlet.js')
+for (const needle of DISCLOSURES) {
+  if (!script.includes(needle)) fail(`"${needle}" — not found in gauntlet.js; a not_enforced disclosure was removed or reworded away`)
+}
+
 console.log('drift-guard: gates 0/1/4 stay out of the script')
 for (const forbidden of ['cost_ceiling', 'costCeiling', 'gate0', 'gate1:', 'gate4']) {
   if (script.includes(forbidden)) fail(`gauntlet.js references "${forbidden}" — gates 0/1/4 are operator-run and must stay in prose`)
@@ -159,4 +172,4 @@ if (failures) {
   console.error(`\ndrift-guard: ${failures} failure(s) — the script and its prompt authority have diverged.`)
   process.exit(1)
 }
-console.log(`\ndrift-guard: OK — ${PINNED.length} contract elements + ${GATE_SEMANTICS.length} gate semantics pinned, ${ALLOWLIST.length} allowlists still denying, gates 0/1/4 absent from script, AT map namespaced.`)
+console.log(`\ndrift-guard: OK — ${PINNED.length} contract elements + ${GATE_SEMANTICS.length} gate semantics pinned, ${ALLOWLIST.length} allowlists still denying, ${DISCLOSURES.length} disclosure(s) present, gates 0/1/4 absent from script, AT map namespaced.`)

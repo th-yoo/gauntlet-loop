@@ -29,8 +29,9 @@ lose**, rather than one the operator remembers to add:
 |---|---|---|
 | `gauntlet-bar-writer` | `Read` `Grep` `Glob` `Bash` | cannot open the artifact — gate 5 |
 | `gauntlet-critic` | `Agent` `ListAgents` `SendMessage` | cannot discover or address a peer critic |
-| `gauntlet-critic` | `Write` `Edit` | cannot alter what the others are reading |
+| `gauntlet-critic` | `Write` `Edit` | no file-editing tool call can alter the artifact (Bash is not closed — see below) |
 | `gauntlet-verifier` | `Agent` `ListAgents` `SendMessage` | cannot delegate its own checking |
+| `gauntlet-judge` | `Read` `Grep` `Glob` `Bash` `Agent` | cannot form its own opinion of the artifact and grade the critic against that |
 | `gauntlet-isolator` | `Agent` `SendMessage` `WebSearch` `WebFetch` | cannot tell a comparing critic which side is ours |
 | `gauntlet-reporter` | `Read` `Grep` `Glob` `Bash` `Agent` | can only write down what the run handed it |
 
@@ -68,6 +69,13 @@ removed text is recallable from a model's prior, no sandbox closes that channel 
 a tighter re-run yields a *false pass*. `n=1` per calibrated lens. Critics share a
 model family unless you vary it, and judge-panel correlation is measured **across**
 families — varying only the lens does not buy independent votes.
+
+Critics hold `Bash`, which is a general shell and can write files. "Critics cannot
+alter the artifact" is therefore false as stated — the `Write`/`Edit` denial closes
+the tool-call channel, not the shell. `Bash` stays: the `HARNESS` anchor type in
+`critic-prompt.md` requires running commands, and it is load-bearing for the run's
+best findings. Round-1 critics are all pointed at the same live artifact path
+concurrently, so this is a disclosed exposure, not a theoretical one.
 
 ## Install
 

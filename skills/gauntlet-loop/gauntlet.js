@@ -1048,7 +1048,7 @@ const verdict = {
   enforced: [
     `bar writer ran as "${AT.bar}", whose tool allowlist has no Read, Grep, Glob or Bash — it could not open the artifact even if instructed to`,
     `critics ran as "${AT.critic}", whose allowlist has no Agent, ListAgents or SendMessage — no critic could discover or address a peer`,
-    'critics have no Write or Edit — none could alter the artifact the others were reading',
+    'critics have no Write or Edit tool — no critic could alter the artifact through a file-editing tool call',
     `verifier ran as "${AT.verifier}" and could not delegate its own checking`,
     'seeder was never handed the critic prompt',
     'calibration critic and control critic ran the byte-identical deployed prompt and were not told it was a trial',
@@ -1071,6 +1071,7 @@ const verdict = {
     'n=1 per calibrated lens — one planted defect, one session.',
     'Copies are separated by path, not by permission: a critic holds LS and Glob and can walk the filesystem. Passing args.control_scratch outside the seeded tree makes the walk longer, not impossible. Isolation of the control arm is path-deep, not tool-deep.',
     'Critics share a model family unless the operator varied it. Judge-panel correlation is measured ACROSS families; varying only the lens does not buy independent votes, and this harness offers no second family to vary to.',
+    'Critics hold Bash, which is a general shell and can write files. "Critics cannot alter the artifact" is therefore false as stated: the Write/Edit denial closes the tool-call channel and not the shell. Bash is load-bearing — the HARNESS anchor type requires running commands — so this is a disclosed exposure, not an oversight. Round-1 critics all read the same live path concurrently.',
     REFERENCE ? 'Which side of the A/B is ours was chosen by the isolator, not by a code-level randomiser — this runtime has none. A comparing critic cannot see the mapping, but the choice is an agent\'s, not a coin\'s.' : null,
     REFERENCE ? 'Blinding is content-deep only. A reference exemplar famous enough to be recognised from its prose is not blinded by stripping its title.' : null,
   ].filter(Boolean),
