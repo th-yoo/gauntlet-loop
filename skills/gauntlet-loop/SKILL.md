@@ -66,6 +66,8 @@ it.
 - **Make the leak checkable:** the sealed note records the verbatim text the seeder removed; the judge greps the critic's output for those strings. A match proves it reached the original.
 - **One calibrated critic licenses one critic.** Calibrating L1 grounds L1, not a verdict computed from L1–L4. Calibrate every deployed lens, or carry `N-1 lenses uncalibrated`. *(n=1 — one planted defect, one session.)*
 
+**Write the decision down before you spend.** One line in `runs/refusals.jsonl` — the gate 0/1/4 verdicts and their verbatim reasons, plus the files gate 0 claims settle it. It adds no step; gates 0 and 1 are free and already run. **A gate-0 NO then triggers the width-1 lane anyway** (~150k), and the refusal is scored a false negative only if that lane finds something high-severity, GROUNDED, *and* anchored outside the files gate 0 named. Otherwise "after a NO, nothing runs" stays true and the gates stay untested. See `runs/README.md`.
+
 **A halted run's blind artifacts survive it.** A bar written by an agent that never saw the artifact is still blind tomorrow; gate 5 doesn't need re-paying. Carry it into the rerun. Re-deriving it turns one halt into two full prices.
 
 ## Shape
