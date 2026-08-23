@@ -20,6 +20,14 @@ export const meta = {
 //   args.artifact   (required) absolute path to the thing under review
 //   args.scratch    (required) absolute path to an EMPTY dir the seeder may
 //                   write into. Must not be inside the artifact's own tree.
+//   args.control_scratch (optional) absolute path to an EMPTY dir for the
+//                   control copy only. For this to buy anything, it must be a
+//                   directory the operator considers UNRELATED to args.scratch
+//                   — a different branch of the filesystem, not a subdirectory
+//                   of it. If omitted, the control is written under
+//                   args.scratch itself (${SCRATCH}/control-root/...), which
+//                   is weaker: the calibration critic's own directory listing
+//                   still leads to the control, just one hop further away.
 //   args.lenses     (optional) integer 2-4. Default 3. Gate 2 names them.
 //   args.need       (optional) operator's restatement of the need. Supplying
 //                   this is stronger than letting gate 2 derive it, because
@@ -75,6 +83,12 @@ const WANT_REPORT = !(args && args.report === false)
 
 if (!ARTIFACT) throw new Error('args.artifact is required — absolute path to the artifact under review')
 if (!SCRATCH) throw new Error('args.scratch is required — an empty dir the seeder can write an isolated copy into')
+
+// Root the control copy somewhere the calibration critic is never pointed.
+// Passing args.control_scratch outside the seeded tree is what buys distance;
+// the fallback keeps the control under SCRATCH and is weaker (see the args
+// header comment above and the not_enforced note below).
+const CONTROL_ROOT = (args && args.control_scratch) || `${SCRATCH}/control-root`
 
 // A removed string shorter than this cannot carry a leak check: short text
 // recurs by chance in any critic's output, so matching it proves nothing and
@@ -217,8 +231,8 @@ const SEED_SCHEMA = {
   type: 'object',
   required: ['seeded_path', 'control_path', 'removed_verbatim', 'inserted_verbatim', 'location', 'defect_kind', 'why_in_lane'],
   properties: {
-    seeded_path: { type: 'string', description: 'absolute path of the isolated copy WITH the defect' },
-    control_path: { type: 'string', description: 'absolute path of the isolated copy WITHOUT the defect — same isolation treatment, byte-identical to the seeded copy except for the plant' },
+    seeded_path: { type: 'string', description: 'absolute path of the isolated copy WITH the defect, written under the seeded trial directory (SCRATCH/trial-N/subject.ext)' },
+    control_path: { type: 'string', description: 'absolute path of the isolated copy WITHOUT the defect, written under the SEPARATE control root (CONTROL_ROOT/trial-N/subject.ext) — same basename, same isolation treatment, byte-identical to the seeded copy except for the plant' },
     removed_verbatim: {
       type: 'array', items: { type: 'string' },
       description: `EXACT strings you deleted. The leak check greps critic output for these, so at least one must be ${LEAK_MIN_CHARS}+ characters or the trial is not leak-checkable and VOIDS.`,
@@ -539,12 +553,16 @@ reviewer's prompt and must not go looking for it — knowing how the reviewer is
 would let you tune the defect to evade it, which measures evasion rather than capability.
 
 1. Read the artifact at ${ARTIFACT}.
-2. Write TWO complete copies into ${SCRATCH}:
-     ${SCRATCH}/seeded-${attempt}${extOf(ARTIFACT)}   — with exactly ONE defect introduced
-     ${SCRATCH}/control-${attempt}${extOf(ARTIFACT)}  — with NO defect
-   The two must be byte-identical except for the plant. The control is the other arm of
-   this measurement: a reviewer that files at the plant site on the CONTROL was never
-   detecting anything, and the trial has to be able to show that.
+2. Write TWO complete copies, each into its OWN directory, under the SAME basename:
+     ${SCRATCH}/trial-${attempt}/subject${extOf(ARTIFACT)}         — with exactly ONE defect introduced
+     ${CONTROL_ROOT}/trial-${attempt}/subject${extOf(ARTIFACT)}    — with NO defect
+   The identical basename is deliberate: the filename must carry no signal about which
+   copy is which. The two directories are deliberate too — the reviewer that will read
+   the seeded copy is never pointed at ${CONTROL_ROOT}, so it has no directory listing
+   that leads it to the control. The two files must still be byte-identical except for
+   the plant. The control is the other arm of this measurement: a reviewer that files at
+   the plant site on the CONTROL was never detecting anything, and the trial has to be
+   able to show that.
 3. The defect must land inside this lane, because that is the reviewer being measured:
      ${calLens.lens}
    A plant outside this lane VOIDS the measurement — the reviewer is instructed to stay in
@@ -1027,6 +1045,7 @@ const verdict = {
     'Isolation of the seeded copy is best-effort. If the removed text is recoverable from public sources or the model\'s own prior, no sandbox closes that channel and a tighter re-run yields a false pass rather than a catch.',
     'The specificity arm is n=1, like the sensitivity arm. A clean control rules out a habit this critic has every time; it does not rule out one it has sometimes.',
     'n=1 per calibrated lens — one planted defect, one session.',
+    'Copies are separated by path, not by permission: a critic holds LS and Glob and can walk the filesystem. Passing args.control_scratch outside the seeded tree makes the walk longer, not impossible. Isolation of the control arm is path-deep, not tool-deep.',
     'Critics share a model family unless the operator varied it. Judge-panel correlation is measured ACROSS families; varying only the lens does not buy independent votes, and this harness offers no second family to vary to.',
     REFERENCE ? 'Which side of the A/B is ours was chosen by the isolator, not by a code-level randomiser — this runtime has none. A comparing critic cannot see the mapping, but the choice is an agent\'s, not a coin\'s.' : null,
     REFERENCE ? 'Blinding is content-deep only. A reference exemplar famous enough to be recognised from its prose is not blinded by stripping its title.' : null,
