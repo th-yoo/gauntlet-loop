@@ -54,16 +54,17 @@ it.
 
 **5. Bar independence.** The author doesn't write the bar. If the request names its own solution ("move to JWTs"), restate the need ("stateless auth") and set criteria from that.
 
-**6. The bar can fire.** Name one case where it passes and one where it doesn't. Gate 3 doesn't imply this — a saturated corpus never engages the clause.
+**6. The bar can fire.** Name one case where it passes and one where it doesn't. Gate 3 doesn't imply this — a saturated corpus never engages the clause. A criterion missing either case is re-asked once, then **dropped, and fewer than two survivors halts** the run. Both directions matter, for different reasons: no failing case means it cannot discriminate, no passing case means nothing can meet it. The second is the characteristic failure of a bar written blind, and it is invisible from inside the run — an unmeetable bar rejects good work and reads as rigour while doing it.
 
 **7. The critic can fail.** A party who hasn't seen the critic prompt seeds a defect into an **isolated** copy. Prose included, no exempt medium.
 
 - **Calibrate the critic you deploy** — byte-identical prompt, same model, same effort. A stand-in measures a critic nobody is using and reads as rigour.
+- **Two arms, or the catch measures nothing.** The planted defect measures *sensitivity*: can this critic find one. A **control arm** measures *specificity*: the identical prompt over a clean copy carrying the identical isolation treatment. If the critic files the same claim at the same site with no defect present, the catch was a habit rather than a detection, and a panel calibrated on a habit is calibrated on nothing. Only a catch that survives its own control counts. Cost is one critic and one judge, paid only when the sensitivity arm passes.
 - **Gate 2 picks *which* lens gets calibrated, and says why: the one where a miss is most expensive.** For a spec that is almost always the acceptance criteria — a criterion that cannot fail silently licenses everything downstream of it. Defaulting to whichever lens is listed first buys consistent targeting aimed at the wrong lens.
 - **The seeder is told that critic's lane and plants inside it.** Otherwise this contradicts `critic-prompt.md`: a critic under "stay in your lane" is *instructed* not to file what lands outside it, so the run measures obedience, not capability.
-- **VOID ≠ miss.** Reaching the original, or a plant in the wrong lane, means the measurement never happened — it cannot consume the retry. Re-run the **same defect kind with the cause corrected**: isolation rebuilt for a leak, location moved in-lane for a lane fault. **Diagnose the leak channel first** — if the removed text is recoverable from public sources or the model's own prior, no sandbox closes it and a tighter re-run yields a *false pass*; re-seed with ground truth that isn't recallable. Reusing the defect is safe because the critic was never shown it. **Two VOIDs → NO VERDICT.**
+- **VOID ≠ miss.** Reaching the original, or a plant in the wrong lane, means the measurement never happened — it cannot consume the retry. Re-run the **same defect kind with the cause corrected**: isolation rebuilt for a leak, location moved in-lane for a lane fault. **Diagnose the leak channel first** — if the removed text is recoverable from public sources or the model's own prior, no sandbox closes it and a tighter re-run yields a *false pass*; re-seed with ground truth that isn't recallable. Reusing the defect is safe because the critic was never shown it, which is why **only a MISS burns a defect kind**. **Two VOIDs → NO VERDICT.**
 - **A genuine miss consumes the retry**, and that retry uses a **different** plant — repairing the prompt and re-running the same one fits the critic to the test. **Missed twice → NO VERDICT.**
-- **Make the leak checkable:** the sealed note records the verbatim text the seeder removed; the judge greps the critic's output for those strings. A match proves it reached the original.
+- **Make the leak checkable:** the sealed note records the verbatim text the seeder removed; the run itself string-matches the critic's output against those strings, in code, before any judge is spawned. A match proves it reached the original, and it VOIDs the trial without a judgment being made. Keep it there: a judge asked to decide whether a critic "reached the original" is being asked for an opinion, where a literal match is a fact — and the judge in `agents/gauntlet-judge.md` holds only `TodoWrite`, so it could not grep for them if it wanted to. A removed string too short to grep proves nothing in either direction, so a plant that leaves none long enough is **not leak-checkable and VOIDs** — the hole becomes a halt. Inverting a constraint that exists only in this artifact is the strongest shape: it removes a real string, so the leak stays checkable, and its correct form cannot be recalled from any prior.
 - **One calibrated critic licenses one critic.** Calibrating L1 grounds L1, not a verdict computed from L1–L4. Calibrate every deployed lens, or carry `N-1 lenses uncalibrated`. *(n=1 — one planted defect, one session.)*
 
 **Write the decision down before you spend.** One line in `runs/refusals.jsonl` — the gate 0/1/4 verdicts and their verbatim reasons, plus the files gate 0 claims settle it. It adds no step; gates 0 and 1 are free and already run. **A gate-0 NO then triggers the width-1 lane anyway** (~150k), and the refusal is scored a false negative only if that lane finds something high-severity, GROUNDED, *and* anchored outside the files gate 0 named. Otherwise "after a NO, nothing runs" stays true and the gates stay untested. See `runs/README.md`.
@@ -78,9 +79,16 @@ it.
 | stop | diminishing returns; gate 4 binds | ≤2 rounds, terminal |
 | fails by | stopping at "good for AI" | refuting everything |
 
+**Where an exemplar exists, run the compare lane and prefer what it says.** A criteria bar makes the critic invent a threshold; a real example does not, and a forced choice has no "seems fine" exit. That is the source method's whole mechanism, and it is better evidence than anything the judge lane produces. These gates exist for artifacts with no exemplar — specs, plans, decisions — not as a substitute for one that exists. When both lanes run and disagree, the A/B is the one anchored in an object.
+
+The build column is not summarized from memory: `references.md` carries both of
+Shumer's original prompts verbatim, plus the sentence behind every row. Its
+recorded outcomes are gate-3 form (a) material — including the round that
+regressed, which is what an uncapped loop absorbs and a ≤2-round cap cannot.
+
 ## Running the panel
 
-**Protocol lives elsewhere:** `../../docs/2026-08-01-gauntlet-adoption-loop.md` — frozen bars, ≤2 rounds terminal, fresh-context critics per round, builder never grades itself. That is the authority **for those four properties, and only those**: its topology is one builder against one critic on an adopt/drop decision, not a panel. It says nothing about how many agents a panel spawns or in what order. `critic-prompt.md` gives prompt *bodies* — critic, round 2, verifier — and no roster either. So the roster lives here, because it lives nowhere else.
+**Four properties are load-bearing and owned here:** frozen bars, ≤2 rounds terminal, fresh-context critics per round, and the author never grading its own artifact. They were carried over from a one-builder-against-one-critic adopt/drop loop, whose topology is not a panel — it fixes those four and says nothing about how many agents a panel spawns or in what order. `critic-prompt.md` gives prompt *bodies* — critic, round 2, verifier — and no roster either. So the roster lives here, because it lives nowhere else.
 
 **Roster — what actually gets spawned.** Every gate that is not self-run is a separate agent; that IS the mechanism. Run in one context, gates 3 and 5–7 are graded by the party with an incentive to pass them, and the verdict measures nothing.
 
@@ -88,13 +96,24 @@ it.
 |---|---|---|
 | 1 | gate-2 designer — emits the orchestration | — |
 | 2 | bar writer (gate 5) | the artifact |
-| 3 | seeder (gate 7) | the critic prompt |
+| 3 | seeder (gate 7) — writes the seeded copy AND its control | the critic prompt |
 | 4 | calibration critic — byte-identical to a deployed critic, same model, same effort | that it is being calibrated |
-| 5–8 | 2–4 panel critics, one lens each | each other |
-| 9 | grounding verifier | — |
-| 10–13 | round 2 — same lenses, FRESH context | — |
+| 5 | calibration judge — grades the catch against the sealed plant note, and holds only `TodoWrite` | the artifact |
+| 6 | control critic — the same prompt over the clean copy | that it is a control |
+| 7 | control judge — asks only whether the clean copy drew a finding at the plant site | the artifact |
+| 8–11 | 2–4 panel critics, one lens each | each other |
+| 12 | grounding verifier | — |
+| 13–16 | round 2 — same lenses, FRESH context | — |
+| + | isolator and comparing critics, only when a reference exemplar exists | which side is ours |
+| + | reporter — writes the run down, and has no `Read` | anything not handed to it |
 
-Full run ≈ 9–13 spawns; that is what 1.1M buys. **Gate 1's width-1 refusal is ≈ 3 spawns** — bar writer, one critic, verifier, no cross-check — not zero. **Only gate 0 refuses to zero agents.** Conflating the two is how a run gets talked out of existing.
+Both judges are separate spawns for the same reason every other gate is: a judge
+that also read the artifact grades the critic against its own opinion of it
+instead of against the plant, and the trial then measures agreement.
+
+Full run = **9 + 2N spawns** — 13 at two lenses, 15 at the default three, 17 at
+four — plus one more if the bar needs its correction pass, plus 1 + N again if
+the compare lane runs; that is what 1.1M buys. **Gate 1's width-1 refusal is ≈ 3 spawns** — bar writer, one critic, verifier, no cross-check — not zero. **Only gate 0 refuses to zero agents.** Conflating the two is how a run gets talked out of existing.
 
 Dispatch each round's critics in ONE message so they run concurrently. Round 2 is a **fresh spawn** holding the pooled findings plus the verifier report — never a continuation of a round-1 critic, which defends its own findings instead of cross-checking them.
 
@@ -119,6 +138,8 @@ What this file adds beyond the roster:
 | "This artifact is high-stakes / complex / load-bearing" | Facts about the artifact, not reasons one reviewer fails. Gate 1. |
 
 ## Reporting
+
+**Report the margin, not the verdict.** A finding two lenses attacked and one defended is not the same result as a finding nobody touched, and prose flattens both into "it held". Cross-check outcomes are tallied per finding; a split is the cheapest confidence signal available at n=1, and it costs nothing to surface.
 
 Zero surviving findings is not a clean sheet until the refutation bodies are read.
 

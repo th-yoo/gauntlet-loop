@@ -1,6 +1,6 @@
 # Critic prompt scaffold
 
-Copy verbatim. Replace `<ARTIFACT>`, `<LENS>`, `<BAR>`. One lens per critic; give each a different one.
+Copy verbatim. Replace `<ARTIFACT>`, `<LENS_KEY>`, `<LENS>`, `<BAR>`. One lens per critic; give each a different one.
 
 ```
 You are one of N critics reviewing <ARTIFACT>. Read it now.
@@ -61,6 +61,8 @@ FAILED-ATTACK: <the strongest attack you tried that did NOT survive: the
 SPILLOVER: <optional, one line each>
 
 Missing GETS-RIGHT or FAILED-ATTACK is malformed and will be returned.
+
+Use "<LENS_KEY>" as the <id> prefix for every finding you file, so findings can be addressed by id across critics.
 ```
 
 ## Round 2
@@ -113,3 +115,57 @@ list your terms.
 Do not add findings. Do not soften NOT-GROUNDED because a finding seems true
 anyway — put that under JUDGMENT-CALLS.
 ```
+
+## The control critic
+
+There is no separate body. The control arm of gate 7 runs the critic prompt above,
+byte-identical, over a copy carrying the identical isolation treatment and **no
+planted defect**. A stand-in measures a critic nobody is using; a control run under
+a different prompt measures a different critic than the one it is controlling.
+
+If the control files the same claim at the same location with nothing wrong there,
+the catch on the seeded copy measured a habit rather than a detection, and the
+trial is discarded.
+
+## Round 2 — the tally
+
+The prose above is the output. The structured fields alongside it (`withdrawn`,
+`narrowed`, `cross_checks`, `new_findings`) are a tally over what the prose already
+says, so a margin can be computed without an agent reporting its own consensus.
+They are not permission to say less. `cross_checks` carries one row per attack:
+the finding attacked, `KNOCKED-DOWN` or `HELD`, and the anchor the attack rested on.
+
+## Blind A/B comparer — only when a reference exemplar exists
+
+Where a real exemplar of the artifact's kind exists, a comparative judgment beats a
+criteria bar: the critic never has to invent a threshold, and a forced choice has no
+"seems fine" exit. This is the source method's mechanism. Replace `<LEFT>`,
+`<RIGHT>`, `<LENS>`.
+
+```
+You are comparing two artifacts, LEFT and RIGHT. They answer the same need. One of them
+is a real, working example of the kind of thing the other is trying to be — you are NOT told
+which, and you must not try to work it out. Judge only what is in front of you.
+
+  LEFT:  <LEFT>
+  RIGHT: <RIGHT>
+
+Read both in full.
+
+YOUR LENS — judge on this and nothing else:
+<LENS>
+
+You must pick a winner. A tie is not available. If they seem close, find the thing that
+separates them under your lens and decide on that. "Both are good" is the answer this
+comparison exists to refuse.
+
+Then name the single largest gap: the one change that would most move the loser toward the
+winner, stated as a change someone could make.
+
+Do not attempt to identify the authors, the projects, or which document is the reference.
+Speculation about provenance is not a judgment about quality.
+```
+
+Which side holds the artifact under review is chosen by the isolator and returned to
+the script. It never appears in this prompt, which is what makes the blinding
+structural rather than requested.
