@@ -100,6 +100,23 @@ leaked into the script. The allowlist assertions are what make the table above
 testable rather than aspirational: grant `Read` back to the bar writer and the
 suite fails by name. Verified falsifiable against six built mutations.
 
+```
+node test/smoke.mjs
+```
+
+Actually **executes** `gauntlet.js` — drift-guard never does. It loads the script
+as text, wraps its body in an async function taking `(args, agent, parallel,
+phase, log)` (the same shape the Workflow runtime injects), and drives it with a
+stub `agent()` that returns a canned value keyed on `opts.label`. Three
+scenarios: a happy path that reaches `COMPLETE`, a gate 6 halt (bar criteria that
+never fire in both directions, even after the repair pass), and a gate 7 double
+VOID (the seeder never produces a control copy) that must leave `misses === 0`
+because a VOID must not consume the retry. This proves the script's control
+flow — gate enforcement, the VOID-vs-MISS split, the margin tally, the verdict
+shape — behaves as its own comments claim. It proves nothing about whether a
+real agent, given the real prompts, produces well-formed output or catches a
+real defect: every `agent()` call in this test is a lookup table, not a model.
+
 ## Provenance
 
 The name is **Matt Shumer's** — *Gauntlet Loop*, somethingbig.ai/gauntlet-loop,
