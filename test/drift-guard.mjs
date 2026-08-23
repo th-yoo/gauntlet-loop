@@ -84,6 +84,7 @@ const ALLOWLIST = [
   { agent: 'gauntlet-seeder', forbidden: ['Agent', 'ListAgents', 'SendMessage', 'WebSearch', 'WebFetch'], buys: 'cannot look the artifact up to plant a recallable defect' },
   { agent: 'gauntlet-isolator', forbidden: ['Agent', 'SendMessage', 'WebSearch', 'WebFetch'], buys: 'cannot tell a critic which side is which' },
   { agent: 'gauntlet-reporter', forbidden: ['Read', 'Grep', 'Glob', 'Bash', 'Agent', 'WebSearch', 'WebFetch'], buys: 'can only write down what the run handed it' },
+  { agent: 'gauntlet-judge', forbidden: ['Read', 'Grep', 'Glob', 'Bash', 'Agent', 'ListAgents', 'SendMessage', 'WebSearch', 'WebFetch'], buys: 'cannot form its own opinion of the artifact and grade the critic against that' },
 ]
 
 let failures = 0
@@ -133,8 +134,25 @@ for (const forbidden of ['cost_ceiling', 'costCeiling', 'gate0', 'gate1:', 'gate
   if (script.includes(forbidden)) fail(`gauntlet.js references "${forbidden}" — gates 0/1/4 are operator-run and must stay in prose`)
 }
 
+// The plugin loader namespaces plugin agents (checked against ListAgents —
+// see the comment above `const AT` in gauntlet.js). A bare agent-type name in
+// AT would fail to resolve on first use, silently turning a restricted spawn
+// into a spawn that never runs. Parsed textually, same style as the rest of
+// this file: no new dependencies.
+console.log('drift-guard: AT map values stay namespaced "gauntlet-loop:" so a spawn cannot fail to resolve')
+const atMatch = script.match(/const AT = \{([\s\S]*?)\n\}/)
+if (!atMatch) {
+  fail('could not find "const AT = { ... }" in gauntlet.js — the AT-prefix check needs updating')
+} else {
+  const atValues = [...atMatch[1].matchAll(/:\s*'([^']*)'/g)].map(m => m[1])
+  if (!atValues.length) fail('found the AT map literal but no quoted values inside it — the AT-prefix check needs updating')
+  for (const v of atValues) {
+    if (!v.startsWith('gauntlet-loop:')) fail(`AT map value "${v}" is not prefixed "gauntlet-loop:" — this agentType will fail to resolve at runtime`)
+  }
+}
+
 if (failures) {
   console.error(`\ndrift-guard: ${failures} failure(s) — the script and its prompt authority have diverged.`)
   process.exit(1)
 }
-console.log(`\ndrift-guard: OK — ${PINNED.length} contract elements + ${GATE_SEMANTICS.length} gate semantics pinned, ${ALLOWLIST.length} allowlists still denying, gates 0/1/4 absent from script.`)
+console.log(`\ndrift-guard: OK — ${PINNED.length} contract elements + ${GATE_SEMANTICS.length} gate semantics pinned, ${ALLOWLIST.length} allowlists still denying, gates 0/1/4 absent from script, AT map namespaced.`)

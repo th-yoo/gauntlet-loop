@@ -48,17 +48,22 @@ export const meta = {
 //   seeder      has no web tools, no Agent
 //   isolator    has no web tools, no Agent — writes neutral-named copies
 //   reporter    has no Read, no web tools — it can only write what it was told
+//   judge       has only TodoWrite — it cannot go read the artifact and grade
+//               a critic against its own opinion instead of against the plant
 //
-// If the plugin loader namespaces plugin agents (feature-dev's show up as
-// `feature-dev:code-architect`), prefix these with `gauntlet-loop:`. Verify
-// once against ListAgents after installing; it is a one-line fix here.
+// The plugin loader namespaces plugin agents. Checked against ListAgents on
+// 2026-08-24: it returned `gauntlet-loop:gauntlet-critic`,
+// `gauntlet-loop:gauntlet-bar-writer`, `gauntlet-loop:gauntlet-isolator`,
+// `gauntlet-loop:gauntlet-reporter`, `gauntlet-loop:gauntlet-seeder`,
+// `gauntlet-loop:gauntlet-verifier` — hence the prefix below.
 const AT = {
-  bar: 'gauntlet-bar-writer',
-  seeder: 'gauntlet-seeder',
-  critic: 'gauntlet-critic',
-  verifier: 'gauntlet-verifier',
-  isolator: 'gauntlet-isolator',
-  reporter: 'gauntlet-reporter',
+  bar: 'gauntlet-loop:gauntlet-bar-writer',
+  seeder: 'gauntlet-loop:gauntlet-seeder',
+  critic: 'gauntlet-loop:gauntlet-critic',
+  verifier: 'gauntlet-loop:gauntlet-verifier',
+  isolator: 'gauntlet-loop:gauntlet-isolator',
+  reporter: 'gauntlet-loop:gauntlet-reporter',
+  judge: 'gauntlet-loop:gauntlet-judge',
 }
 
 const ARTIFACT = args && args.artifact
@@ -555,7 +560,7 @@ Two independent questions:
   in_lane — does the plant actually sit inside the calibrated lane as described? If the
             seeder's in-lane argument does not hold, the trial is void regardless of the
             outcome, because the reviewer was instructed not to file outside its lane.`,
-    { label: `gate7:judge-${attempt}`, phase: 'Calibrate', schema: CAL_JUDGE_SCHEMA, effort: 'high' }
+    { label: `gate7:judge-${attempt}`, phase: 'Calibrate', schema: CAL_JUDGE_SCHEMA, effort: 'high', agentType: AT.judge }
   )
 
   if (!judged) return { status: 'VOID', why: 'calibration judge returned nothing', seed }
@@ -590,7 +595,7 @@ count. A low-severity remark that does not assert the same defect does not count
 in the other direction too: if it named that exact site as wrong when nothing was wrong,
 that is exactly what this arm exists to catch, and the earlier catch measured a habit rather
 than a detection.`,
-    { label: `gate7:control-judge-${attempt}`, phase: 'Calibrate', schema: CONTROL_JUDGE_SCHEMA, effort: 'high' }
+    { label: `gate7:control-judge-${attempt}`, phase: 'Calibrate', schema: CONTROL_JUDGE_SCHEMA, effort: 'high', agentType: AT.judge }
   )
 
   if (!controlJudged) return { status: 'VOID', why: 'control judge returned nothing', seed, judged }
@@ -952,6 +957,7 @@ const verdict = {
 
   // Say what you did NOT enforce. Do not claim independence you did not buy.
   not_enforced: [
+    'The gate-2 designer runs unrestricted: it needs to read the artifact in full, so no allowlist is applied to it. It names the lenses and picks the calibration target, and nothing mechanically stops it from spawning agents of its own.',
     'The seeder holds Read, so nothing mechanically stopped it from opening critic-prompt.md or this script and tuning the plant to evade the critic. That restraint is prompt-deep.',
     'The bar writer cannot read files, but it retains WebSearch/WebFetch — a published artifact could in principle be reached over the network.',
     'Isolation of the seeded copy is best-effort. If the removed text is recoverable from public sources or the model\'s own prior, no sandbox closes that channel and a tighter re-run yields a false pass rather than a catch.',
