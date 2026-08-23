@@ -10,8 +10,9 @@ Split along the line that matters: **judgment stays prose, mechanism became code
   workflow that picks its own cost ceiling is the improvised-panel failure with
   extra steps.
 - `skills/gauntlet-loop/gauntlet.js` — everything from gate 2 on, as a `Workflow`
-  script: blind bar, seeded-defect calibration, lens critics, grounding verifier,
-  terminal cross-check.
+  script: blind bar, two-armed calibration, lens critics, grounding verifier,
+  terminal cross-check with a tallied margin, an optional blind A/B against a
+  reference exemplar, and a durable run report.
 - `skills/gauntlet-loop/critic-prompt.md` — the prompt authority. `gauntlet.js`
   carries the contract inline because Workflow scripts cannot read files, so
   `test/drift-guard.mjs` pins the two together.
@@ -30,10 +31,34 @@ lose**, rather than one the operator remembers to add:
 | `gauntlet-critic` | `Agent` `ListAgents` `SendMessage` | cannot discover or address a peer critic |
 | `gauntlet-critic` | `Write` `Edit` | cannot alter what the others are reading |
 | `gauntlet-verifier` | `Agent` `ListAgents` `SendMessage` | cannot delegate its own checking |
+| `gauntlet-isolator` | `Agent` `SendMessage` `WebSearch` `WebFetch` | cannot tell a comparing critic which side is ours |
+| `gauntlet-reporter` | `Read` `Grep` `Glob` `Bash` `Agent` | can only write down what the run handed it |
 
-Plus, in code rather than judgment: the gate-7 leak check is a literal string match
-over the critic's output; VOID and MISS are counted separately so only a MISS
-consumes the retry; round 2 is a fresh `agent()` call, never a continuation.
+Plus, in code rather than judgment:
+
+- the gate-7 leak check is a literal string match over the critic's output, and a
+  plant that leaves no string long enough to grep **VOIDs** rather than passing
+  quietly — a hole becomes a halt;
+- VOID and MISS are counted separately, so only a MISS consumes the retry **and
+  only a MISS burns a defect kind**;
+- **gate 7 has two arms.** The planted defect measures sensitivity. A control
+  critic then runs the identical prompt over a clean copy carrying the identical
+  isolation treatment; if it files the same claim at the same site with nothing
+  wrong there, the catch measured a habit and is discarded. A catch that its own
+  control reproduces is not evidence;
+- **gate 6 is enforced.** Criteria that cannot fire in both directions are re-asked
+  once, then dropped, and fewer than two survivors halts the run. A bar written
+  blind is the likeliest place to find a criterion nothing can meet;
+- cross-check outcomes are **tallied into a margin** by code, so a finding two
+  lenses attacked and one defended does not read the same as one nobody touched;
+- round 2 is a fresh `agent()` call, never a continuation.
+
+**Where a reference exemplar exists, pass `args.reference`.** That opens the
+compare lane: an isolator writes neutrally-named copies with identical treatment,
+one critic per lens picks a winner blind with no tie available, and the votes are
+tallied. This is the source method's own mechanism, and it is better evidence than
+a criteria bar — the critic never has to invent a threshold. The gates exist for
+artifacts that have no exemplar, not as a substitute for one that does.
 
 ## What is NOT enforced
 
@@ -69,8 +94,11 @@ node test/drift-guard.mjs
 ```
 
 Pins the critic contract between `critic-prompt.md` and `gauntlet.js`, pins gate
-semantics between `SKILL.md` and `gauntlet.js`, and asserts gates 0/1/4 have not
-leaked into the script. Verified falsifiable against four built mutations.
+semantics between `SKILL.md` and `gauntlet.js`, **asserts every agent allowlist
+still denies what the verdict claims it denies**, and asserts gates 0/1/4 have not
+leaked into the script. The allowlist assertions are what make the table above
+testable rather than aspirational: grant `Read` back to the bar writer and the
+suite fails by name. Verified falsifiable against six built mutations.
 
 ## Provenance
 
