@@ -2,11 +2,22 @@
 
 ## What is here
 
+Run records under `runs/`, and this note.
+
+## What used to be here
+
 `2026-08-01-gauntlet-adoption-loop.md` — the plan for the program that first adapted this
-method, vendored **unedited** from the private repository this skill was detached from. It is
-the authority `SKILL.md` cites for four properties: frozen bars, ≤2 rounds terminal,
-fresh-context critics per round, builder never grades itself. It is a historical record and is
-not maintained; do not edit it to reflect later decisions.
+method, vendored unedited from the private repository this skill was detached from. Removed,
+because it is not relevant to the method this plugin implements. Its topology is one builder
+against one critic on an adopt/drop decision; it is not the Gauntlet Loop, and it was never
+Shumer's. Carrying it as a cited authority put a document from a different lineage in the
+position the primary source should hold — `skills/gauntlet-loop/references.md` now holds that
+position, with both of Shumer's prompts verbatim.
+
+The four properties `SKILL.md` used to cite it for — frozen bars, ≤2 rounds terminal,
+fresh-context critics per round, the author never grading its own artifact — are now stated and
+owned in `SKILL.md` directly. They stand on their own; nothing depended on the removed file
+except the citation.
 
 ## What is deliberately not here
 
