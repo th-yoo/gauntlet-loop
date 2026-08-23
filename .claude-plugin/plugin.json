@@ -1,0 +1,8 @@
+{
+  "name": "gauntlet-loop",
+  "version": "0.1.0",
+  "description": "Pre-flight gates for multi-agent review, plus an executable panel: blind bar, seeded-defect critic calibration, lens-split critics, grounding verifier, terminal cross-check",
+  "author": {
+    "name": "th-yoo"
+  }
+}
