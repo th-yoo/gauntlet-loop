@@ -33,6 +33,34 @@ ok(!r.result.round1.some(x => x.lens.startsWith('gate2')), 'gate 2 lenses discar
 
 console.log('orchestration: lens resolution OK')
 
+// An empty explicit array ([]) is truthy in JS but carries no lens — it must
+// not be mistaken for an operator-supplied set, or LENSES ends up [] and
+// calLens becomes undefined. It must fall back to gate 2's own lens set,
+// same as if args.lenses were never supplied.
+{
+  const r = await runGauntlet({
+    args: {
+      artifact: '/tmp/x/artifact.md',
+      scratch: '/tmp/x/scratch',
+      lenses: [],
+    },
+    design: {
+      need_restatement: 'the need',
+      lenses: [
+        { key: 'g1', lens: 'lens one' },
+        { key: 'g2', lens: 'lens two' },
+        { key: 'g3', lens: 'lens three' },
+      ],
+      calibration_lens: 'g1',
+      calibration_reason: 'because',
+      acceptance_rule: 'rule',
+      findings_for_operator: 'none',
+    },
+  })
+  eq(r.result.round1.map(x => x.lens).sort(), ['g1', 'g2', 'g3'], 'empty explicit lens array falls back to gate 2\'s lens set')
+  console.log('orchestration: empty lens array falls back rather than throwing OK')
+}
+
 const BASE = {
   artifact: '/tmp/x/artifact.md',
   scratch: '/tmp/x/scratch',
@@ -176,4 +204,22 @@ const seed = n => ({
   ok(r2.every(p => p.prompt.includes('Last scheduled round')), 'round 2 is declared terminal to the worker')
   eq(r.result.calibration.caveat === null, false, 'a 2-lens run with 1 calibrated lens carries the uncalibrated caveat')
   console.log('orchestration: round 2 spawns fresh and terminal OK')
+}
+
+// Width-1: an integer count of 1 must be honored, not floored up to 2. This
+// is SKILL.md's gate 1 width-1 refusal (bar writer, one critic, verifier, no
+// cross-check) — a deliberate, minimal outing the operator must be able to
+// request, not a 0-spawn no-op.
+{
+  const r = await runGauntlet({
+    args: {
+      artifact: '/tmp/x/artifact.md',
+      scratch: '/tmp/x/scratch',
+      lenses: 1,
+    },
+  })
+  eq(r.result.verdict, 'COMPLETE', 'a width-1 run still completes')
+  eq(r.result.round1.length, 1, 'a width-1 request spawns exactly one critic')
+  eq(r.result.calibration.caveat, null, 'a fully calibrated width-1 run carries no uncalibrated caveat')
+  console.log('orchestration: width-1 run spawns one critic, no caveat OK')
 }

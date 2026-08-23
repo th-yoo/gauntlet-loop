@@ -18,10 +18,12 @@ export const meta = {
 //   args.artifact   (required) absolute path to the thing under review
 //   args.scratch    (required) absolute path to an EMPTY dir the seeder may
 //                   write into. Must not be inside the artifact's own tree.
-//   args.lenses     (optional) EITHER an integer 2-4 (gate 2 names the lenses,
-//                   the SKILL.md default) OR an array of {key, lane} the
-//                   operator fixed in advance, which makes a run reproducible
-//                   and lets a miss be attributed to a named lens.
+//   args.lenses     (optional) EITHER an integer 1-4 (gate 2 names the lenses,
+//                   the SKILL.md default is 3; 1 asks for the width-1 outing)
+//                   OR an array of {key, lane} the operator fixed in advance,
+//                   which makes a run reproducible and lets a miss be
+//                   attributed to a named lens. An empty array falls back to
+//                   gate 2's own count rather than requesting a 0-width run.
 //   args.calibratedLens (optional) a key from args.lenses. Overrides gate 2's
 //                   nomination. Use it when you already know which lens's miss
 //                   is most expensive.
@@ -42,14 +44,14 @@ export const meta = {
 //   verifier    same, and no Write/Edit
 //   seeder      has no web tools, no Agent
 //
-// If the plugin loader namespaces plugin agents (feature-dev's show up as
-// `feature-dev:code-architect`), prefix these with `gauntlet-loop:`. Verify
-// once against ListAgents after installing; it is a one-line fix here.
+// The plugin loader DOES namespace plugin agents — verified against a live
+// ListAgents call after installing. They surface as `gauntlet-loop:gauntlet-*`,
+// not the bare `gauntlet-*` name, so the four values below carry that prefix.
 const AT = {
-  bar: 'gauntlet-bar-writer',
-  seeder: 'gauntlet-seeder',
-  critic: 'gauntlet-critic',
-  verifier: 'gauntlet-verifier',
+  bar: 'gauntlet-loop:gauntlet-bar-writer',
+  seeder: 'gauntlet-loop:gauntlet-seeder',
+  critic: 'gauntlet-loop:gauntlet-critic',
+  verifier: 'gauntlet-loop:gauntlet-verifier',
 }
 
 const ARTIFACT = args && args.artifact
@@ -59,12 +61,17 @@ const OPERATOR_NEED = (args && args.need) || null
 // args.lenses is either a count (gate 2 names them — the SKILL.md default) or
 // an explicit array (the operator named them, so the run is reproducible).
 const RAW_LENSES = args && args.lenses
-const EXPLICIT_LENSES = Array.isArray(RAW_LENSES)
+const EXPLICIT_LENSES = Array.isArray(RAW_LENSES) && RAW_LENSES.length
   ? RAW_LENSES.slice(0, 4).map(l => ({ key: l.key, lens: l.lens || l.lane }))
   : null
+// Floor is 1, not 2: SKILL.md's gate 1 width-1 refusal (bar writer, one
+// critic, verifier, no cross-check) is a real, recorded outing and the
+// operator must be able to ask for it. An empty explicit array ([]) carries
+// no lens — it is not a request for a 0-width run — so it must fall back to
+// gate 2's own count exactly as an absent args.lenses would.
 const WANT_LENSES = EXPLICIT_LENSES
-  ? Math.max(2, EXPLICIT_LENSES.length)
-  : Math.max(2, Math.min(4, RAW_LENSES || 3))
+  ? Math.max(1, EXPLICIT_LENSES.length)
+  : Math.max(1, Math.min(4, (Array.isArray(RAW_LENSES) ? null : RAW_LENSES) || 3))
 const CALIBRATED_OVERRIDE = (args && args.calibratedLens) || null
 
 if (!ARTIFACT) throw new Error('args.artifact is required — absolute path to the artifact under review')
