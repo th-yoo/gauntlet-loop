@@ -77,18 +77,39 @@ if (!REFERENCE) throw new Error(
 // ---------------------------------------------------------------------------
 // BLINDNESS LEAK CHECK. The ARTIFACT A/B lines rendered into the critic
 // prompt below show CANDIDATE and REFERENCE verbatim. args.reference is
-// documented above as accepting a path, a URL, OR a prose description. If it
-// is not a filesystem path shaped like CANDIDATE, the two lines look nothing
+// documented above as accepting a path, a URL, OR a prose description. If the
+// two strings are not the same KIND of string, the two lines look nothing
 // alike (a local path vs. a URL or a paragraph) and the critic can tell which
 // side is the candidate from the formatting alone, before it looks at either
 // artifact — the A/B is not blind at all. This cannot be fixed by prompt
 // wording, so it is detected here and reflected honestly in the verdict's
 // enforced/not_enforced lists rather than asserted away.
+//
+// The test is a shape CLASS on both arguments, not a list of the URL forms
+// that happened to be tried. An earlier version asked only "does REFERENCE
+// start with / and contain no whitespace", which passes `//example.com/ref`
+// — a protocol-relative URL — and silently shipped the blindness claim it
+// exists to withhold. Classifying both sides catches that shape without ever
+// being told about it, along with `C:\ref`, `./ref` and anything else that
+// renders differently from an absolute POSIX path.
+//
+// Both sides must land in `abs-path`, not merely in the same class: the
+// builder is told to "modify the artifact in place at the path above", so a
+// CANDIDATE that is not a writable absolute path is not a run this loop can
+// execute, whatever it does to the formatting.
 // ---------------------------------------------------------------------------
-const REFERENCE_IS_COMPARABLE_PATH = /^\//.test(REFERENCE) && !/\s/.test(REFERENCE)
-if (!REFERENCE_IS_COMPARABLE_PATH) {
-  log('WARNING: args.reference does not look like an absolute filesystem path comparable to ' +
-      'args.candidate (it looks like a URL or a prose description). This run\'s blind A/B is NOT ' +
+function shapeOf(s) {
+  if (/\s/.test(s)) return 'prose'
+  if (/^\/\//.test(s) || /^[a-z][a-z0-9+.-]*:/i.test(s)) return 'url'   // //host/x, https://x, C:\x
+  if (/^\//.test(s)) return 'abs-path'
+  return 'other'                                                        // ./x, ../x, x/y, ~/x
+}
+const SIDES_LOOK_ALIKE = shapeOf(REFERENCE) === 'abs-path' && shapeOf(CANDIDATE) === 'abs-path'
+if (!SIDES_LOOK_ALIKE) {
+  const blame = shapeOf(REFERENCE) !== 'abs-path'
+    ? `args.reference does not look like an absolute filesystem path comparable to args.candidate (it reads as ${shapeOf(REFERENCE)})`
+    : `args.candidate does not look like an absolute filesystem path comparable to args.reference (it reads as ${shapeOf(CANDIDATE)})`
+  log(`WARNING: ${blame}. This run's blind A/B is NOT ` +
       'blind: the two ARTIFACT lines will render in visibly different shapes, which gives away ' +
       'which side is the candidate before the critic looks at either one.')
 }
@@ -251,6 +272,22 @@ look again.`,
   // --- build -------------------------------------------------------------
   // One gap. The builder never sees the critic's identity or the run's history,
   // and never learns whether it is A or B.
+  //
+  // `verdict.why` is deliberately NOT forwarded. It was, until issue #11: the
+  // prompt carried "Context on what separated them:\n${verdict.why}". `why` is
+  // a required AB_SCHEMA field whose description asks for "what separates
+  // them, concretely" — in practice a LIST of differences. Forwarding it hands
+  // the builder a menu of other things to fix immediately under four lines of
+  // prose insisting it fix one, and the reason those four lines exist is
+  // stated in them: a round that changes five things makes the next verdict
+  // uninterpretable. So `why` was a second, unbounded gap channel aimed at the
+  // one control property this loop has. It is still collected, still recorded
+  // in `history`, and still reported to the human — it just does not reach the
+  // builder.
+  // Cost if this is the wrong call: the builder gets less context per round
+  // and may need more rounds to close the same gap. That is measurable
+  // (rounds-to-win) and reversible in one line. The opposite error is not
+  // measurable — it degrades every verdict after it.
   const built = await agent(
     `You are building toward this goal:
 ${GOAL}
@@ -262,7 +299,6 @@ the single largest thing standing between them:
 
     ${verdict.gap}
 
-${verdict.why ? `Context on what separated them:\n${verdict.why}\n` : ''}
 Fix that gap. Only that gap.
 
 Not the one you find more interesting, not three while you are in there, not a refactor you
@@ -326,21 +362,21 @@ return {
   gaps_in_order: history.map(h => `round ${h.round}: ${h.gap}`),
 
   enforced: [
-    ...(REFERENCE_IS_COMPARABLE_PATH ? [
+    ...(SIDES_LOOK_ALIKE ? [
       'the critic was never TOLD which artifact was the candidate — sides alternate by round parity and the prompt never uses the word "candidate"',
     ] : []),
     `a FRESH critic every round (${criticSpawns} separate critic spawn(s); ${history.length} produced a recorded verdict), so none defended its own prior verdict`,
     'the critic ran as an agent type whose tool allowlist has no Write or Edit — it could not use those TOOLS to alter either artifact (it still holds Bash; see not_enforced)',
     'the builder ran as an agent type with no Agent/ListAgents/SendMessage — it could not reach or spawn a critic',
-    'the builder never saw the critic\'s reasoning beyond the single gap, and never learned the sides',
+    'the builder was handed the gap STRING and nothing else from the verdict — the critic\'s `why` field is not forwarded (it is collected and recorded, but never reaches the build prompt), and the builder never learned the sides, the critic\'s identity, or the run\'s history',
     'one gap SLOT is required per round by the schema (AB_SCHEMA.gap is in `required`) — the critic cannot omit a gap entirely (see not_enforced for what this does not buy)',
     ROUND_COUNT_CLAIM,
   ],
 
   not_enforced: [
-    REFERENCE_IS_COMPARABLE_PATH
+    SIDES_LOOK_ALIKE
       ? 'The critic is told not to infer which artifact is the candidate, but nothing prevents it. A generated artifact and a real one often differ in ways that give it away.'
-      : 'args.reference this run was not a comparable filesystem path (it looked like a URL or a prose description). The two ARTIFACT lines rendered in visibly different shapes, so this run\'s A/B was NOT blind — the loop\'s own formatting gave away which side was the candidate before the critic looked at either one.',
+      : `this run's args.reference/args.candidate pair was not a comparable filesystem path pair (reference read as ${shapeOf(REFERENCE)}, candidate as ${shapeOf(CANDIDATE)}). The two ARTIFACT lines rendered in visibly different shapes, so this run's A/B was NOT blind — the loop's own formatting gave away which side was the candidate before the critic looked at either one.`,
     'Position bias is averaged across rounds by alternation, not eliminated within a round.',
     'Critic and builder share a model family, so the critic may be blind to exactly the mistakes the builder is prone to making.',
     'The critic holds Bash and KillShell, which can write files directly (redirection, heredocs, etc.) — nothing mechanically stops it from altering either artifact through Bash instead of Write/Edit. The no-Write/no-Edit property above is real but narrow (prompt-deep, not structural).',

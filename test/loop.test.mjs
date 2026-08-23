@@ -349,3 +349,63 @@ console.log('loop: required args throw, and the reference error explains why a b
   ok(r.logs.some(l => /budget\.remaining\(\) threw/.test(l)), 'a WARNING is logged when budget.remaining() throws')
   console.log('loop: budgetLeft() survives budget.remaining() throwing without crashing the loop OK')
 }
+
+// issue #11: `verdict.why` must not reach the builder. It is a REQUIRED
+// AB_SCHEMA field holding the critic's full account of what separated the two
+// artifacts — in practice a list of differences, i.e. a second, unbounded gap
+// channel aimed at the one-change-per-round property the build prompt spends
+// four lines defending. It is still collected and recorded; it is not
+// forwarded.
+{
+  const WHY = 'WHY-FIELD-shading is flat, audio is missing, and the menu has no transitions'
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE },
+    rounds: [
+      { candidateWins: false, gap: 'THE-ONE-GAP-FOR-ROUND-1', why: WHY },
+      { candidateWins: true },
+    ],
+  })
+  const build1 = r.prompts.find(p => p.label === 'round-1:build')
+  ok(build1, 'round 1 builder ran')
+  ok(build1.prompt.includes('THE-ONE-GAP-FOR-ROUND-1'), 'the gap still reaches the builder')
+  ok(!build1.prompt.includes(WHY), 'the critic\'s `why` does NOT reach the builder')
+  ok(!/separated them/i.test(build1.prompt), 'no "what separated them" context block is rendered into the build prompt')
+  eq(r.result.history[0].why, WHY, '`why` is still collected and recorded in history for the human')
+  const bullet = r.result.enforced.find(b => /`why` field is not forwarded/.test(b))
+  ok(bullet, 'the enforced bullet claims the narrow property that is now actually true')
+  console.log('loop: verdict.why is recorded but never forwarded to the builder OK')
+}
+
+// issue #12: the blindness gate is a shape CLASS over BOTH sides, not "starts
+// with / and contains no whitespace". Every shape below renders visibly
+// differently from an absolute POSIX path, so every one must withhold the
+// blindness bullet and warn. Only the first is the reported incident; the rest
+// are held-out shapes the fix was not induced from.
+for (const [ref, what] of [
+  ['//example.com/theoriginal.html', 'protocol-relative URL (the reported incident)'],
+  ['C:\\x\\theoriginal.html', 'a Windows path'],
+  ['./theoriginal.html', 'a relative path'],
+  ['~/x/theoriginal.html', 'a tilde path'],
+]) {
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: ref, maxRounds: 1 },
+    rounds: [],
+  })
+  ok(r.logs.some(l => /WARNING: args\.reference does not look like an absolute filesystem path/.test(l)), `${what} triggers the blindness warning`)
+  ok(!r.result.enforced.some(b => /never TOLD which artifact was the candidate/i.test(b)), `${what} withholds the blindness bullet from enforced`)
+  ok(r.result.not_enforced.some(b => /was not a comparable filesystem path/i.test(b)), `${what} discloses the not-blind residual`)
+}
+console.log('loop: protocol-relative, Windows, relative and tilde references all withhold the blindness claim OK')
+
+// ...and the same gate applies to args.candidate. A non-path candidate breaks
+// the formatting symmetry just as thoroughly, and must be blamed by its own
+// name rather than reported as a reference problem.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: 'mybuild.html', reference: REFERENCE, maxRounds: 1 },
+    rounds: [],
+  })
+  ok(r.logs.some(l => /WARNING: args\.candidate does not look like an absolute filesystem path/.test(l)), 'a non-path candidate is named in the warning, not blamed on the reference')
+  ok(!r.result.enforced.some(b => /never TOLD which artifact was the candidate/i.test(b)), 'a non-path candidate also withholds the blindness bullet')
+  console.log('loop: a non-path candidate is caught and named rather than blamed on the reference OK')
+}
