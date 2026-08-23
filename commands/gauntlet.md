@@ -1,7 +1,7 @@
 ---
 description: "Run the gauntlet panel over an artifact — blind bar, seeded-defect calibration, lens critics, grounding verifier, terminal cross-check"
 argument-hint: "<path-to-artifact> [--lenses 2..4] [--need \"restated need\"] [--reference <path-to-exemplar>]"
-allowed-tools: ["Bash(mkdir:*)", "Bash(rm:*)", "Read", "Workflow"]
+allowed-tools: ["Bash(mkdir:*)", "Read", "Grep", "Glob", "Workflow"]
 ---
 
 # Run the gauntlet
@@ -19,9 +19,12 @@ overrule, and an overruled gate is then **settled** — do not re-derive that re
 later, and do not smuggle it into a subagent's prompt.
 
 **Gate 0 — can a few tool calls settle it?**
-Read the call sites, run it, grep for the mechanism that may already exist. A panel
-that a single file read would have pre-empted is the most expensive way to be told
-what the code says. This is the only gate that refuses to *zero* agents.
+Read the call sites; grep for the mechanism that may already exist. This command
+grants `Read`, `Grep` and `Glob` for exactly this gate, so it can be run rather than
+recited. A panel that a single file read would have pre-empted is the most expensive
+way to be told what the code says. This is the only gate that refuses to *zero*
+agents. It grants no general shell: if settling the question means actually running
+the thing, run it before invoking this command.
 
 **Gate 1 — one agent is the default.**
 A panel is the exception, and taking it means naming what one agent *cannot* do.
@@ -37,8 +40,11 @@ verdict carrying `N-1 lenses uncalibrated`. Conflating gate 1 with gate 0 is how
 run gets talked out of existing.
 
 **Gate 4 — cost ceiling, as a number.**
-The cost of being *wrong*, never the size of the diff. A full run is roughly 9–13
-spawns. If the gates themselves would exceed this number, run fewer and say which.
+The cost of being *wrong*, never the size of the diff. A full run is **9 + 2N
+spawns** for N lenses: 13 at two, **15 at the default three**, 17 at four. Add one
+if the blind bar needs its correction pass, and 1 + N more if you pass `reference`
+and open the compare lane. If the gates themselves would exceed this number, run
+fewer and say which.
 
 ## Step 2 — make a scratch directory for the seeded copy
 
@@ -60,17 +66,39 @@ Use the path it prints, verbatim, as `args.scratch` in Step 3.
 Call the `Workflow` tool:
 
 - `scriptPath`: `${CLAUDE_PLUGIN_ROOT}/skills/gauntlet-loop/gauntlet.js`
-- `args`: `{ "artifact": "<absolute path>", "scratch": "<path printed in Step 2>", "control_scratch": "<optional, absolute path unrelated to scratch>", "lenses": <2-4>, "need": "<optional operator restatement>", "reference": "<optional absolute path to a reference exemplar>" }`
+- `args`: two required keys and four optional ones. Do not copy a template with
+  placeholders left in it — an unfilled `"<optional, ...>"` is passed through as a
+  literal path. Send the minimal form and add only the keys you actually have:
+
+  Minimal — everything else takes its default:
+
+  ```json
+  { "artifact": "/abs/path/to/artifact.md", "scratch": "/tmp/gauntlet-artifact.md-1756000000-4821-9137" }
+  ```
+
+  Full — every optional key set to a real value:
+
+  ```json
+  {
+    "artifact": "/abs/path/to/artifact.md",
+    "scratch": "/tmp/gauntlet-artifact.md-1756000000-4821-9137",
+    "control_scratch": "/var/folders/gauntlet-control-1756000000",
+    "lenses": 3,
+    "need": "the team needs a review whose verdict says what it measured",
+    "reference": "/abs/path/to/exemplar.md"
+  }
+  ```
 
 Supplying `need` yourself is stronger than letting gate 2 derive it: gate 2 has read
 the artifact, and anything it writes risks carrying the artifact's own framing into
 a bar that is supposed to be independent of it.
 
 `control_scratch` is optional hardening, not boilerplate to fill in. Left unset,
-gate 7's control copy is written under `scratch` itself, one hop from the seeded
-critic's own copy; supply a directory genuinely unrelated to `scratch` — a
-different branch of the filesystem — only if that extra distance is worth an
-extra directory.
+gate 7's control copy goes to a sibling of `scratch` — `<scratch>-b` — which is
+already outside the seeded critic's own tree, so nothing it is pointed at lists the
+control. Supply a directory on a genuinely unrelated branch of the filesystem only
+if that extra distance is worth an extra directory. Either way the separation is by
+path, not by permission: a critic that walks far enough up still reaches it.
 
 Where a reference exemplar exists, supply `reference`: it opens the compare lane,
 a blind A/B against the exemplar, which `SKILL.md` and `README.md` both call

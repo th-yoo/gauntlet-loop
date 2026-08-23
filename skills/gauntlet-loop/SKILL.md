@@ -64,7 +64,7 @@ it.
 - **The seeder is told that critic's lane and plants inside it.** Otherwise this contradicts `critic-prompt.md`: a critic under "stay in your lane" is *instructed* not to file what lands outside it, so the run measures obedience, not capability.
 - **VOID ≠ miss.** Reaching the original, or a plant in the wrong lane, means the measurement never happened — it cannot consume the retry. Re-run the **same defect kind with the cause corrected**: isolation rebuilt for a leak, location moved in-lane for a lane fault. **Diagnose the leak channel first** — if the removed text is recoverable from public sources or the model's own prior, no sandbox closes it and a tighter re-run yields a *false pass*; re-seed with ground truth that isn't recallable. Reusing the defect is safe because the critic was never shown it, which is why **only a MISS burns a defect kind**. **Two VOIDs → NO VERDICT.**
 - **A genuine miss consumes the retry**, and that retry uses a **different** plant — repairing the prompt and re-running the same one fits the critic to the test. **Missed twice → NO VERDICT.**
-- **Make the leak checkable:** the sealed note records the verbatim text the seeder removed; the judge greps the critic's output for those strings. A match proves it reached the original. A removed string too short to grep proves nothing in either direction, so a plant that leaves none long enough is **not leak-checkable and VOIDs** — the hole becomes a halt. Inverting a constraint that exists only in this artifact is the strongest shape: it removes a real string, so the leak stays checkable, and its correct form cannot be recalled from any prior.
+- **Make the leak checkable:** the sealed note records the verbatim text the seeder removed; the run itself string-matches the critic's output against those strings, in code, before any judge is spawned. A match proves it reached the original, and it VOIDs the trial without a judgment being made. Keep it there: a judge asked to decide whether a critic "reached the original" is being asked for an opinion, where a literal match is a fact — and the judge in `agents/gauntlet-judge.md` holds only `TodoWrite`, so it could not grep for them if it wanted to. A removed string too short to grep proves nothing in either direction, so a plant that leaves none long enough is **not leak-checkable and VOIDs** — the hole becomes a halt. Inverting a constraint that exists only in this artifact is the strongest shape: it removes a real string, so the leak stays checkable, and its correct form cannot be recalled from any prior.
 - **One calibrated critic licenses one critic.** Calibrating L1 grounds L1, not a verdict computed from L1–L4. Calibrate every deployed lens, or carry `N-1 lenses uncalibrated`. *(n=1 — one planted defect, one session.)*
 
 **A halted run's blind artifacts survive it.** A bar written by an agent that never saw the artifact is still blind tomorrow; gate 5 doesn't need re-paying. Carry it into the rerun. Re-deriving it turns one halt into two full prices.
@@ -96,14 +96,22 @@ regressed, which is what an uncapped loop absorbs and a ≤2-round cap cannot.
 | 2 | bar writer (gate 5) | the artifact |
 | 3 | seeder (gate 7) — writes the seeded copy AND its control | the critic prompt |
 | 4 | calibration critic — byte-identical to a deployed critic, same model, same effort | that it is being calibrated |
-| 5 | control critic — the same prompt over the clean copy | that it is a control |
-| 6–9 | 2–4 panel critics, one lens each | each other |
-| 10 | grounding verifier | — |
-| 11–14 | round 2 — same lenses, FRESH context | — |
+| 5 | calibration judge — grades the catch against the sealed plant note, and holds only `TodoWrite` | the artifact |
+| 6 | control critic — the same prompt over the clean copy | that it is a control |
+| 7 | control judge — asks only whether the clean copy drew a finding at the plant site | the artifact |
+| 8–11 | 2–4 panel critics, one lens each | each other |
+| 12 | grounding verifier | — |
+| 13–16 | round 2 — same lenses, FRESH context | — |
 | + | isolator and comparing critics, only when a reference exemplar exists | which side is ours |
 | + | reporter — writes the run down, and has no `Read` | anything not handed to it |
 
-Full run ≈ 12–16 spawns, plus 1 + N again if the compare lane runs; that is what 1.1M buys. **Gate 1's width-1 refusal is ≈ 3 spawns** — bar writer, one critic, verifier, no cross-check — not zero. **Only gate 0 refuses to zero agents.** Conflating the two is how a run gets talked out of existing.
+Both judges are separate spawns for the same reason every other gate is: a judge
+that also read the artifact grades the critic against its own opinion of it
+instead of against the plant, and the trial then measures agreement.
+
+Full run = **9 + 2N spawns** — 13 at two lenses, 15 at the default three, 17 at
+four — plus one more if the bar needs its correction pass, plus 1 + N again if
+the compare lane runs; that is what 1.1M buys. **Gate 1's width-1 refusal is ≈ 3 spawns** — bar writer, one critic, verifier, no cross-check — not zero. **Only gate 0 refuses to zero agents.** Conflating the two is how a run gets talked out of existing.
 
 Dispatch each round's critics in ONE message so they run concurrently. Round 2 is a **fresh spawn** holding the pooled findings plus the verifier report — never a continuation of a round-1 critic, which defends its own findings instead of cross-checking them.
 

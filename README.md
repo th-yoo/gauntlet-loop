@@ -28,9 +28,10 @@ lose**, rather than one the operator remembers to add:
 | role | denied tools | property bought |
 |---|---|---|
 | `gauntlet-bar-writer` | `Read` `Grep` `Glob` `Bash` | cannot open the artifact — gate 5 |
-| `gauntlet-critic` | `Agent` `ListAgents` `SendMessage` | cannot discover or address a peer critic |
+| `gauntlet-critic` | `Agent` `ListAgents` `SendMessage` | cannot spawn, enumerate or message a peer critic (Bash is not closed — see below) |
 | `gauntlet-critic` | `Write` `Edit` | no file-editing tool call can alter the artifact (Bash is not closed — see below) |
 | `gauntlet-verifier` | `Agent` `ListAgents` `SendMessage` | cannot delegate its own checking |
+| `gauntlet-seeder` | `WebSearch` `WebFetch` `Agent` `ListAgents` `SendMessage` | cannot look the artifact up over the network to plant a defect the critic recalls rather than detects |
 | `gauntlet-judge` | `Read` `Grep` `Glob` `Bash` `Agent` | cannot form its own opinion of the artifact and grade the critic against that |
 | `gauntlet-isolator` | `Agent` `SendMessage` `WebSearch` `WebFetch` | cannot tell a comparing critic which side is ours |
 | `gauntlet-reporter` | `Read` `Grep` `Glob` `Bash` `Agent` | can only write down what the run handed it |
@@ -77,6 +78,17 @@ the tool-call channel, not the shell. `Bash` stays: the `HARNESS` anchor type in
 best findings. Round-1 critics are all pointed at the same live artifact path
 concurrently, so this is a disclosed exposure, not a theoretical one.
 
+That same shell is a peer channel and a discovery channel. Round-1 critics run
+concurrently on one machine: the filesystem is readable and writable between them,
+and `ps` lists them. "Cannot reach a peer critic" is bought against the
+agent-messaging channel only. Lens independence past that point is asked of the
+critic in `agents/gauntlet-critic.md`, not enforced against it.
+
+The seeded copy, its control, and the blind A/B pair are separated by **path, not
+permission**. Each lives outside the others' tree — by default in siblings of
+`args.scratch` — so nothing a critic is pointed at lists the copy it must not see.
+A critic that walks a level higher still reaches it.
+
 ## Install
 
 ```
@@ -101,12 +113,22 @@ after installing** or the skill registers twice.
 node test/drift-guard.mjs
 ```
 
-Pins the critic contract between `critic-prompt.md` and `gauntlet.js`, pins gate
-semantics between `SKILL.md` and `gauntlet.js`, **asserts every agent allowlist
-still denies what the verdict claims it denies**, and asserts gates 0/1/4 have not
-leaked into the script. The allowlist assertions are what make the table above
-testable rather than aspirational: grant `Read` back to the bar writer and the
-suite fails by name. Verified falsifiable against six built mutations.
+Six families of check. It pins the critic contract between `critic-prompt.md` and
+`gauntlet.js`; pins gate semantics between `SKILL.md` and `gauntlet.js`; **asserts
+all seven agent allowlists still deny what the verdict claims they deny**; asserts
+the `not_enforced` disclosures still appear verbatim in the script, because a
+disclosure that can be deleted without failing a test is not a disclosure; asserts
+every `AT` map value is still namespaced `gauntlet-loop:`, since a bare name would
+fail to resolve and silently turn a restricted spawn into one that never runs; and
+asserts gates 0/1/4 have not leaked into the script. The allowlist assertions are
+what make the table above testable rather than aspirational: grant `Read` back to
+the bar writer and the suite fails by name.
+
+Verified falsifiable against **twelve built mutations** — one per allowlist row,
+plus one per remaining family (a reworded disclosure, a de-namespaced `AT` value, a
+renamed contract element, a gate terminator no longer literal in the script, and a
+`costCeiling` planted in it). All twelve go red; the count is the number actually
+run, not the number of things that could be mutated.
 
 ```
 node test/smoke.mjs
@@ -115,15 +137,23 @@ node test/smoke.mjs
 Actually **executes** `gauntlet.js` — drift-guard never does. It loads the script
 as text, wraps its body in an async function taking `(args, agent, parallel,
 phase, log)` (the same shape the Workflow runtime injects), and drives it with a
-stub `agent()` that returns a canned value keyed on `opts.label`. Three
-scenarios: a happy path that reaches `COMPLETE`, a gate 6 halt (bar criteria that
-never fire in both directions, even after the repair pass), and a gate 7 double
-VOID (the seeder never produces a control copy) that must leave `misses === 0`
-because a VOID must not consume the retry. This proves the script's control
-flow — gate enforcement, the VOID-vs-MISS split, the margin tally, the verdict
-shape — behaves as its own comments claim. It proves nothing about whether a
-real agent, given the real prompts, produces well-formed output or catches a
-real defect: every `agent()` call in this test is a lookup table, not a model.
+stub `agent()` that returns a canned value keyed on `opts.label`. Five scenarios:
+a happy path that reaches `COMPLETE`; a gate 6 halt (bar criteria that never fire
+in both directions, even after the repair pass); a gate 7 double VOID (the seeder
+never produces a control copy) that must leave `misses === 0` because a VOID must
+not consume the retry; a gate 7 double MISS — the mirror image — that must reach
+`NO VERDICT` with `misses === 2` and `voids === 0`, and whose retry prompt must
+name the spent defect kind; and a round-1 halt where every critic returns empty,
+which must still write its report. The stub also asserts that **every dispatched
+call carries a restricted `agentType`** from the script's own `AT` map, with the
+gate-2 designer as the one documented exception — without that assertion, deleting
+the restriction from a spawn leaves both suites green.
+
+This proves the script's control flow — gate enforcement, the VOID-vs-MISS split,
+the margin tally, the halt paths, the verdict shape — behaves as its own comments
+claim. It proves nothing about whether a real agent, given the real prompts,
+produces well-formed output or catches a real defect: every `agent()` call in this
+test is a lookup table, not a model.
 
 ## Provenance
 
