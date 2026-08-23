@@ -43,7 +43,14 @@ export const meta = {
 //                  of a real thing that is currently better. "The bar is the
 //                  most important part" — a vague bar makes the critic invent a
 //                  comparison and approve everything, which practitioners name
-//                  as this method's most common failure.
+//                  as this method's most common failure. CAVEAT: the blind A/B
+//                  below renders CANDIDATE and REFERENCE as two literal lines.
+//                  If REFERENCE is not a filesystem path shaped like CANDIDATE
+//                  (i.e. it is a URL or prose), the two lines look nothing
+//                  alike and the critic can tell which is which from the
+//                  formatting alone — see the runtime check below, which
+//                  detects this and downgrades the blindness claim rather than
+//                  letting it ship unexamined.
 //   args.inspect   (optional) how to look at the artifacts — a command to run,
 //                  a thing to open. Passed verbatim to the critic.
 //   args.maxRounds (optional) a safety cap, NOT a target. Omit it and the loop
@@ -53,7 +60,11 @@ const GOAL = args && args.goal
 const CANDIDATE = args && args.candidate
 const REFERENCE = args && args.reference
 const INSPECT = (args && args.inspect) || null
-const MAX_ROUNDS = (args && args.maxRounds) || null
+// An explicit maxRounds:0 is a real cap (run zero rounds), not "unset". The
+// old `(args.maxRounds) || null` treated 0 as falsy and silently fell through
+// to the 8-round default — on the one parameter that governs spend, in a repo
+// whose thesis is cost gating. Test the value's presence, not its truthiness.
+const MAX_ROUNDS = (args && args.maxRounds != null) ? args.maxRounds : null
 
 if (!GOAL) throw new Error('args.goal is required')
 if (!CANDIDATE) throw new Error('args.candidate is required — an absolute path, built if absent')
@@ -63,17 +74,52 @@ if (!REFERENCE) throw new Error(
   'everything. If you have no reference, you do not have a gauntlet loop — you have a builder.'
 )
 
+// ---------------------------------------------------------------------------
+// BLINDNESS LEAK CHECK. The ARTIFACT A/B lines rendered into the critic
+// prompt below show CANDIDATE and REFERENCE verbatim. args.reference is
+// documented above as accepting a path, a URL, OR a prose description. If it
+// is not a filesystem path shaped like CANDIDATE, the two lines look nothing
+// alike (a local path vs. a URL or a paragraph) and the critic can tell which
+// side is the candidate from the formatting alone, before it looks at either
+// artifact — the A/B is not blind at all. This cannot be fixed by prompt
+// wording, so it is detected here and reflected honestly in the verdict's
+// enforced/not_enforced lists rather than asserted away.
+// ---------------------------------------------------------------------------
+const REFERENCE_IS_COMPARABLE_PATH = /^\//.test(REFERENCE) && !/\s/.test(REFERENCE)
+if (!REFERENCE_IS_COMPARABLE_PATH) {
+  log('WARNING: args.reference does not look like an absolute filesystem path comparable to ' +
+      'args.candidate (it looks like a URL or a prose description). This run\'s blind A/B is NOT ' +
+      'blind: the two ARTIFACT lines will render in visibly different shapes, which gives away ' +
+      'which side is the candidate before the critic looks at either one.')
+}
+
 // A round costs a builder plus a critic. Leave headroom so the loop stops on
 // its own terms rather than dying mid-round when the budget runs out.
 const ROUND_RESERVE = 120000
+// Defensive: loop.js is the first consumer of `budget` in this plugin (
+// gauntlet.js never touches it), so `budget.remaining` has never met the real
+// runtime. Handle it being a plain number rather than a function, and handle
+// it throwing, without crashing the loop — and fail SAFE (treat as exhausted)
+// rather than fail open (treat as infinite), because silently spending past a
+// broken budget is the one failure this file exists to prevent.
 function budgetLeft() {
-  return budget && budget.total ? budget.remaining() : Infinity
+  if (!budget || !budget.total) return Infinity
+  try {
+    const r = typeof budget.remaining === 'function' ? budget.remaining() : budget.remaining
+    if (typeof r === 'number' && Number.isFinite(r)) return r
+    log(`WARNING: budget.remaining ${typeof budget.remaining === 'function' ? 'returned' : 'is'} ` +
+        `not a finite number (${JSON.stringify(r)}) — treating the budget as exhausted rather than guessing`)
+    return 0
+  } catch (e) {
+    log(`WARNING: budget.remaining() threw (${(e && e.message) || e}) — treating the budget as exhausted rather than guessing`)
+    return 0
+  }
 }
-if (!MAX_ROUNDS && !(budget && budget.total)) {
+if (MAX_ROUNDS == null && !(budget && budget.total)) {
   log('WARNING: no maxRounds and no budget target. The source says not to fix a round count, ' +
       'but something has to stop this. Defaulting to 8 rounds — set a budget to do better.')
 }
-const HARD_CAP = MAX_ROUNDS || (budget && budget.total ? 40 : 8)
+const HARD_CAP = MAX_ROUNDS != null ? MAX_ROUNDS : (budget && budget.total ? 40 : 8)
 
 const AB_SCHEMA = {
   type: 'object',
@@ -125,6 +171,7 @@ phase('Loop')
 const history = []
 let round = 0
 let outcome = null
+let criticSpawns = 0 // every agent() call for a critic, including ones that return null — NOT history.length
 
 while (true) {
   round++
@@ -144,6 +191,7 @@ while (true) {
   // history is no longer blind.
   const s = sides(round)
 
+  criticSpawns++
   const verdict = await agent(
     `Compare two artifacts and pick the better one. You are not told which is which.
 
@@ -247,6 +295,24 @@ know, and a fresh critic decides next round. Report what you changed, factually.
 const sidesUsed = history.map(h => h.candidateSide)
 const balanced = sidesUsed.filter(x => x === 'A').length + ' as A / ' + sidesUsed.filter(x => x === 'B').length + ' as B'
 
+// Honest per-outcome round-count claim. "No fixed round count" is true of a
+// WON run and false of the far more common default CAP run — this file's own
+// HARD_CAP is a fixed number the moment neither maxRounds nor a budget is
+// supplied. State what actually happened instead of a claim that contradicts
+// the WARNING already logged above.
+const ROUND_COUNT_CLAIM = (() => {
+  if (outcome.status === 'WON') {
+    return `no fixed round count bound this run — it stopped at round ${outcome.round} on the candidate winning, ahead of the ${HARD_CAP}-round cap`
+  }
+  if (outcome.status === 'CAP') {
+    return `this run hit a FIXED cap of ${HARD_CAP} rounds${MAX_ROUNDS != null ? ' (operator-set via args.maxRounds)' : ' — the undocumented default, since neither maxRounds nor a budget was supplied'} without the candidate winning; round count was NOT open-ended here`
+  }
+  if (outcome.status === 'BUDGET') {
+    return `the loop ended on budget after ${history.length} round(s), not a fixed round count`
+  }
+  return `the loop ended in ${outcome.status} after ${history.length} round(s) — neither a win, a budget stop, nor a completed cap`
+})()
+
 return {
   outcome,
   rounds: history.length,
@@ -260,20 +326,26 @@ return {
   gaps_in_order: history.map(h => `round ${h.round}: ${h.gap}`),
 
   enforced: [
-    'the critic never learned which artifact was the candidate — sides alternate by round parity',
-    `a FRESH critic every round (${history.length} separate spawns), so none defended its own prior verdict`,
-    'the critic ran as an agent type with no Write or Edit — it could not fix what it judged',
+    ...(REFERENCE_IS_COMPARABLE_PATH ? [
+      'the critic was never TOLD which artifact was the candidate — sides alternate by round parity and the prompt never uses the word "candidate"',
+    ] : []),
+    `a FRESH critic every round (${criticSpawns} separate critic spawn(s); ${history.length} produced a recorded verdict), so none defended its own prior verdict`,
+    'the critic ran as an agent type whose tool allowlist has no Write or Edit — it could not use those TOOLS to alter either artifact (it still holds Bash; see not_enforced)',
     'the builder ran as an agent type with no Agent/ListAgents/SendMessage — it could not reach or spawn a critic',
     'the builder never saw the critic\'s reasoning beyond the single gap, and never learned the sides',
-    'exactly one gap per round, enforced by the schema',
-    'no fixed round count — the loop ended on a win, the budget, or an explicit cap',
+    'one gap SLOT is required per round by the schema (AB_SCHEMA.gap is in `required`) — the critic cannot omit a gap entirely (see not_enforced for what this does not buy)',
+    ROUND_COUNT_CLAIM,
   ],
 
   not_enforced: [
-    'The critic is told not to infer which artifact is the candidate, but nothing prevents it. A generated artifact and a real one often differ in ways that give it away.',
+    REFERENCE_IS_COMPARABLE_PATH
+      ? 'The critic is told not to infer which artifact is the candidate, but nothing prevents it. A generated artifact and a real one often differ in ways that give it away.'
+      : 'args.reference this run was not a comparable filesystem path (it looked like a URL or a prose description). The two ARTIFACT lines rendered in visibly different shapes, so this run\'s A/B was NOT blind — the loop\'s own formatting gave away which side was the candidate before the critic looked at either one.',
     'Position bias is averaged across rounds by alternation, not eliminated within a round.',
     'Critic and builder share a model family, so the critic may be blind to exactly the mistakes the builder is prone to making.',
-    'Nothing verifies that the named gap is really the LARGEST — only that exactly one came back.',
+    'The critic holds Bash and KillShell, which can write files directly (redirection, heredocs, etc.) — nothing mechanically stops it from altering either artifact through Bash instead of Write/Edit. The no-Write/no-Edit property above is real but narrow (prompt-deep, not structural).',
+    'AB_SCHEMA.gap is a free-text string: nothing stops several gaps being packed into it (e.g. "Gap 1: ... Gap 2: ..."). Only one gap SLOT is enforced, not one gap.',
+    'Nothing verifies that the named gap is really the LARGEST — only that exactly one slot came back.',
     'No calibration: this loop never checks that the critic could have failed. gauntlet.js\'s gate 7 does that and is not wired in here.',
   ],
 

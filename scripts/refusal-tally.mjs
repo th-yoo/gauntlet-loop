@@ -56,12 +56,24 @@ if (!rows.length) {
 const n = rows.length
 const gate0no = rows.filter(r => r.gate0 === 'NO')
 const gate1narrow = rows.filter(r => r.gate1 === 'width-1')
+const gate1unset = rows.filter(r => r.gate1 === null || r.gate1 === undefined || r.gate1 === '')
+const gate1recorded = n - gate1unset.length
 const noGate4 = rows.filter(r => r.gate4_number === null || r.gate4_number === undefined || r.gate4_number === '')
 
 // --- the number that can end the programme --------------------------------
 console.log('\n--- firing rates (this is the number that can cancel the programme) ---')
 console.log(`  gate 0 refuses to zero : ${gate0no.length}/${n}  ${pct(gate0no.length / n)}  95% CI ${ci(wilson(gate0no.length, n))}`)
-console.log(`  gate 1 narrows to w-1  : ${gate1narrow.length}/${n}  ${pct(gate1narrow.length / n)}  95% CI ${ci(wilson(gate1narrow.length, n))}`)
+// Denominator is RECORDED gate-1 decisions only. An unset --gate1 is a
+// decision the operator never made — silently folding it into "panel" (the
+// old default) would count a non-decision inside this rate, which is exactly
+// the gate4_number blank-ceiling failure mode this file already calls out
+// below, just for the other gate.
+if (gate1recorded === 0) {
+  console.log('  gate 1 narrows to w-1  : n/a — no --gate1 decision has been recorded on any run')
+} else {
+  console.log(`  gate 1 narrows to w-1  : ${gate1narrow.length}/${gate1recorded}  ${pct(gate1narrow.length / gate1recorded)}  95% CI ${ci(wilson(gate1narrow.length, gate1recorded))}`)
+}
+console.log(`  gate 1 not recorded    : ${gate1unset.length}/${n}  ${pct(gate1unset.length / n)}`)
 
 if (gate0no.length === 0) {
   console.log('\n  gate 0 has never refused. The false-negative question about gate 0 cannot')

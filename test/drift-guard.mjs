@@ -15,6 +15,7 @@ const SKILLDIR = join(ROOT, 'skills', 'gauntlet-loop')
 const critic = readFileSync(join(SKILLDIR, 'critic-prompt.md'), 'utf8')
 const script = readFileSync(join(SKILLDIR, 'gauntlet.js'), 'utf8')
 const skill = readFileSync(join(SKILLDIR, 'SKILL.md'), 'utf8')
+const loop = readFileSync(join(SKILLDIR, 'loop.js'), 'utf8')
 
 // Load-bearing contract elements. Each MUST appear verbatim in both
 // critic-prompt.md and gauntlet.js. Drop one from either and the review
@@ -94,8 +95,32 @@ for (const forbidden of ['cost_ceiling', 'costCeiling', 'gate0', 'gate1:', 'gate
   if (script.includes(forbidden)) fail(`gauntlet.js references "${forbidden}" — gates 0/1/4 are operator-run and must stay in prose`)
 }
 
+// loop.js is a second Workflow script under the same runtime constraints as
+// gauntlet.js (no import/require, no filesystem, no Node APIs; Date.now(),
+// Math.random() and argless new Date() THROW in the real runtime). Nothing
+// previously guarded it. This is a static scan, not execution — the offline
+// harness in test/harness.mjs runs scripts via AsyncFunction, which happily
+// executes these calls, so a passing test there is not evidence they are
+// runtime-safe. Comments are stripped first: loop.js legitimately DISCUSSES
+// Math.random() in prose (explaining why alternation replaces it), and that
+// mention must not itself trip the guard.
+function stripLineComments(src) {
+  return src.split('\n').map(line => {
+    const idx = line.indexOf('//')
+    return idx === -1 ? line : line.slice(0, idx)
+  }).join('\n')
+}
+
+const RUNTIME_FORBIDDEN = ['import ', 'require(', 'Date.now', 'Math.random', 'new Date()']
+
+console.log('drift-guard: loop.js runtime-safety scan (no import/require/Date.now/Math.random/new Date())')
+const loopCode = stripLineComments(loop)
+for (const forbidden of RUNTIME_FORBIDDEN) {
+  if (loopCode.includes(forbidden)) fail(`loop.js contains "${forbidden}" outside a comment — this throws in the real Workflow runtime`)
+}
+
 if (failures) {
   console.error(`\ndrift-guard: ${failures} failure(s) — the script and its prompt authority have diverged.`)
   process.exit(1)
 }
-console.log(`\ndrift-guard: OK — ${PINNED.length} contract elements + ${GATE_SEMANTICS.length} gate semantics pinned, gates 0/1/4 absent from script.`)
+console.log(`\ndrift-guard: OK — ${PINNED.length} contract elements + ${GATE_SEMANTICS.length} gate semantics pinned, gates 0/1/4 absent from script, loop.js clean of ${RUNTIME_FORBIDDEN.length} forbidden runtime APIs.`)

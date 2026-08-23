@@ -612,7 +612,7 @@ return {
   enforced: [
     `bar writer ran as "${AT.bar}", whose tool allowlist has no Read, Grep, Glob or Bash — it could not open the artifact even if instructed to`,
     `critics ran as "${AT.critic}", whose allowlist has no Agent, ListAgents or SendMessage — no critic could discover or address a peer`,
-    `critics have no Write or Edit — none could alter the artifact the others were reading`,
+    `critics have no Write or Edit — none could use those TOOLS to alter the artifact the others were reading (they still hold Bash; see not_enforced)`,
     `verifier ran as "${AT.verifier}" and could not delegate its own checking`,
     'seeder was never handed the critic prompt',
     'calibration critic ran the byte-identical deployed prompt and was not told it was a trial',
@@ -628,6 +628,7 @@ return {
     'Isolation of the seeded copy is best-effort. If the removed text is recoverable from public sources or the model\'s own prior, no sandbox closes that channel and a tighter re-run yields a false pass rather than a catch.',
     'n=1 per calibrated lens — one planted defect, one session.',
     'Critics share a model family unless the operator varied it. Judge-panel correlation is measured ACROSS families; varying only the lens does not buy independent votes.',
+    'Critics hold Bash and KillShell, which can write files directly (redirection, heredocs, etc.) — nothing mechanically stops a critic from altering the artifact through Bash instead of Write/Edit. The no-Write/no-Edit property above is real but narrow: it is prompt-deep, not a structural write-block.',
   ],
 
   reporting_note: 'Zero surviving findings is not a clean sheet until the refutation bodies are read. Report as: PASS — no critic broke it under <framing>. Untested shared belief: <the premise every critic assumed>.',

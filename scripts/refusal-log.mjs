@@ -80,8 +80,13 @@ if (arg('score')) {
 const artifact = arg('artifact') || fail('--artifact is required')
 const gate0 = arg('gate0') || fail('--gate0 NO|GO is required')
 if (!['NO', 'GO'].includes(gate0)) fail('--gate0 must be NO or GO')
-const gate1 = arg('gate1', 'panel')
-if (!['width-1', 'panel'].includes(gate1)) fail('--gate1 must be width-1 or panel')
+// Nullable, like gate4_number: an unset --gate1 is an operator decision that
+// was never made, not a silent "panel". Recording it as 'panel' would count a
+// decision that never happened in one of the two firing rates the ledger
+// exists to produce (see refusal-tally.mjs).
+const gate1raw = arg('gate1')
+if (gate1raw !== null && !['width-1', 'panel'].includes(gate1raw)) fail('--gate1 must be width-1 or panel')
+const gate1 = gate1raw
 
 const gate4raw = arg('gate4')
 const gate0files = (arg('gate0-files') || '').split(',').map(s => s.trim()).filter(Boolean)
@@ -107,8 +112,12 @@ const rec = {
 
 appendFileSync(FILE, JSON.stringify(rec) + '\n')
 const lineNo = readFileSync(FILE, 'utf8').split('\n').filter(l => l.trim()).length
-console.log(`logged line ${lineNo}: gate0=${gate0} gate1=${gate1}`)
+console.log(`logged line ${lineNo}: gate0=${gate0} gate1=${gate1 === null ? '(not recorded)' : gate1}`)
 
+if (rec.gate1 === null) {
+  console.log('note: no --gate1 recorded. The tally reports this rate separately from "panel" —')
+  console.log('  an unrecorded decision is not the same as a recorded panel decision.')
+}
 if (rec.gate4_number === null) {
   console.log('note: no cost ceiling recorded. The tally reports this rate separately —')
   console.log('  a ceiling that is never set is the weakest part of the gate sequence.')

@@ -12,12 +12,21 @@ Split along the line that matters: **judgment stays prose, mechanism became code
 - `skills/gauntlet-loop/gauntlet.js` — everything from gate 2 on, as a `Workflow`
   script: blind bar, seeded-defect calibration, lens critics, grounding verifier,
   terminal cross-check.
+- `skills/gauntlet-loop/loop.js` — a different instrument: a builder plus a fresh
+  blind A/B critic per round, judged against a concrete reference exemplar,
+  looping until the candidate wins or the budget/cap stops it. Not wired into
+  `SKILL.md`, `commands/`, or the plugin manifest — there is no slash command
+  for it; invoke it directly as a `Workflow` script if you use it.
 - `skills/gauntlet-loop/critic-prompt.md` — the prompt authority. `gauntlet.js`
   carries the contract inline because Workflow scripts cannot read files, so
   `test/drift-guard.mjs` pins the two together.
 - `agents/*.md` — restricted agent types. This is where independence stops being a
-  promise.
-- `commands/gauntlet.md` — `/gauntlet <artifact>`.
+  promise. Includes `gauntlet-ab-critic` and `gauntlet-builder`, added for `loop.js`.
+- `commands/gauntlet.md` — `/gauntlet <artifact>`. `loop.js` has no command.
+
+**Which script:** reach for `loop.js` when you have a concrete reference artifact
+and want to build or improve toward it. Reach for `gauntlet.js` when you have an
+artifact to review and no exemplar to compare it against.
 
 ## What is actually enforced
 
@@ -28,8 +37,10 @@ lose**, rather than one the operator remembers to add:
 |---|---|---|
 | `gauntlet-bar-writer` | `Read` `Grep` `Glob` `Bash` | cannot open the artifact — gate 5 |
 | `gauntlet-critic` | `Agent` `ListAgents` `SendMessage` | cannot discover or address a peer critic |
-| `gauntlet-critic` | `Write` `Edit` | cannot alter what the others are reading |
+| `gauntlet-critic` | `Write` `Edit` | cannot use those *tools* to alter what the others are reading — it still holds `Bash`, so this is prompt-deep, not a full write-block |
 | `gauntlet-verifier` | `Agent` `ListAgents` `SendMessage` | cannot delegate its own checking |
+| `gauntlet-ab-critic` (loop.js) | `Agent` `ListAgents` `SendMessage` `Write` `Edit` | cannot reach the builder or a peer, and cannot use `Write`/`Edit` to alter either artifact — it still holds `Bash` |
+| `gauntlet-builder` (loop.js) | `Agent` `ListAgents` `SendMessage` | cannot spawn or reach a critic |
 
 Plus, in code rather than judgment: the gate-7 leak check is a literal string match
 over the critic's output; VOID and MISS are counted separately so only a MISS
@@ -89,9 +100,10 @@ against a concrete reference exemplar**, looping until the candidate wins.
 | no gate sequence | gates 0–7 in front |
 
 The ≤2-round cap contradicts the source head-on. Take it as a cost decision, not as
-the method. Where a reference exemplar exists, prefer the build lane — it is the
-mode with the track record. Note also that the name is contested: several public
-repos ship `gauntlet-loop` as Shumer's build loop.
+the method. Where a reference exemplar exists, prefer the build lane —
+`skills/gauntlet-loop/loop.js` in this repo — it is the mode with the track record.
+Note also that the name is contested: several public repos ship `gauntlet-loop` as
+Shumer's build loop.
 
 `docs/2026-08-01-gauntlet-adoption-loop.md` is the adaptation this skill grew out of
 and the authority `SKILL.md` cites for four properties: frozen bars, ≤2 rounds

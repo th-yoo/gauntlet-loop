@@ -56,7 +56,7 @@ denominated in is not actually being set. The tally reports that rate separately
 **A gate-0 NO triggers the width-1 lane anyway** — bar writer, one critic, verifier. Three
 spawns, ~150k (`SKILL.md:37`).
 
-Gate 0, not gate 1, for the reason `SKILL.md:95` already gives: *"Only gate 0 refuses to zero
+Gate 0, not gate 1, for the reason `SKILL.md:97` already gives: *"Only gate 0 refuses to zero
 agents."* Overriding gate 0 costs ~150k; overriding gate 1 costs the panel's ~950k margin.
 Six times cheaper, and it is the gate that actually refuses to zero.
 

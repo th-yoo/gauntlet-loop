@@ -229,3 +229,17 @@ const seed = n => ({
   eq(r.result.calibration.caveat, null, 'a fully calibrated width-1 run carries no uncalibrated caveat')
   console.log('orchestration: width-1 run spawns one critic, no caveat OK')
 }
+
+// Fix-wave #1: critics hold Bash (see agents/gauntlet-critic.md), so "cannot
+// alter what the others were reading" overclaims a structural guarantee.
+// The enforced bullet must scope the claim to the tools actually denied, and
+// the residual (Bash can still write files) must be disclosed.
+{
+  const r = await runGauntlet({ args: BASE })
+  const writeBullet = r.result.enforced.find(b => /no Write or Edit/i.test(b))
+  ok(writeBullet, 'the critic Write/Edit bullet is present')
+  ok(/those TOOLS/i.test(writeBullet), 'the bullet claims only what the tool allowlist buys')
+  const residual = r.result.not_enforced.find(b => /hold Bash and KillShell/i.test(b))
+  ok(residual, 'the Bash residual is disclosed in not_enforced')
+  console.log('orchestration: critic Write/Edit claim narrowed to the tool allowlist, Bash residual disclosed OK')
+}
