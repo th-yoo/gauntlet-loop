@@ -90,5 +90,11 @@ against a concrete reference exemplar**, looping until the candidate wins.
 
 The ≤2-round cap contradicts the source head-on. Take it as a cost decision, not as
 the method. Where a reference exemplar exists, prefer the build lane — it is the
-mode with the track record. Note also that the name is contested: several public
-repos ship `gauntlet-loop` as Shumer's build loop.
+mode with a measured record, though that record is improvement under a bar it never
+cleared: in Claude of Duty's own blind A/B, every critic in every round picked the
+real reference. Note also that the name is contested: several public repos ship
+`gauntlet-loop` as Shumer's build loop.
+
+Both source prompts are quoted in full in `skills/gauntlet-loop/references.md`,
+with the sentence behind every claim in the table above. Nothing here paraphrases
+the source without one.

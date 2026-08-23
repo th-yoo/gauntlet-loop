@@ -76,6 +76,11 @@ it.
 | stop | diminishing returns; gate 4 binds | ≤2 rounds, terminal |
 | fails by | stopping at "good for AI" | refuting everything |
 
+The build column is not summarized from memory: `references.md` carries both of
+Shumer's original prompts verbatim, plus the sentence behind every row. Its
+recorded outcomes are gate-3 form (a) material — including the round that
+regressed, which is what an uncapped loop absorbs and a ≤2-round cap cannot.
+
 ## Running the panel
 
 **Four properties are load-bearing and owned here:** frozen bars, ≤2 rounds terminal, fresh-context critics per round, and the author never grading its own artifact. They were carried over from a one-builder-against-one-critic adopt/drop loop, whose topology is not a panel — it fixes those four and says nothing about how many agents a panel spawns or in what order. `critic-prompt.md` gives prompt *bodies* — critic, round 2, verifier — and no roster either. So the roster lives here, because it lives nowhere else.
