@@ -6,10 +6,12 @@
 // This loads the script as text, strips the leading `export ` from
 // `export const meta` (the one thing that makes the file illegal as a
 // function body), wraps the body in an async function taking
-// (args, agent, parallel, phase, log), and drives it three times with
+// (args, agent, parallel, phase, log), and drives it five times with
 // stubbed agents. The stub agent(prompt, opts) returns a canned value keyed
 // on opts.label — the script never keys behavior on prompt text, so this is
-// the actual dispatch surface.
+// the actual dispatch surface. The stub also ASSERTS on opts.agentType,
+// because the restriction the whole branch is about is carried in that one
+// field: a dispatch that forgets it silently spawns an unrestricted agent.
 //
 //   node test/smoke.mjs
 //
@@ -17,9 +19,11 @@
 // No dependencies, no network, no agent calls.
 //
 // What this DOES prove: gauntlet.js's control flow — gate 6 enforcement,
-// VOID-vs-MISS accounting in gate 7, the margin tally, the final verdict
-// shape — behaves as the script's own comments claim, under inputs that are
-// well-formed or malformed in the specific ways exercised below.
+// VOID-vs-MISS accounting in gate 7, the two-MISS terminator, the round-1
+// halt, the margin tally, the final verdict shape — behaves as the script's
+// own comments claim, under inputs that are well-formed or malformed in the
+// specific ways exercised below. It also proves every dispatched agent call
+// carries a restricted agentType.
 //
 // What this does NOT prove: that a real agent, given the real prompts,
 // produces well-formed output, catches a real planted defect, or writes a
@@ -74,28 +78,62 @@ const BASE_ARGS = { artifact: '/fake/artifact.md', scratch: '/fake/scratch' }
 // runs — its stubs would just be more of the same pattern already covered
 // by critic:<lenskey> / compare:<lenskey>, and the brief scopes it out.
 
-function makeStubs(scenarioMap) {
+// The restricted agent types, parsed out of gauntlet.js's own AT map rather
+// than duplicated here — a copy would drift, and a drifted copy would assert
+// against yesterday's roster. drift-guard.mjs parses the same literal to check
+// the namespace prefix; this parses it to check that every dispatch USES one.
+// Without this assertion, deleting `agentType: AT.judge` from both gate-7
+// judge calls leaves every scenario in both suites green, and two agents that
+// hold only TodoWrite silently become two unrestricted agents.
+const AT_VALUES = (() => {
+  const m = raw.match(/const AT = \{([\s\S]*?)\n\}/)
+  if (!m) {
+    console.error('smoke: could not find "const AT = { ... }" in gauntlet.js — the agentType assertion needs updating')
+    process.exit(1)
+  }
+  const values = [...m[1].matchAll(/:\s*'([^']*)'/g)].map(x => x[1])
+  if (!values.length) {
+    console.error('smoke: found the AT map literal but no quoted values inside it — the agentType assertion needs updating')
+    process.exit(1)
+  }
+  return new Set(values)
+})()
+
+// gate2:design is the ONE deliberate exception. The gate-2 designer has to read
+// the artifact in full, so no allowlist is applied to it, and gauntlet.js's own
+// not_enforced list says exactly that: "The gate-2 designer runs unrestricted".
+// Every other dispatch must name a restricted type.
+const UNRESTRICTED_LABELS = new Set(['gate2:design'])
+
+function makeStubs(scenarioName, scenarioMap) {
   // phase()/log() record into arrays, matching what the real Workflow
   // runtime's globals do — the script calls them fire-and-forget, so nothing
   // outside this closure needs to read the arrays back.
   const phases = []
   const logs = []
+  const prompts = new Map()
   const agent = async (prompt, opts = {}) => {
     const label = opts && opts.label
     if (!label || !Object.prototype.hasOwnProperty.call(scenarioMap, label)) {
       throw new Error(`smoke stub: no canned response for agent label "${label}" (prompt started: ${String(prompt).slice(0, 60)}...)`)
+    }
+    prompts.set(label, String(prompt))
+    if (!UNRESTRICTED_LABELS.has(label)) {
+      const at = opts.agentType
+      if (!at) fail(`${scenarioName}: agent call "${label}" was dispatched with no agentType — that spawn is unrestricted, and every property the allowlists buy is a promise again`)
+      else if (!AT_VALUES.has(at)) fail(`${scenarioName}: agent call "${label}" used agentType ${JSON.stringify(at)}, which is not one of gauntlet.js's own AT map values`)
     }
     return scenarioMap[label]
   }
   const parallel = async thunks => Promise.all(thunks.map(t => t()))
   const phase = title => { phases.push(title) }
   const log = msg => { logs.push(msg) }
-  return { agent, parallel, phase, log }
+  return { agent, parallel, phase, log, prompts }
 }
 
 async function runScenario(name, argsObj, scenarioMap, assertFn) {
   console.log(`smoke: scenario "${name}"`)
-  const { agent, parallel, phase, log } = makeStubs(scenarioMap)
+  const { agent, parallel, phase, log, prompts } = makeStubs(name, scenarioMap)
   let result
   try {
     result = await runGauntlet(argsObj, agent, parallel, phase, log)
@@ -103,7 +141,7 @@ async function runScenario(name, argsObj, scenarioMap, assertFn) {
     fail(`${name}: gauntlet.js threw instead of returning a verdict — ${e && e.stack ? e.stack : e}`)
     return
   }
-  assertFn(result)
+  assertFn(result, prompts)
 }
 
 // ---------------------------------------------------------------------------
@@ -267,6 +305,70 @@ const GATE7_SCENARIO = {
   'report:write': 'wrote the gate-7 halt report to disk',
 }
 
+// Two genuine MISSes. Everything a trial needs is present — a control path, a
+// leak-checkable removed string, an in-lane plant — and the critic simply does
+// not name the defect, twice. This is the arm that says the critic you were
+// about to deploy cannot catch a plant in its own lane, and until now nothing
+// in either suite ever drove `misses` above zero.
+function seedFull(attempt, kind) {
+  return {
+    seeded_path: `/fake/scratch/trial-${attempt}/subject.md`,
+    control_path: `/fake/scratch-b/trial-${attempt}/subject.md`,
+    removed_verbatim: [`removed string number ${attempt}, long enough to carry a leak check`],
+    inserted_verbatim: [`inserted string number ${attempt}`],
+    location: `section ${attempt}`,
+    defect_kind: kind,
+    why_in_lane: 'the calibrated lens covers accuracy of stated invariants, and this inverts one.',
+  }
+}
+
+// Files something, but not the plant — and nothing here quotes a removed
+// string, so the leak check must not fire and turn this MISS into a VOID.
+const CAL_CRITIC_MISSES = `FINDING accuracy-1
+severity: low
+claim: a heading is inconsistent with the one above it.
+location: section 9
+falsifier: read the headings in order
+anchor: TRACE walked the document top to bottom
+anchor-says: the headings are inconsistently capitalised
+edit: capitalise them consistently
+behavior-delta: none of substance
+
+GETS-RIGHT: the invariants in the body read as internally consistent
+FAILED-ATTACK: looked for a contradiction between the stated invariants; found none
+SPILLOVER: none`
+
+const JUDGE_MISS = { caught: false, in_lane: true, reasoning: 'the reviewer filed on capitalisation, never naming the planted defect.' }
+
+const MISS_TWICE_SCENARIO = {
+  'gate2:design': DESIGN_HAPPY,
+  'gate5:blind-bar': BAR_HAPPY,
+  'gate7:seeder-1': seedFull(1, 'inverted-invariant'),
+  'gate7:critic-1': CAL_CRITIC_MISSES,
+  'gate7:judge-1': JUDGE_MISS,
+  'gate7:seeder-2': seedFull(2, 'dropped-precondition'),
+  'gate7:critic-2': CAL_CRITIC_MISSES,
+  'gate7:judge-2': JUDGE_MISS,
+  'report:write': 'wrote the gate-7 two-miss halt report to disk',
+}
+
+// Calibration passes, then every round-1 critic returns empty. The panel
+// produced nothing to verify, cross-check or tally, so the run halts at round
+// 1 — and must still write its report, like every other halt.
+const ROUND1_EMPTY_SCENARIO = {
+  'gate2:design': DESIGN_HAPPY,
+  'gate5:blind-bar': BAR_HAPPY,
+  'gate7:seeder-1': SEED_1,
+  'gate7:critic-1': CAL_CRITIC_1,
+  'gate7:judge-1': JUDGE_1,
+  'gate7:control-1': CONTROL_CRITIC_1,
+  'gate7:control-judge-1': CONTROL_JUDGE_1,
+  'critic:accuracy': '',
+  'critic:completeness': '',
+  'critic:risk': '',
+  'report:write': 'wrote the round-1 halt report to disk',
+}
+
 // ---------------------------------------------------------------------------
 // ASSERTIONS
 // ---------------------------------------------------------------------------
@@ -317,6 +419,41 @@ function assertGate7VoidTwice(result) {
   if (result.report_path !== EXPECT_REPORT_PATH) fail(`gate7-void-twice: report_path = ${JSON.stringify(result.report_path)}, want ${JSON.stringify(EXPECT_REPORT_PATH)} — a halt must still dispatch the reporter`)
 }
 
+function assertGate7MissTwice(result, prompts) {
+  if (!result) { fail('gate7-miss-twice: gauntlet.js returned nothing'); return }
+  if (result.verdict !== 'NO VERDICT') fail(`gate7-miss-twice: verdict = ${JSON.stringify(result.verdict)}, want 'NO VERDICT'`)
+  if (result.stage !== 'gate 7') fail(`gate7-miss-twice: stage = ${JSON.stringify(result.stage)}, want 'gate 7'`)
+  // The mirror image of gate7-void-twice: a MISS consumes the retry and a
+  // VOID does not, so two MISSes must reach the terminator with voids at 0.
+  // If voids is nonzero here, something turned a genuine miss into a
+  // non-measurement — most likely the leak check firing on a string it
+  // should not match.
+  if (result.misses !== 2) fail(`gate7-miss-twice: misses = ${JSON.stringify(result.misses)}, want 2 (a MISS must consume the retry)`)
+  if (result.voids !== 0) fail(`gate7-miss-twice: voids = ${JSON.stringify(result.voids)}, want 0 — a genuine miss is a measurement, not a void`)
+  if (result.arm !== 'sensitivity') fail(`gate7-miss-twice: arm = ${JSON.stringify(result.arm)}, want 'sensitivity'`)
+  if (result.report_path !== EXPECT_REPORT_PATH) fail(`gate7-miss-twice: report_path = ${JSON.stringify(result.report_path)}, want ${JSON.stringify(EXPECT_REPORT_PATH)} — a halt must still dispatch the reporter`)
+  // spentKinds: attempt 1's defect kind must reach attempt 2's seeder prompt
+  // as a kind NOT to reuse. Re-running a plant the critic already failed fits
+  // the critic to the test, which is the failure this retry rule exists for.
+  const seeder2 = prompts.get('gate7:seeder-2')
+  if (!seeder2) fail('gate7-miss-twice: the second seeder was never dispatched — a MISS must be retried once')
+  else {
+    if (!seeder2.includes('inverted-invariant')) fail("gate7-miss-twice: the retry seeder prompt does not name attempt 1's spent defect kind 'inverted-invariant' — spentKinds never reached it")
+    if (!seeder2.includes('Use a DIFFERENT kind')) fail('gate7-miss-twice: the retry seeder prompt does not instruct a DIFFERENT kind of defect')
+  }
+}
+
+function assertRound1Empty(result) {
+  if (!result) { fail('round1-empty: gauntlet.js returned nothing'); return }
+  if (result.verdict !== 'NO VERDICT') fail(`round1-empty: verdict = ${JSON.stringify(result.verdict)}, want 'NO VERDICT'`)
+  if (result.stage !== 'round 1') fail(`round1-empty: stage = ${JSON.stringify(result.stage)}, want 'round 1'`)
+  // The halt is reached AFTER gate 7 was paid for in full, so the bar it
+  // carries is the blind one and must survive into a rerun like every other
+  // halt's does.
+  if (!result.bar) fail('round1-empty: the halt carries no bar — the blind bar must survive the halt')
+  if (result.report_path !== EXPECT_REPORT_PATH) fail(`round1-empty: report_path = ${JSON.stringify(result.report_path)}, want ${JSON.stringify(EXPECT_REPORT_PATH)} — a halt must still dispatch the reporter`)
+}
+
 // ---------------------------------------------------------------------------
 // RUN
 // ---------------------------------------------------------------------------
@@ -326,9 +463,11 @@ console.log('smoke: loading gauntlet.js as a Workflow body and driving it with s
 await runScenario('happy', BASE_ARGS, HAPPY_SCENARIO, assertHappy)
 await runScenario('gate6-halt', BASE_ARGS, GATE6_SCENARIO, assertGate6Halt)
 await runScenario('gate7-void-twice', BASE_ARGS, GATE7_SCENARIO, assertGate7VoidTwice)
+await runScenario('gate7-miss-twice', BASE_ARGS, MISS_TWICE_SCENARIO, assertGate7MissTwice)
+await runScenario('round1-empty', BASE_ARGS, ROUND1_EMPTY_SCENARIO, assertRound1Empty)
 
 if (failures) {
   console.error(`\nsmoke: ${failures} failure(s) — gauntlet.js's control flow did not behave as the script's own comments claim.`)
   process.exit(1)
 }
-console.log('\nsmoke: OK — 3 scenarios')
+console.log('\nsmoke: OK — 5 scenarios')
