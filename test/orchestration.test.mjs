@@ -167,7 +167,7 @@ const seed = n => ({
   const barCall = r.prompts.find(p => p.label === 'gate5:blind-bar')
   ok(barCall, 'the bar writer ran')
   ok(!barCall.prompt.includes(BASE.artifact), 'bar prompt does not contain the artifact path')
-  ok(barCall.agentType && barCall.agentType.includes('bar-writer'), 'bar writer ran as the restricted type')
+  eq(barCall.agentType, 'gauntlet-loop:gauntlet-bar-writer', 'bar writer ran as the exact live agent type')
   console.log('orchestration: bar writer never receives the artifact path OK')
 }
 
@@ -177,7 +177,7 @@ const seed = n => ({
   const r = await runGauntlet({ args: BASE })
   const seeder = r.prompts.find(p => p.label.startsWith('gate7:seeder'))
   ok(!seeder.prompt.includes('THE ANCHOR RULE'), 'seeder prompt does not carry the critic contract')
-  ok(seeder.agentType && seeder.agentType.includes('seeder'), 'seeder ran as the restricted type')
+  eq(seeder.agentType, 'gauntlet-loop:gauntlet-seeder', 'seeder ran as the exact live agent type')
   console.log('orchestration: seeder never receives the critic prompt OK')
 }
 
@@ -191,6 +191,11 @@ const seed = n => ({
   const normalise = s => s.replace(/\/tmp\/x\/scratch\/seeded-\d+\.md/g, 'PATH').replace(BASE.artifact, 'PATH')
   eq(normalise(cal.prompt), normalise(deployed.prompt), 'calibration critic prompt is byte-identical to the deployed one')
   ok(!cal.prompt.toLowerCase().includes('calibrat'), 'the calibration critic is not told it is being calibrated')
+  eq(cal.agentType, 'gauntlet-loop:gauntlet-critic', 'calibration critic ran as the exact live agent type')
+  eq(deployed.agentType, 'gauntlet-loop:gauntlet-critic', 'deployed critic ran as the exact live agent type')
+  const verifier = r.prompts.find(p => p.label === 'verifier:grounding')
+  ok(verifier, 'the verifier ran')
+  eq(verifier.agentType, 'gauntlet-loop:gauntlet-verifier', 'verifier ran as the exact live agent type')
   console.log('orchestration: calibration critic is the deployed critic OK')
 }
 
@@ -202,6 +207,7 @@ const seed = n => ({
   eq(r2.length, 2, 'one round-2 spawn per lens')
   ok(r2.every(p => p.prompt.includes('CROSS-CHECK')), 'round 2 orders a cross-check')
   ok(r2.every(p => p.prompt.includes('Last scheduled round')), 'round 2 is declared terminal to the worker')
+  ok(r2.every(p => p.agentType === 'gauntlet-loop:gauntlet-critic'), 'round 2 critics ran as the exact live agent type')
   eq(r.result.calibration.caveat === null, false, 'a 2-lens run with 1 calibrated lens carries the uncalibrated caveat')
   console.log('orchestration: round 2 spawns fresh and terminal OK')
 }

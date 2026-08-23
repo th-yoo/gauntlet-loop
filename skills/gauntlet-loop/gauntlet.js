@@ -166,7 +166,14 @@ const DESIGN_SCHEMA = {
       description: 'The underlying NEED, stated without naming the artifact\'s own proposed solution. This is all the bar writer will ever see.',
     },
     lenses: {
-      type: 'array', minItems: 2, maxItems: 4,
+      // minItems follows WANT_LENSES rather than a hardcoded 2: the Design
+      // prompt above asks for "exactly WANT_LENSES" lenses, and a schema
+      // floor higher than that count would make the prompt and the schema
+      // contradict each other whenever an operator asks for fewer than 2
+      // (a width-1 run). maxItems stays a flat ceiling — gate 2 may still
+      // propose extra candidates up to 4; only the extras beyond WANT_LENSES
+      // get discarded by the slice below.
+      type: 'array', minItems: WANT_LENSES, maxItems: 4,
       items: {
         type: 'object', required: ['key', 'lens'],
         properties: {
