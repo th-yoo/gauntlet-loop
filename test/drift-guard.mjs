@@ -83,7 +83,7 @@ const GATE_SEMANTICS = [
 // the property that tool was denying silently becomes a promise again.
 const ALLOWLIST = [
   { agent: 'gauntlet-bar-writer', forbidden: ['Read', 'Grep', 'Glob', 'Bash'], buys: 'cannot open the artifact (gate 5)' },
-  { agent: 'gauntlet-critic', forbidden: ['Agent', 'ListAgents', 'SendMessage', 'Write', 'Edit'], buys: 'cannot reach a peer critic or alter what they read' },
+  { agent: 'gauntlet-critic', forbidden: ['Agent', 'ListAgents', 'SendMessage', 'Write', 'Edit'], buys: 'cannot reach a peer critic through the agent-messaging channel, nor alter the artifact through a file-editing tool call' },
   { agent: 'gauntlet-verifier', forbidden: ['Agent', 'ListAgents', 'SendMessage', 'Write', 'Edit'], buys: 'cannot delegate its own checking' },
   { agent: 'gauntlet-seeder', forbidden: ['Agent', 'ListAgents', 'SendMessage', 'WebSearch', 'WebFetch'], buys: 'cannot look the artifact up to plant a recallable defect' },
   { agent: 'gauntlet-isolator', forbidden: ['Agent', 'SendMessage', 'WebSearch', 'WebFetch'], buys: 'cannot tell a critic which side is which' },
