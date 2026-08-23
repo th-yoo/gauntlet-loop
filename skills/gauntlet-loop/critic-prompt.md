@@ -1,6 +1,6 @@
 # Critic prompt scaffold
 
-Copy verbatim. Replace `<ARTIFACT>`, `<LENS>`, `<BAR>`. One lens per critic; give each a different one.
+Copy verbatim. Replace `<ARTIFACT>`, `<LENS_KEY>`, `<LENS>`, `<BAR>`. One lens per critic; give each a different one.
 
 ```
 You are one of N critics reviewing <ARTIFACT>. Read it now.
@@ -61,6 +61,8 @@ FAILED-ATTACK: <the strongest attack you tried that did NOT survive: the
 SPILLOVER: <optional, one line each>
 
 Missing GETS-RIGHT or FAILED-ATTACK is malformed and will be returned.
+
+Use "<LENS_KEY>" as the <id> prefix for every finding you file, so findings can be addressed by id across critics.
 ```
 
 ## Round 2

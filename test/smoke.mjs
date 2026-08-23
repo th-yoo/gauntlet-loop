@@ -216,7 +216,14 @@ const HAPPY_SCENARIO = {
   'verifier:grounding': VERIFIER_HAPPY,
   'round2:accuracy': round2For('accuracy', [{ finding_id: 'completeness-1', outcome: 'HELD', basis: 'REPO path:line quote supports the claim' }]),
   'round2:completeness': round2For('completeness', [{ finding_id: 'risk-1', outcome: 'KNOCKED-DOWN', basis: 'TRACE walked to a different state than the finding claimed' }]),
-  'round2:risk': round2For('risk', [{ finding_id: 'accuracy-1', outcome: 'HELD', basis: 'HARNESS ran the described command and reproduced the effect' }]),
+  // The second cross-check here names 'completeness-99' — no round-1 output
+  // ever filed that id (round1 filed 'completeness-1'). This is the case
+  // Task 5 exists for: a mistyped/unaddressable finding_id must land in
+  // margin.unmatched, never create a phantom tally row.
+  'round2:risk': round2For('risk', [
+    { finding_id: 'accuracy-1', outcome: 'HELD', basis: 'HARNESS ran the described command and reproduced the effect' },
+    { finding_id: 'completeness-99', outcome: 'HELD', basis: 'cross-check aimed at an id no round-1 critic ever filed' },
+  ]),
   'report:write': 'wrote the run report to disk',
 }
 
@@ -275,6 +282,13 @@ function assertHappy(result) {
   if (calVerdict !== 'CALIBRATED') fail(`happy: calibration.verdict = ${JSON.stringify(calVerdict)}, want 'CALIBRATED'`)
   const perFinding = result.margin && result.margin.per_finding
   if (!Array.isArray(perFinding) || perFinding.length === 0) fail(`happy: margin.per_finding = ${JSON.stringify(perFinding)}, want a non-empty array`)
+  // round2:risk's second cross-check names 'completeness-99', an id no
+  // round-1 output filed. It must land in margin.unmatched, not a phantom
+  // per_finding row — that silent misattribution is exactly what Task 5 fixed.
+  const unmatched = result.margin && result.margin.unmatched
+  if (!Array.isArray(unmatched) || unmatched.length !== 1) fail(`happy: margin.unmatched = ${JSON.stringify(unmatched)}, want an array with exactly 1 entry`)
+  else if (unmatched[0].finding_id !== 'completeness-99') fail(`happy: margin.unmatched[0].finding_id = ${JSON.stringify(unmatched[0].finding_id)}, want 'completeness-99'`)
+  if (Array.isArray(perFinding) && perFinding.some(m => m.finding_id === 'completeness-99')) fail(`happy: margin.per_finding contains a phantom row for 'completeness-99' — an unmatched cross-check must not tally`)
   if (!Array.isArray(result.enforced) || result.enforced.length === 0) fail(`happy: enforced = ${JSON.stringify(result.enforced)}, want a non-empty array`)
   if (result.report_path !== EXPECT_REPORT_PATH) fail(`happy: report_path = ${JSON.stringify(result.report_path)}, want ${JSON.stringify(EXPECT_REPORT_PATH)}`)
 }

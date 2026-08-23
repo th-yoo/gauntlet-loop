@@ -146,7 +146,7 @@ Missing GETS-RIGHT or FAILED-ATTACK is malformed and will be returned.`
 // AND for the control critic. That identity is the whole point of gate 7: a
 // stand-in measures a critic nobody is using, and a control run under a
 // different prompt measures a different critic than the one it is controlling.
-function criticPrompt(artifactPath, lens, otherLenses, bar, n) {
+function criticPrompt(lensKey, artifactPath, lens, otherLenses, bar, n) {
   return `You are one of ${n} critics reviewing the artifact at ${artifactPath}. Read it now.
 
 STANCE
@@ -171,7 +171,9 @@ ${lens}
 
 BUDGET: read once, spend the rest on anchors. Max 5 findings. Fewer is normal.
 
-${OUTPUT_CONTRACT}`
+${OUTPUT_CONTRACT}
+
+Use "${lensKey}" as the <id> prefix for every finding you file, so findings can be addressed by id across critics.`
 }
 
 // ---------------------------------------------------------------------------
@@ -603,7 +605,7 @@ prove nothing in either direction.`,
 
   // Byte-identical to a DEPLOYED critic. It is not told it is being calibrated.
   const calCritic = await agent(
-    criticPrompt(seed.seeded_path, calLens.lens, otherLensNames, bar.bar_text, LENSES.length),
+    criticPrompt(calLens.key, seed.seeded_path, calLens.lens, otherLensNames, bar.bar_text, LENSES.length),
     { label: `gate7:critic-${attempt}`, phase: 'Calibrate', agentType: AT.critic }
   )
 
@@ -648,7 +650,7 @@ Two independent questions:
   // ---- ARM 2: SPECIFICITY. Only a catch needs a control; a miss is already
   // uninformative about habit. Same prompt, same lane, no defect.
   const controlCritic = await agent(
-    criticPrompt(seed.control_path, calLens.lens, otherLensNames, bar.bar_text, LENSES.length),
+    criticPrompt(calLens.key, seed.control_path, calLens.lens, otherLensNames, bar.bar_text, LENSES.length),
     { label: `gate7:control-${attempt}`, phase: 'Calibrate', agentType: AT.critic }
   )
 
@@ -764,7 +766,7 @@ phase('Review')
 const round1 = (await parallel(
   LENSES.map(l => () =>
     agent(
-      criticPrompt(ARTIFACT, l.lens, LENSES.filter(o => o.key !== l.key).map(o => o.lens), bar.bar_text, LENSES.length),
+      criticPrompt(l.key, ARTIFACT, l.lens, LENSES.filter(o => o.key !== l.key).map(o => o.lens), bar.bar_text, LENSES.length),
       { label: `critic:${l.key}`, phase: 'Review', agentType: AT.critic }
     ).then(out => (out ? { key: l.key, lens: l.lens, output: out } : null))
   )
@@ -876,10 +878,30 @@ prose already says — they are not permission to say less.`,
 log(`round 2: ${round2.length} cross-checks returned — terminal`)
 
 // MARGIN — assembled from the tally, not asserted by any one agent.
+//
+// cross_checks[].finding_id is free text a critic typed, not a value the
+// script defined. Trusting it straight into margin[id] lets three critics
+// naming the same finding three different ways produce three singleton rows
+// and an empty `contested` — the margin feature reporting no disagreement
+// precisely when there was some. So the id space is pinned to what round 1
+// actually filed: only a finding_id that appears as "FINDING <id>" in a
+// round-1 output can accumulate a tally row. Anything else is not repaired
+// or fuzzy-matched — that would manufacture the same false confidence this
+// guards against — it is recorded in margin.unmatched instead.
+const filedIds = new Set()
+for (const r of round1) {
+  for (const m of r.output.matchAll(/^FINDING\s+(\S+)/gm)) filedIds.add(m[1])
+}
+
 const margin = {}
+const unmatched = []
 for (const r of round2) {
   for (const c of (r.output.cross_checks || [])) {
     const id = c.finding_id
+    if (!filedIds.has(id)) {
+      unmatched.push({ finding_id: id, lens: r.key, outcome: c.outcome, basis: c.basis })
+      continue
+    }
     if (!margin[id]) margin[id] = { finding_id: id, held: 0, knocked_down: 0, attackers: [] }
     if (c.outcome === 'HELD') margin[id].held++
     else margin[id].knocked_down++
@@ -890,6 +912,7 @@ const contested = Object.values(margin).filter(m => m.held > 0 && m.knocked_down
 const withdrawnCount = round2.reduce((n, r) => n + ((r.output.withdrawn || []).length), 0)
 if (contested.length) log(`round 2: ${contested.length} finding(s) SPLIT — attacked and defended by different lenses. A split is the cheapest confidence signal here; read those first.`)
 log(`round 2: ${withdrawnCount} finding(s) withdrawn under grounding`)
+log(`round 2: ${unmatched.length} cross-check(s) named a finding_id no round-1 output filed — recorded in margin.unmatched, not tallied`)
 
 // ---------------------------------------------------------------------------
 // PHASE: COMPARE (optional — the source method's own mechanism)
@@ -1013,7 +1036,8 @@ const verdict = {
     per_finding: Object.values(margin),
     contested: contested.map(m => m.finding_id),
     withdrawn_total: withdrawnCount,
-    note: 'A finding no one attacked is not a finding that survived attack. Read `attackers` before reading `held`.',
+    unmatched,
+    note: 'A finding no one attacked is not a finding that survived attack. Read `attackers` before reading `held`. `unmatched` holds cross-checks whose finding_id matched no round-1 output — not tallied, not guessed at.',
   },
 
   comparison,

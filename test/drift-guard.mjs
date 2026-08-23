@@ -41,6 +41,10 @@ const PINNED = [
   'FAILED-ATTACK',
   'SPILLOVER',
 
+  // finding ids must be addressable across critics, or the round-2 margin
+  // tally cannot key on them
+  'as the <id> prefix for every finding you file, so findings can be addressed by id across critics.',
+
   // verifier triad
   'EXISTS',
   'SAYS',
