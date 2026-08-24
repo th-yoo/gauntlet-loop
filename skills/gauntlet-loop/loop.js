@@ -30,6 +30,14 @@ export const meta = {
 //   3. ONE CRITIC, not a panel. Singular throughout the source.
 //   4. ONE GAP comes back, not a findings list. "the biggest remaining gap".
 //
+// The "really harsh critic" clause above is a REQUIREMENT, not decoration: it is
+// the only property the source gives the judge. It is implemented in the live
+// A/B prompt below ("BE A REALLY HARSH CRITIC") and in the critic's standing
+// agent definition, agents/gauntlet-ab-critic.md. Both are pinned by
+// test/drift-guard.mjs against COMMENT-STRIPPED source, because a clause that
+// survives only in a comment like this one is exactly the failure that check
+// exists to catch (issue #16).
+//
 // And the stop rule, from Shumer's own guide, which forbids what gauntlet.js
 // hardcodes: "Do not tell it to do three rounds and stop. Tell it to keep
 // looping... there should be no arbitrary final round." The real terminator is
@@ -318,6 +326,13 @@ while (true) {
   const verdict = await agent(
     `Compare two artifacts and pick the better one. You are not told which is which.
 
+BE A REALLY HARSH CRITIC. That is the one property this method asks of the judge, and it
+is the whole reason a separate judge exists. Not cruel — exacting. Start from the position
+that neither artifact is good enough yet, and make the winner earn the verdict rather than
+collect it for being close. Visible effort is not quality: an artifact that plainly took
+work is not thereby better than one that did not. If neither looks first-rate, say which
+is nearer and say plainly what is still missing from it.
+
 THE GOAL these are being judged against:
 ${GOAL}
 
@@ -485,6 +500,7 @@ return {
     SIDES_LOOK_ALIKE
       ? 'The critic is told not to infer which artifact is the candidate, but nothing prevents it. A generated artifact and a real one often differ in ways that give it away.'
       : `this run's args.reference/args.candidate pair was not a comparable filesystem path pair (reference read as ${shapeOf(REFERENCE)}, candidate as ${shapeOf(CANDIDATE)}). The two ARTIFACT lines rendered in visibly different shapes, so this run's A/B was NOT blind — the loop's own formatting gave away which side was the candidate before the critic looked at either one.`,
+    'The critic is instructed to be a really harsh critic — the source\'s one requirement on the judge — in both its standing agent definition and the round prompt. Nothing verifies that a harsh INSTRUCTION produced a harsh CRITIC. A lenient verdict and an exacting one are indistinguishable from here: no calibration trial ran, and the loop reads only the letter that came back.',
     'Position bias is averaged across rounds by alternation, not eliminated within a round.',
     'Critic and builder share a model family, so the critic may be blind to exactly the mistakes the builder is prone to making.',
     'The critic holds Bash and KillShell, which can write files directly (redirection, heredocs, etc.) — nothing mechanically stops it from altering either artifact through Bash instead of Write/Edit. The no-Write/no-Edit property above is real but narrow (prompt-deep, not structural).',

@@ -542,3 +542,46 @@ console.log('loop: protocol-relative, Windows, relative and tilde references all
   ok(!r.result.enforced.some(b => /never TOLD which artifact was the candidate/i.test(b)), 'a non-path candidate also withholds the blindness bullet')
   console.log('loop: a non-path candidate is caught and named rather than blamed on the reference OK')
 }
+
+// ---------------------------------------------------------------------------
+// Issue #16. The source gives the judge exactly one property — "That separate
+// sub-agent should be a really harsh critic" — and loop.js carried it only in
+// the header comment that quotes the source. A comment is not a prompt.
+//
+// This asserts against the RENDERED prompt every round, not against the file:
+// the file is drift-guard's job, and a check that reads the source could pass
+// while the clause sits somewhere no agent is handed.
+// ---------------------------------------------------------------------------
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 3,
+    rounds: [],
+  })
+  const criticPrompts = r.prompts.filter(p => p.label.endsWith(':ab'))
+  eq(criticPrompts.length, 3, 'three critic prompts captured')
+  for (const p of criticPrompts) {
+    ok(/harsh critic/i.test(p.prompt), `critic prompt (${p.label}) instructs the critic to be a harsh critic`)
+    ok(/not good enough yet|good enough yet/i.test(p.prompt), `critic prompt (${p.label}) sets the default posture: not good enough yet`)
+    // The harsh clause must not buy its strictness by breaking blindness — the
+    // existing prompt tests forbid the word "candidate", and this is the same
+    // property re-checked at the place the new text was added.
+    ok(!/candidate/i.test(p.prompt), `the harsh clause did not reintroduce the word "candidate" in ${p.label}`)
+  }
+  console.log('loop: every round prompt carries the harsh-critic instruction, blindness intact OK')
+}
+
+// ...and it is disclosed as a PROMPT, not banked as a property. An instruction
+// to be harsh is not evidence of a harsh critic, and the moment this bullet
+// moves into `enforced` the verdict is claiming a calibration that never ran.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 1,
+    rounds: [],
+  })
+  const residual = r.result.not_enforced.find(b => /harsh INSTRUCTION produced a harsh CRITIC/.test(b))
+  ok(residual, 'not_enforced discloses that nothing verifies the instruction worked')
+  ok(!r.result.enforced.some(b => /harsh/i.test(b)), 'enforced makes no harshness claim — a prompt instruction is not an enforced property')
+  console.log('loop: harshness is disclosed as an unverified instruction, never claimed as enforced OK')
+}

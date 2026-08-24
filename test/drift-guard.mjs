@@ -90,6 +90,14 @@ const ALLOWLIST = [
   { agent: 'gauntlet-isolator', forbidden: ['Agent', 'SendMessage', 'WebSearch', 'WebFetch'], buys: 'cannot tell a critic which side is which' },
   { agent: 'gauntlet-reporter', forbidden: ['Read', 'Grep', 'Glob', 'Bash', 'Agent', 'WebSearch', 'WebFetch'], buys: 'can only write down what the run handed it' },
   { agent: 'gauntlet-judge', forbidden: ['Read', 'Grep', 'Glob', 'Bash', 'Agent', 'ListAgents', 'SendMessage', 'WebSearch', 'WebFetch'], buys: 'cannot form its own opinion of the artifact and grade the critic against that' },
+  // loop.js makes three allowlist claims of its own in `enforced`, and until
+  // now no guard checked any of them — the list above covers gauntlet.js's
+  // seven agent types only. Same mechanism, extended to the second script's
+  // three; the claims are quoted in the `buys` field so a reader can see which
+  // sentence in the verdict goes false when an entry starts failing.
+  { agent: 'gauntlet-ab-critic', forbidden: ['Write', 'Edit', 'Agent', 'ListAgents', 'SendMessage'], buys: 'is claimed to have "no Write or Edit — it could not use those TOOLS to alter either artifact", and to be unable to reach the builder or another critic' },
+  { agent: 'gauntlet-builder', forbidden: ['Agent', 'ListAgents', 'SendMessage'], buys: 'is claimed to be an agent type "with no Agent/ListAgents/SendMessage — it could not reach or spawn a critic"' },
+  { agent: 'gauntlet-breaker', forbidden: ['Read', 'Grep', 'Glob', 'Agent', 'ListAgents', 'SendMessage', 'WebSearch', 'WebFetch', 'Write', 'Edit'], buys: 'is claimed to be an agent type "whose whole tool allowlist is Bash and which never saw the goal, either artifact, or any verdict"' },
 ]
 
 // A disclosure that can be deleted without failing a test is not a
@@ -198,6 +206,66 @@ for (const name of CAP_NAMES) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// loop.js carries its contract in TWO prompt surfaces: the standing agent
+// definitions under agents/ (the system prompt each spawn is born with) and the
+// round prompts rendered inside loop.js. Either can be edited without the other
+// — which is the same drift PINNED guards between critic-prompt.md and
+// gauntlet.js, on the script that had no such guard at all.
+//
+// Issue #16 is what the failure looks like: the source's one requirement on the
+// judge — "a really harsh critic" — was present in loop.js only inside a comment
+// quoting the source, while the live prompt asked for a neutral comparison. So
+// the loop.js side is checked against COMMENT-STRIPPED source. A clause that
+// survives only in a comment fails here, which is the point: a comment is not a
+// prompt, and no agent ever reads one.
+//
+// Needles are per-file because the two surfaces legitimately differ in case and
+// wording (a prompt shouts "BE A REALLY HARSH CRITIC"; a system prompt does not).
+// ---------------------------------------------------------------------------
+const LOOP_PINNED = [
+  { loop: 'BE A REALLY HARSH CRITIC', agent: 'gauntlet-ab-critic', needle: 'really harsh critic',
+    what: "the source's one requirement on the judge (\"That separate sub-agent should be a really harsh critic\")" },
+  { loop: 'a tie is a critic declining to look closely enough', agent: 'gauntlet-ab-critic', needle: 'critic declining to look closely enough',
+    what: 'the forced binary — no "they are comparable" exit' },
+  { loop: 'the single largest thing', agent: 'gauntlet-ab-critic', needle: 'the single largest thing',
+    what: 'ONE gap comes back, and it is the largest' },
+  { loop: 'matte plastic under the same light', agent: 'gauntlet-ab-critic', needle: 'matte plastic under the same light',
+    what: 'the concrete-enough-to-act-on example that defines what a gap must look like' },
+  { loop: 'the next verdict uninterpretable', agent: 'gauntlet-builder', needle: 'the next verdict uninterpretable',
+    what: 'the builder fixes exactly one gap, because a five-change round cannot be read' },
+  { loop: 'breaker that cannot be read', agent: 'gauntlet-breaker', needle: 'breaker that cannot be read',
+    what: 'the circuit breaker fails SAFE — an unreadable probe stops the run rather than continuing it' },
+]
+
+// Same rule as DISCLOSURES above, for loop.js: a residual that can be deleted
+// without failing a test is not a disclosure.
+const LOOP_DISCLOSURES = [
+  'Nothing verifies that a harsh INSTRUCTION produced a harsh CRITIC',
+]
+
+console.log('drift-guard: loop.js round prompts pinned to the agent definitions they spawn')
+for (const pin of LOOP_PINNED) {
+  let text
+  try {
+    text = readFileSync(join(ROOT, 'agents', `${pin.agent}.md`), 'utf8')
+  } catch {
+    fail(`${pin.agent}.md is missing — loop.js names it as an agentType`)
+    continue
+  }
+  const inLoop = loopCode.includes(pin.loop)
+  const inAgent = text.includes(pin.needle)
+  if (inLoop && inAgent) continue
+  if (!inLoop && !inAgent) fail(`${pin.what}: gone from BOTH loop.js and ${pin.agent}.md`)
+  else if (!inLoop) fail(`${pin.what}: ${pin.agent}.md still says "${pin.needle}", but loop.js has no LIVE "${pin.loop}" — if it is only in a comment now, no agent reads it`)
+  else fail(`${pin.what}: loop.js still renders "${pin.loop}", but ${pin.agent}.md no longer says "${pin.needle}" — the standing prompt is stale`)
+}
+
+console.log('drift-guard: required disclosures present in loop.js')
+for (const needle of LOOP_DISCLOSURES) {
+  if (!loop.includes(needle)) fail(`"${needle}" — not found in loop.js; a not_enforced disclosure was removed or reworded away`)
+}
+
 // The plugin loader namespaces plugin agents (checked against ListAgents —
 // see the comment above `const AT` in gauntlet.js). A bare agent-type name in
 // AT would fail to resolve on first use, silently turning a restricted spawn
@@ -219,4 +287,4 @@ if (failures) {
   console.error(`\ndrift-guard: ${failures} failure(s) — the script and its prompt authority have diverged.`)
   process.exit(1)
 }
-console.log(`\ndrift-guard: OK — ${PINNED.length} contract elements + ${GATE_SEMANTICS.length} gate semantics pinned, ${ALLOWLIST.length} allowlists still denying, ${DISCLOSURES.length} disclosure(s) present, gates 0/1/4 absent from script, AT map namespaced, loop.js clean of ${RUNTIME_FORBIDDEN.length} forbidden runtime APIs and ${CAP_NAMES.length} round-cap names.`)
+console.log(`\ndrift-guard: OK — ${PINNED.length} contract elements + ${GATE_SEMANTICS.length} gate semantics + ${LOOP_PINNED.length} loop.js prompt clauses pinned, ${ALLOWLIST.length} allowlists still denying, ${DISCLOSURES.length + LOOP_DISCLOSURES.length} disclosure(s) present, gates 0/1/4 absent from script, AT map namespaced, loop.js clean of ${RUNTIME_FORBIDDEN.length} forbidden runtime APIs and ${CAP_NAMES.length} round-cap names.`)
