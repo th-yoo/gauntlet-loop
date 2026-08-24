@@ -333,6 +333,15 @@ function sides(round, i, cand, ref) {
 // going. It does not halt: an operator may have good reason to judge an artifact
 // on a goal it never took on, and that judgment is theirs, not this script's.
 // ---------------------------------------------------------------------------
+const FITTED_SCHEMA = {
+  type: 'object',
+  required: ['verdict', 'reasoning'],
+  properties: {
+    verdict: { type: 'string', enum: ['need', 'mixed', 'fitted'], description: 'does the goal read as a need stated independently of this artifact, or as a description of what this artifact already does' },
+    reasoning: { type: 'string', description: 'which clauses of the goal map onto which structures of the artifact, quoted' },
+  },
+}
+
 const FAIRNESS_SCHEMA = {
   type: 'object',
   required: ['verdict', 'what_it_is_for'],
@@ -344,6 +353,49 @@ const FAIRNESS_SCHEMA = {
 }
 
 let fairness = null
+let fitted = null
+
+// The mirror of the fairness probe, and the half that was missing. The first
+// probe asks the REFERENCE whether it attempts the goal; this one asks the
+// CANDIDATE whether the goal is a description of it. Both failures decide a
+// comparison before anyone looks, and neither is visible from inside it — but
+// they are opposite, so they need opposite blindnesses. This prober is never
+// told what the reference is; the other is never told what the candidate is.
+//
+// Concretely: the first live run of this build was not unfair to the reference,
+// which was attempting the goal. It was fitted to the candidate — the artifact
+// had been rewritten hours earlier to optimise exactly the two properties the
+// goal then named. Nothing in the run could see that, and the operator who wrote
+// both is the last party who will notice.
+async function checkGoalFitted() {
+  const f = await agent(
+    `You are asked the FITTED question. Here is one artifact and one goal.
+
+Does this goal read as a NEED — something a person would state before seeing any artifact, in
+terms of what they want to be true — or as a DESCRIPTION of this artifact's visible features,
+restated as a requirement?
+
+THE GOAL:
+${GOAL}
+
+THE ARTIFACT: ${CANDIDATE}
+
+You are not told what this will be compared against and must not go looking. You are NOT
+judging whether the artifact meets the goal — an artifact can be terrible at a goal written
+to describe it. You are judging where the goal came from, as far as the text can show.`,
+    { label: 'goal-fitted', phase: 'Loop', schema: FITTED_SCHEMA, agentType: 'gauntlet-loop:gauntlet-goal-check' }
+  )
+  if (!f) return null
+  if (f.verdict === 'fitted') {
+    log('WARNING: this goal reads as a DESCRIPTION of the candidate rather than a need stated ' +
+        `independently of it. ${f.reasoning} A goal fitted to the artifact cannot discriminate: the ` +
+        'candidate clears it by construction and the reference is marked down for being different ' +
+        'rather than worse. No verdict from this run is evidence that the candidate is better.')
+  } else if (f.verdict === 'mixed') {
+    log(`NOTE: parts of this goal read as a description of the candidate. ${f.reasoning}`)
+  }
+  return f
+}
 
 async function checkGoalFairness() {
   const f = await agent(
@@ -519,7 +571,9 @@ let breakerSpawns = 0 // every breaker probe, including the one that reports the
 breakerSpawns++
 let pendingProbe = await tokenPresent(1, 'round-1')
 
-fairness = pendingProbe ? await checkGoalFairness() : null
+const probes = pendingProbe ? await parallel([() => checkGoalFairness(), () => checkGoalFitted()]) : [null, null]
+fairness = probes[0]
+fitted = probes[1]
 const decomposition_ = pendingProbe ? await decompose() : null
 decomposition = decomposition_
 if (decomposition && decomposition.refused) {
@@ -815,6 +869,10 @@ return {
   // the verdict cannot report it as ordinary success.
   rounds_with_a_build: history.filter(h => h.built).length,
 
+  goal_fitted: fitted
+    ? { verdict: fitted.verdict, reasoning: fitted.reasoning }
+    : { verdict: 'unchecked', reasoning: null },
+
   goal_fairness: fairness
     ? { verdict: fairness.verdict, reference_is_for: fairness.what_it_is_for, parts_not_attempted: fairness.parts_not_attempted || null }
     : { verdict: 'unchecked', reference_is_for: null, parts_not_attempted: null },
@@ -860,7 +918,12 @@ return {
       : 'NOT DECOMPOSED — the artifact was judged whole. The source divides a goal into pieces that are improved and judged independently; where that is not done, every gap this loop finds is a whole-artifact gap, and defects local to one part compete with each other for the single gap slot each round.',
     fairness && fairness.verdict === 'does-not-attempt'
       ? `THE REFERENCE DOES NOT ATTEMPT THIS GOAL — it is for: ${fairness.what_it_is_for}. Every verdict in this run is about the choice of goal, not about the work: the reference was marked down on a dimension it never entered. Nothing here is evidence that the candidate is better than the reference at what the reference is for.`
-      : 'The goal is operator-supplied and unchecked against the CANDIDATE. A goal written to describe what the candidate already does cannot discriminate, and nothing in this run would notice.',
+      : null,
+    fitted && fitted.verdict === 'fitted'
+      ? `THE GOAL IS FITTED TO THE CANDIDATE — it reads as a description of the artifact rather than a need stated independently of it. ${fitted.reasoning} The candidate clears such a goal by construction; the reference is marked down for being different rather than worse. No verdict here is evidence that the candidate is better.`
+      : fitted && fitted.verdict === 'mixed'
+        ? `PARTS OF THE GOAL ARE FITTED TO THE CANDIDATE. ${fitted.reasoning} Verdicts on those clauses measure the goal's provenance, not the work.`
+        : 'The goal is operator-supplied. Both probes read the text only: a goal written after looking at the candidate can still be phrased as a need, and nothing here can see when it was written or by whom.',
     'k>1 is an ADDITION, not source fidelity. Both primary texts say one critic per piece, singular; the source gets width by decomposing the goal, which this loop does not do. What k restores is the source\'s property — every judge satisfied — by a mechanism the source does not describe.',
     'Critic and builder share a model family, so the critic may be blind to exactly the mistakes the builder is prone to making.',
     'The critic holds Bash and KillShell, which can write files directly (redirection, heredocs, etc.) — nothing mechanically stops it from altering either artifact through Bash instead of Write/Edit. The no-Write/no-Edit property above is real but narrow (prompt-deep, not structural).',
@@ -870,7 +933,7 @@ return {
     'The breaker is checked at ROUND BOUNDARIES, not continuously. Removing the token while a critic or builder is mid-flight does not abort that agent — the run stops before the next round starts. To stop a round already in progress, kill the workflow itself.',
     'Nothing stops the token being re-created after a cancel. The breaker reports the state at each boundary; it does not latch.',
     'With no budget target set, there is no pre-committed ceiling at all — the run continues until it wins, an agent fails, or the operator cancels. That is the source\'s design, not an oversight, and it means an unattended run is bounded only by the host\'s own runaway backstop.',
-  ],
+  ].filter(Boolean),
 
   won_without_building: outcome.status === 'WON' && history.every(h => !h.built)
     ? 'THIS RUN NEVER BUILT ANYTHING. Every piece won its first round, so the builder never ran, no gap was ever acted on, and nothing iterated. A gauntlet loop that does not loop has tested its judges and not its method. Before reading this as success, check the bar: a goal written to describe what the candidate already does cannot discriminate, and a reference that does not attempt the goal cannot lose to it fairly.'

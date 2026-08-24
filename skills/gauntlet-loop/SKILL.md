@@ -123,15 +123,24 @@ nothing but you will stop it.
 
 ## The goal is the part that goes wrong
 
-Before anything is judged, one agent is shown **the goal and the reference only** —
-never told what your candidate is — and asked whether the reference *attempts*
-that goal at all. Not whether it is good: whether it is in the game.
+Before anything is judged, **two agents check the goal from opposite sides, and
+neither sees both artifacts.**
+
+One is shown the goal and **the reference only** — never told what your candidate
+is — and asked whether the reference *attempts* that goal at all. Not whether it
+is good: whether it is in the game.
+
+The other is shown the goal and **your candidate only** — never told what the
+reference is — and asked whether the goal reads as a *need* stated independently
+of any artifact, or as a *description* of what your artifact already does.
 
 This exists because a blind A/B is a fair test only when both sides are trying to
 do the same thing. A goal that describes what your artifact already does cannot
 discriminate: the reference then loses on a dimension it never entered, every
 critic can be careful and correct, and the verdict still measures nothing but
-your choice of goal. The first live run of this loop failed exactly that way.
+your choice of goal. The first live run of this loop failed exactly that way —
+not because the reference was out of the game, but because the goal named two
+properties the candidate had been rewritten to satisfy hours earlier.
 
 The run warns and continues — judging something on a goal it never took on may be
 what you intend — and the verdict says so, so a win under an unfair goal cannot

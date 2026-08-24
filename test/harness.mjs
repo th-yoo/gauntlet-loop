@@ -121,6 +121,7 @@ export async function runLoop(opts) {
     // opts.fairness -> FAIRNESS_SCHEMA object, or null (unchecked). Default
     // null, so an existing test's run reports verdict 'unchecked'.
     if (label === 'goal-fairness') return opts.fairness || null
+    if (label === 'goal-fitted') return opts.fitted || null
 
     if (label === 'decompose') return opts.lead || null
 

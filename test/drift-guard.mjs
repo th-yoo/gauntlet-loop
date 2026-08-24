@@ -142,7 +142,9 @@ const LOOP_DISCLOSURES = [
   // A goal fitted to the candidate cannot discriminate, and the first live run of
   // this build was decided by exactly that. Both halves of the residual are
   // pinned: the reference-side finding, and the candidate-side hole nothing checks.
-  'operator-supplied and unchecked against the CANDIDATE',
+  // Both goal probes read TEXT. Neither can see when the goal was written or by
+  // whom, which is the failure that actually decided the first live run.
+  'nothing here can see when it was written',
   'not independent judgments',
 ]
 

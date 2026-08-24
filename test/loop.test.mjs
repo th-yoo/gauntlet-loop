@@ -964,7 +964,7 @@ console.log('loop: args.critics is validated OK')
     rounds: [{ candidateWins: true, gap: 'unused', margin: 'clear' }],
   })
   ok(!fair.result.not_enforced.some(b => /DOES NOT ATTEMPT/.test(b)), 'a fair goal draws no such disclosure')
-  ok(fair.result.not_enforced.some(b => /operator-supplied and unchecked against the CANDIDATE/.test(b)), 'but the residual that nothing checks the goal against OUR side remains')
+  ok(fair.result.not_enforced.some(b => /nothing here can see when it was written/.test(b)), 'but the residual both probes share remains: they read the text, not the provenance')
 
   const none = await runLoop({
     args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
@@ -972,4 +972,44 @@ console.log('loop: args.critics is validated OK')
   })
   eq(none.result.goal_fairness.verdict, 'unchecked', 'a probe that returns nothing reports unchecked, not fair')
   console.log('loop: the goal-fairness probe is blind to the candidate and voids the comparison honestly OK')
+}
+
+// The mirror probe. The first live run was not unfair to the reference — it was
+// FITTED to the candidate, which had been rewritten hours earlier to optimise
+// exactly the properties the goal then named. Opposite failure, opposite
+// blindness: this prober never learns what the reference is.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    fitted: { verdict: 'fitted', reasoning: 'every clause maps onto a section heading of the artifact' },
+    rounds: [{ candidateWins: true, gap: 'unused', margin: 'decisive' }],
+  })
+  eq(r.result.goal_fitted.verdict, 'fitted', 'the verdict carries the fitting finding')
+  ok(r.logs.some(l => /reads as a DESCRIPTION of the candidate/.test(l)), 'warned while the run is still cheap to stop')
+  ok(r.result.not_enforced.some(b => /FITTED TO THE CANDIDATE/.test(b)), 'and disclosed as voiding the comparison')
+  eq(r.result.outcome.status, 'WON', 'but not halted — the operator may know better')
+
+  const probe = r.prompts.find(p => p.label === 'goal-fitted')
+  ok(probe && !probe.prompt.includes(REFERENCE), 'the prober is never told what the reference is')
+  ok(probe.prompt.includes(CANDIDATE), 'only the candidate and the goal')
+
+  const fairProbe = r.prompts.find(p => p.label === 'goal-fairness')
+  ok(!fairProbe.prompt.includes(CANDIDATE), 'and the OTHER prober is still blind to the candidate — opposite blindnesses')
+
+  const clean = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    fitted: { verdict: 'need', reasoning: 'states an outcome, names no structure of the artifact' },
+    fairness: { verdict: 'attempts', what_it_is_for: 'the same job' },
+    rounds: [{ candidateWins: true, gap: 'unused', margin: 'clear' }],
+  })
+  ok(!clean.result.not_enforced.some(b => /FITTED TO THE CANDIDATE/.test(b)), 'a need-shaped goal draws no fitting disclosure')
+  ok(!clean.result.not_enforced.some(b => /DOES NOT ATTEMPT/.test(b)), 'and a reference that attempts it draws no fairness disclosure')
+  ok(clean.result.not_enforced.some(b => /nothing here can see when it was written/.test(b)), 'but the residual both probes share remains: they read text, not provenance')
+
+  const none = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [{ candidateWins: true, gap: 'unused', margin: 'clear' }],
+  })
+  eq(none.result.goal_fitted.verdict, 'unchecked', 'a probe returning nothing reports unchecked, never clean')
+  console.log('loop: the goal is checked from both sides, by two probers with opposite blindnesses OK')
 }
