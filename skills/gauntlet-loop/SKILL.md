@@ -73,8 +73,15 @@ not decompose: their defects are properties of the whole — what is missing, wh
 order things come in — and no single section is wrong. The loop then runs the
 artifact whole and says so.
 
-**Independent pieces run concurrently; pieces that edit the same file run in
-sequence.** Coupling is read off the pieces rather than judged — two builders
+**Pieces run as a graph, at maximum width.** Two different relations govern it,
+and they are not the same thing:
+
+- **dependency** — a piece that cannot be *judged* until another exists says so,
+  and starts the moment that one wins. Not when a layer finishes.
+- **coupling** — pieces editing the same file run one at a time, because two
+  builders writing one path race and the loser's work vanishes.
+
+Everything else runs at once. Coupling is read off the pieces rather than judged — two builders
 writing one path race and the loser's work vanishes, while pieces in different
 files cannot collide. The source ran "three rounds of six agents each owning one
 directory"; its sequential pass was a later, targeted move on "coupled

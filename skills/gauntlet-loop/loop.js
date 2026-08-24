@@ -475,6 +475,7 @@ const PIECE_SCHEMA = {
           candidate: { type: 'string', description: 'absolute path, when this piece really is its own file' },
           reference: { type: 'string', description: 'absolute path to the matching part of the reference, when it is its own file' },
           focus: { type: 'string', description: 'when the piece is not a separate file: what a critic should attend to, and what it should ignore' },
+          depends_on: { type: 'array', items: { type: 'string' }, description: 'names of pieces that must WIN before this one can be judged — only where judging this piece is meaningless until that one exists. Not "related to". An empty list is the common and correct answer.' },
         },
       },
     },
@@ -505,6 +506,12 @@ one, it is not a piece.
 Refusing to split is a correct answer. Most prose, specs and decisions do not decompose:
 their defects are properties of the whole — what is missing, what order things come in —
 and no single section is wrong. Say so and the loop will run the artifact whole.
+
+Where one piece genuinely cannot be judged until another exists, say so in depends_on --
+naming a piece that must WIN first. Only real ordering: "cannot be judged yet", never "related
+to" or "should come after in the document". An empty list is the common and correct answer,
+and a wrong edge costs you parallelism or, worse, judges a piece before the thing it rests on
+is there.
 
 Also state your split criterion in one sentence. If that sentence is really "these are the
 parts I think are weak", discard it and look again: a split drawn around known weaknesses
@@ -811,51 +818,132 @@ know, and a fresh critic decides next round. Report what you changed, factually.
 }
 
 // ---------------------------------------------------------------------------
-// HOW PIECES ARE DISPATCHED. The source ran "three rounds of SIX AGENTS each
-// owning one directory"; its sequential pass was a later, targeted move on
-// "coupled concerns", not the mode it worked in. Running every piece one at a
-// time is the exception applied as the rule, and it costs an order of magnitude
-// of wall clock on any artifact that really has parts.
+// HOW PIECES ARE DISPATCHED — a DAG, run at maximum width.
 //
-// So the split is by COUPLING, and coupling is read off the pieces rather than
-// judged: pieces that edit the SAME path are coupled — two builders writing one
-// file race, and the loser's work vanishes — and run in sequence. Pieces with
-// DISTINCT paths cannot collide and run concurrently.
+// The source ran "three rounds of SIX AGENTS each owning one directory"; its
+// sequential pass was a later, targeted move on "coupled concerns", not the mode
+// it worked in. Running every piece one at a time is that exception applied as
+// the rule.
 //
-// A piece winning does not end the run: the source stops when EVERY piece is
-// satisfied. Any other stop is a stop for the whole run, and the first one to
-// occur wins — later ones do not overwrite it, so the reported reason is the one
-// that actually happened first.
+// TWO DIFFERENT RELATIONS, and conflating them costs either correctness or
+// wall clock:
+//
+//   COUPLING   two pieces edit the SAME path. Mutual exclusion — two builders
+//              writing one file race and the loser's work vanishes. Read off
+//              the pieces, never judged.
+//   DEPENDENCY B cannot be JUDGED until A has won. Ordering, not exclusion.
+//              Named by the lead, because only it can see that a worked example
+//              is meaningless before the thing it demonstrates exists.
+//
+// Both are expressed as promises rather than as a scheduler: every piece is
+// launched at once, and each awaits its own dependencies and its own path's
+// predecessor before running. So a piece starts the moment ITS prerequisites
+// are satisfied — not when a layer finishes. That is the maximum parallelism
+// the graph allows.
+//
+// A dependency that did not WIN does not release its dependents: they are
+// SKIPPED, recorded, and never spawned. Without that, a run with no round cap
+// waits forever on a piece that will never win.
 // ---------------------------------------------------------------------------
-const byPath = new Map()
+const byName = new Map(PIECES.map(p => [p.name, p]))
+
+// Edges to pieces that do not exist are dropped rather than guessed at.
+const deps = new Map()
+let droppedEdges = 0
 for (const piece of PIECES) {
-  const key = piece.candidate || CANDIDATE
-  if (!byPath.has(key)) byPath.set(key, [])
-  byPath.get(key).push(piece)
-}
-const groups = [...byPath.values()]
-if (groups.length > 1) log(`running ${groups.length} independent piece-group(s) concurrently; pieces sharing a file stay in sequence`)
-
-const groupResults = await parallel(groups.map(group => async () => {
-  const done = []
-  for (const piece of group) {
-    const o = await runPiece(piece)
-    done.push(o)
-    if (o && o.status !== 'WON') break   // a stop ends this group; the others are cut short by their own probes
-  }
-  return done
-}))
-
-for (const done of groupResults) {
-  for (const o of done || []) {
-    if (o && o.status !== 'WON' && !outcome) outcome = o
-    if (o && o.status === 'WON') lastWon = o
-  }
+  const named = ((piece.depends_on || []).filter(d => {
+    const ok = byName.has(d) && d !== piece.name
+    if (!ok) droppedEdges++
+    return ok
+  }))
+  deps.set(piece.name, named)
 }
 
-// An undecomposed run keeps the round's own WON verdict verbatim — it already
-// says what the exit was, including how long the line was. A decomposed run
-// needs a verdict about the SET, since no single piece winning ended it.
+// A cycle deadlocks a promise graph silently — every piece waiting on another.
+// Detected here and broken by dropping ALL edges, because a lead that produced a
+// cycle has not given us an ordering we can trust part of.
+function hasCycle() {
+  const state = new Map()
+  const walk = n => {
+    if (state.get(n) === 'done') return false
+    if (state.get(n) === 'open') return true
+    state.set(n, 'open')
+    for (const d of deps.get(n) || []) if (walk(d)) return true
+    state.set(n, 'done')
+    return false
+  }
+  return PIECES.some(p => walk(p.name))
+}
+let cycleBroken = false
+if (PIECES.length > 1 && hasCycle()) {
+  cycleBroken = true
+  for (const k of deps.keys()) deps.set(k, [])
+  log('WARNING: the lead named a dependency cycle. All ordering has been dropped and every piece ' +
+      'runs as soon as its file is free — a cycle is not an ordering we can trust part of.')
+}
+
+// Once ANY piece stops the run — cancelled, out of budget, an agent failing —
+// nothing further is spawned. Pieces already in flight finish, because they
+// cannot be aborted; pieces still waiting on a dependency or on a file lock are
+// skipped and recorded. Without this a cancel releases the next coupled piece
+// and the run keeps spending after the operator has said stop.
+let runStopped = null
+
+const results = new Map()   // piece name -> outcome, once it has run
+const skipped = []
+const pathLock = new Map()  // candidate path -> promise chain, so coupled pieces never overlap
+
+function runWhenReady(piece) {
+  const started = (async () => {
+    for (const d of deps.get(piece.name) || []) {
+      await pieceRuns.get(d)
+      const r = results.get(d)
+      if (!r || r.status !== 'WON') {
+        skipped.push({ piece: piece.name, because: `it depends on "${d}", which ${r ? `ended in ${r.status}` : 'never ran'}` })
+        return null
+      }
+    }
+    if (runStopped) {
+      skipped.push({ piece: piece.name, because: `the run had already stopped (${runStopped.status}) before this piece started` })
+      return null
+    }
+    const key = piece.candidate || CANDIDATE
+    const prior = pathLock.get(key) || Promise.resolve()
+    const mine = prior.then(() => {
+      if (runStopped) {
+        skipped.push({ piece: piece.name, because: `the run stopped (${runStopped.status}) while this piece waited for ${key}` })
+        return null
+      }
+      return runPiece(piece)
+    })
+    pathLock.set(key, mine.catch(() => {}))
+    const o = await mine
+    if (o) results.set(piece.name, o)
+    if (o && o.status !== 'WON' && !runStopped) runStopped = o
+    return o
+  })()
+  return started
+}
+
+const pieceRuns = new Map()
+for (const piece of PIECES) pieceRuns.set(piece.name, runWhenReady(piece))
+
+const edgeCount = [...deps.values()].reduce((n, d) => n + d.length, 0)
+if (PIECES.length > 1) {
+  log(`${PIECES.length} pieces, ${edgeCount} dependency edge(s)${droppedEdges ? `, ${droppedEdges} edge(s) dropped as unknown` : ''} — ` +
+      'each starts as soon as its own dependencies have won and its file is free')
+}
+
+const pieceOutcomes = await parallel(PIECES.map(p => () => pieceRuns.get(p.name)))
+
+for (const o of pieceOutcomes) {
+  if (o && o.status !== 'WON' && !outcome) outcome = o
+  if (o && o.status === 'WON') lastWon = o
+}
+if (!outcome && skipped.length) {
+  outcome = { status: 'ERROR', why: `${skipped.length} piece(s) never ran because what they depend on did not win: ${skipped.map(s => `"${s.piece}" — ${s.because}`).join('; ')}` }
+}
+
 if (!outcome) {
   outcome = (PIECES.length === 1 && !PIECES[0].name)
     ? lastWon
@@ -919,6 +1007,10 @@ return {
     : { verdict: 'unchecked', reference_is_for: null, parts_not_attempted: null },
 
   gaps_in_order: history.map(h => `${h.piece ? `${h.piece} ` : ''}round ${h.round}: ${h.gap}`),
+
+  dependency_graph: decomposition && decomposition.pieces
+    ? { edges: [...deps.entries()].filter(([, d]) => d.length).map(([n, d]) => `${d.join(' + ')} -> ${n}`), dropped_edges: droppedEdges, cycle_broken: cycleBroken, skipped }
+    : null,
 
   decomposition: decomposition && decomposition.pieces
     ? { split_criterion: decomposition.split_criterion, pieces: decomposition.pieces.map(p => ({ name: p.name, observable: p.observable })), dropped_for_no_observable: decomposition.dropped || 0, lead_spawns: leadSpawns }

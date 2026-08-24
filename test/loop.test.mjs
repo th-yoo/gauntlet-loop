@@ -1073,3 +1073,78 @@ console.log('loop: args.critics is validated OK')
   eq(beta.built.changed, 'built b', "beta's round carries beta's build")
   console.log('loop: a builder report attaches to its own round under concurrency OK')
 }
+
+// ---------------------------------------------------------------------------
+// THE DAG. Dependency is ordering ("cannot be judged until that exists");
+// coupling is exclusion ("same file, one at a time"). Different relations, and
+// a piece starts the moment ITS OWN prerequisites are met — not when a layer
+// finishes.
+// ---------------------------------------------------------------------------
+
+// A dependent piece does not start until the piece it depends on has WON, while
+// an independent piece runs concurrently with both.
+{
+  const started = []
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'base', observable: 'run base', candidate: '/tmp/x/base.js', reference: '/tmp/x/rb.js' },
+      { name: 'example', observable: 'run example', candidate: '/tmp/x/ex.js', reference: '/tmp/x/rex.js', depends_on: ['base'] },
+      { name: 'unrelated', observable: 'run u', candidate: '/tmp/x/u.js', reference: '/tmp/x/ru.js' }] },
+    critic: (round, s) => ({ winner: round >= 2 ? s.candidateSide : s.referenceSide, why: 'w', gap: 'g', inspected: 'i', margin: 'clear' }),
+  })
+  eq(r.result.outcome.status, 'WON', 'every piece won')
+  const order = r.result.history.map(h => h.piece)
+  const lastBase = order.lastIndexOf('base')
+  const firstExample = order.indexOf('example')
+  ok(firstExample > lastBase, 'example did not start until base had finished winning')
+  ok(order.indexOf('unrelated') < lastBase, 'while the unrelated piece ran concurrently with base, not after it')
+  eq(r.result.dependency_graph.edges, ['base -> example'], 'the verdict reports the graph it ran')
+  console.log('loop: a dependent piece waits for its own prerequisite while others run concurrently OK')
+}
+
+// A dependency that never wins does not release its dependents — they are
+// skipped and recorded, never spawned. Without this a run with no round cap
+// waits forever on a piece that will never win.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'base', observable: 'o', candidate: '/tmp/x/base.js', reference: '/tmp/x/rb.js' },
+      { name: 'example', observable: 'o', candidate: '/tmp/x/ex.js', reference: '/tmp/x/rex.js', depends_on: ['base'] }] },
+    breaker: n => n <= 1,
+    rounds: [],
+  })
+  eq(r.result.outcome.status, 'CANCELLED', 'the cancel is what stopped the run')
+  ok(!r.labels.some(l => l.startsWith('example-')), 'the dependent piece never spawned anything')
+  ok(r.result.dependency_graph.skipped.some(s => s.piece === 'example' && /base/.test(s.because)), 'and the verdict says which piece was skipped and why')
+  console.log('loop: a dependency that did not win blocks its dependents rather than hanging OK')
+}
+
+// Unknown edges are dropped, not guessed at; a cycle is broken wholesale
+// because a lead that produced one has not given an ordering to trust part of.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'a', observable: 'o', candidate: '/tmp/x/a.js', reference: '/tmp/x/ra.js', depends_on: ['ghost', 'a'] },
+      { name: 'b', observable: 'o', candidate: '/tmp/x/b.js', reference: '/tmp/x/rb.js' }] },
+    rounds: [{ candidateWins: true, gap: 'u', margin: 'clear' }],
+  })
+  eq(r.result.dependency_graph.dropped_edges, 2, 'an edge to a piece that does not exist, and a self-edge, are both dropped')
+  eq(r.result.dependency_graph.edges, [], 'leaving no ordering')
+  eq(r.result.outcome.status, 'WON', 'and the run proceeds')
+
+  const cyc = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'a', observable: 'o', candidate: '/tmp/x/a.js', reference: '/tmp/x/ra.js', depends_on: ['b'] },
+      { name: 'b', observable: 'o', candidate: '/tmp/x/b.js', reference: '/tmp/x/rb.js', depends_on: ['a'] }] },
+    rounds: [{ candidateWins: true, gap: 'u', margin: 'clear' }],
+  })
+  eq(cyc.result.dependency_graph.cycle_broken, true, 'a cycle is detected')
+  eq(cyc.result.dependency_graph.edges, [], 'and ALL ordering is dropped, not just the back edge')
+  eq(cyc.result.outcome.status, 'WON', 'so the graph cannot deadlock')
+  ok(cyc.logs.some(l => /dependency cycle/.test(l)), 'and the operator is told')
+  console.log('loop: unknown edges dropped, cycles broken wholesale, never a deadlock OK')
+}
