@@ -6,7 +6,7 @@
 //
 // Exit 0 = pinned. Exit 1 = drift. No dependencies.
 
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -267,6 +267,60 @@ for (const needle of LOOP_DISCLOSURES) {
   if (!loop.includes(needle)) fail(`"${needle}" — not found in loop.js; a not_enforced disclosure was removed or reworded away`)
 }
 
+// ---------------------------------------------------------------------------
+// CROSS-LANE CONTRACT — the first check in this file whose subject is the
+// RELATION between lanes rather than any one file.
+//
+// Everything above is pinned pairwise INSIDE a lane: critic-prompt.md against
+// gauntlet.js, loop.js against its own agent definitions. Measured consequence
+// (issue #20): plant the same defect — a blind comparer losing its instruction
+// not to reason about provenance — in each lane, and placement alone decides
+// whether anything catches it. The gauntlet.js arm fails this suite; the
+// loop.js arm passed it, exit 0. gauntlet.js is protected only because it
+// happens to have a paired prompt-authority file. A defect whose home is the
+// relation between lanes had nothing to fail.
+//
+// So this does not add loop.js to a list — that would be one entry per
+// incident, and a third lane would reproduce the hole (#3). Lanes are
+// DISCOVERED from the directory, and the contract is required of whichever of
+// them runs a blind two-sided comparison:
+//
+//   a LANE            = a .js in the skill dir that spawns agents
+//   a BLIND COMPARER  = a lane declaring a side-naming field whose domain is a
+//                       closed two-option enum. That is the structural
+//                       signature of a forced binary choice, and it does not
+//                       depend on the two side-naming conventions in use today
+//                       ('A'/'B' in loop.js, 'LEFT'/'RIGHT' in gauntlet.js).
+//
+// Checked against COMMENT-STRIPPED source, same rule as LOOP_PINNED: a clause
+// surviving only in a comment reaches no agent.
+// ---------------------------------------------------------------------------
+const LANE_IS_COMPARER = /(winner|ours_side|side)\s*:\s*\{[^}]*enum:\s*\[\s*'[^']+'\s*,\s*'[^']+'\s*\]/
+
+const COMPARER_CONTRACT = [
+  { test: /provenance/i, what: 'tells its comparer not to reason about provenance — without it the blind A/B is blind in name only' },
+  { test: /\btie\b/i, what: 'forces the choice, with no tie available — a tie is the "seems fine" exit this comparison exists to refuse' },
+]
+
+console.log('drift-guard: every blind-comparer lane carries the shared comparer contract')
+const laneFiles = readdirSync(SKILLDIR).filter(f => f.endsWith('.js')).sort()
+let comparerLanes = 0
+for (const f of laneFiles) {
+  const src = stripLineComments(readFileSync(join(SKILLDIR, f), 'utf8'))
+  if (!src.includes('await agent(')) continue          // not a lane: spawns nothing
+  if (!LANE_IS_COMPARER.test(src)) continue            // a lane, but runs no forced two-sided choice
+  comparerLanes++
+  for (const c of COMPARER_CONTRACT) {
+    if (!c.test.test(src)) {
+      fail(`${f} runs a blind two-sided comparison but no longer ${c.what}. This is a CROSS-LANE property: ` +
+           'every comparing lane owes it, and a lane is covered here because it was discovered in the directory, not because it was listed.')
+    }
+  }
+}
+if (comparerLanes === 0) {
+  fail('no blind-comparer lane was discovered in ' + SKILLDIR + ' — either both lanes lost their forced-choice schema, or the detector needs updating. A check that matches nothing cannot fail informatively.')
+}
+
 // The plugin loader namespaces plugin agents (checked against ListAgents —
 // see the comment above `const AT` in gauntlet.js). A bare agent-type name in
 // AT would fail to resolve on first use, silently turning a restricted spawn
@@ -288,4 +342,4 @@ if (failures) {
   console.error(`\ndrift-guard: ${failures} failure(s) — the script and its prompt authority have diverged.`)
   process.exit(1)
 }
-console.log(`\ndrift-guard: OK — ${PINNED.length} contract elements + ${GATE_SEMANTICS.length} gate semantics + ${LOOP_PINNED.length} loop.js prompt clauses pinned, ${ALLOWLIST.length} allowlists still denying, ${DISCLOSURES.length + LOOP_DISCLOSURES.length} disclosure(s) present, gates 0/1/4 absent from script, AT map namespaced, loop.js clean of ${RUNTIME_FORBIDDEN.length} forbidden runtime APIs and ${CAP_NAMES.length} round-cap names.`)
+console.log(`\ndrift-guard: OK — ${PINNED.length} contract elements + ${GATE_SEMANTICS.length} gate semantics + ${LOOP_PINNED.length} loop.js prompt clauses pinned, ${comparerLanes} comparer lane(s) holding the cross-lane contract, ${ALLOWLIST.length} allowlists still denying, ${DISCLOSURES.length + LOOP_DISCLOSURES.length} disclosure(s) present, gates 0/1/4 absent from script, AT map namespaced, loop.js clean of ${RUNTIME_FORBIDDEN.length} forbidden runtime APIs and ${CAP_NAMES.length} round-cap names.`)
