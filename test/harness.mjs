@@ -79,7 +79,7 @@ export async function runLoop(opts) {
   const CANDIDATE = opts.args && opts.args.candidate
 
   function roundOf(label) {
-    const m = /^round-(\d+):/.exec(label)
+    const m = /(?:^|-)round-(\d+):/.exec(label)
     return m ? Number(m[1]) : null
   }
 
@@ -116,6 +116,10 @@ export async function runLoop(opts) {
     // says nothing about it runs until something else stops it.
     // opts.breaker(round) -> true/'PRESENT' | false/'ABSENT' | null (dead probe)
     //                        | a raw BREAKER_SCHEMA-shaped object
+    // opts.lead -> PIECE_SCHEMA object, or null (no lead / refuses). Default
+    // null, so every existing test runs the artifact whole exactly as before.
+    if (label === 'decompose') return opts.lead || null
+
     if (label.endsWith(':breaker')) {
       const round = roundOf(label)
       if (typeof opts.breaker !== 'function') return { token: 'PRESENT', evidence: 'stub: token present' }
@@ -130,7 +134,13 @@ export async function runLoop(opts) {
       const round = roundOf(label)
       const idxMatch = /:ab:(\d+)$/.exec(label)
       const criticIndex = idxMatch ? Number(idxMatch[1]) : 1
-      const candidateIsA = CANDIDATE != null && prompt.includes(`ARTIFACT A: ${CANDIDATE}`)
+      // Which side is ours is read from the ACTUAL prompt, never recomputed from
+      // loop.js's parity formula — duplicating that formula here would let a
+      // broken alternation sail through. With decomposition a piece is judged
+      // against its OWN paths, so the set of "ours" paths is the whole-artifact
+      // candidate plus every piece candidate the lead named.
+      const ourPaths = [CANDIDATE, ...((opts.lead && opts.lead.pieces) || []).map(x => x && x.candidate)].filter(Boolean)
+      const candidateIsA = ourPaths.some(path => prompt.includes(`ARTIFACT A: ${path}`))
       const candidateSide = candidateIsA ? 'A' : 'B'
       const referenceSide = candidateIsA ? 'B' : 'A'
 

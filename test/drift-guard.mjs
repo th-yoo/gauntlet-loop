@@ -21,6 +21,7 @@ const loop = readFileSync(join(SKILLDIR, 'loop.js'), 'utf8')
 const ALLOWLIST = [
   { agent: 'gauntlet-ab-critic', forbidden: ['Write', 'Edit', 'Agent', 'ListAgents', 'SendMessage'], buys: 'is claimed to have "no Write or Edit — it could not use those TOOLS to alter either artifact", and to be unable to reach the builder or another critic' },
   { agent: 'gauntlet-builder', forbidden: ['Agent', 'ListAgents', 'SendMessage'], buys: 'is claimed to be an agent type "with no Agent/ListAgents/SendMessage — it could not reach or spawn a critic"' },
+  { agent: 'gauntlet-lead', forbidden: ['Write', 'Edit', 'Agent', 'ListAgents', 'SendMessage'], buys: 'divides the goal but cannot build, judge, or spawn either party' },
   { agent: 'gauntlet-breaker', forbidden: ['Read', 'Grep', 'Glob', 'Agent', 'ListAgents', 'SendMessage', 'WebSearch', 'WebFetch', 'Write', 'Edit'], buys: 'is claimed to be an agent type "whose whole tool allowlist is Bash and which never saw the goal, either artifact, or any verdict"' },
 ]
 
@@ -134,6 +135,9 @@ const LOOP_DISCLOSURES = [
   // Deleting the panel deleted the only calibration mechanism. If this line goes,
   // the plugin stops telling anyone that nothing checks its critics.
   'NO CALIBRATION ANYWHERE',
+  // The lead chooses what gets judged and nothing checks its choice. If this line
+  // goes, a run stops admitting that its own decomposition is unverified.
+  'THE SPLIT IS NOT CHECKED',
   'not independent judgments',
 ]
 

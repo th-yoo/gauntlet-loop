@@ -759,3 +759,140 @@ console.log('loop: args.critics is validated OK')
   ok(one.result.enforced.some(b => /satisfies "every judge" vacuously/.test(b)), 'at k=1 the verdict says the standard is satisfied vacuously')
   console.log('loop: the verdict reports the exit reached and discloses the addition OK')
 }
+
+// ---------------------------------------------------------------------------
+// DECOMPOSITION. The source's width comes from splitting the goal, not from
+// stacking judges on one piece. A lead proposes pieces; a piece that cannot say
+// what would be inspected to judge it ALONE is dropped in code.
+// ---------------------------------------------------------------------------
+
+// No lead, or a lead that returns nothing: run whole. This is the path every
+// assertion above exercises, stated once explicitly.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [{ candidateWins: true, gap: 'unused' }],
+  })
+  eq(r.result.outcome.status, 'WON', 'a run with no decomposition still wins normally')
+  ok(r.labels.some(l => l === 'round-1:ab'), 'labels are unprefixed when nothing decomposed')
+  eq(r.result.history[0].piece, null, 'history records no piece')
+  console.log('loop: no decomposition runs the artifact whole, labels unchanged OK')
+}
+
+// The breaker is probed BEFORE the lead — a cancel must not pay for the most
+// expensive spawn in the run.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: () => false,
+    lead: { decomposes: true, split_criterion: 'each module runs alone', pieces: [
+      { name: 'alpha', observable: 'node alpha.js' }, { name: 'beta', observable: 'node beta.js' }] },
+  })
+  eq(r.result.outcome.status, 'CANCELLED', 'an absent token stops the run')
+  eq(r.labels[0], 'round-1:breaker', 'the breaker is the first spawn, before the lead')
+  ok(!r.labels.includes('decompose'), 'the lead never spawned — a cancel costs one cheap probe')
+  console.log('loop: a cancel is detected before the lead is paid for OK')
+}
+
+// Two pieces, each with an observable: each gets its own rounds, and the run
+// ends only when EVERY piece has won.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'each subsystem renders separately', pieces: [
+      { name: 'render', observable: 'open the frame', candidate: '/tmp/x/render.js', reference: '/tmp/x/ref-render.js' },
+      { name: 'audio', observable: 'play the output', candidate: '/tmp/x/audio.js', reference: '/tmp/x/ref-audio.js' }] },
+    critic: (round, s) => ({ winner: round >= 2 ? s.candidateSide : s.referenceSide, why: 'w', gap: `gap-r${round}`, inspected: 'i' }),
+  })
+  eq(r.result.outcome.status, 'WON', 'the run wins only after every piece does')
+  ok(/every one of the 2 pieces/.test(r.result.outcome.why), 'the verdict is about the SET, not one piece')
+  eq(r.result.history.map(h => h.piece), ['render', 'render', 'audio', 'audio'], 'each piece ran its own rounds, sequentially')
+  ok(r.labels.includes('render-round-1:ab') && r.labels.includes('audio-round-2:ab'), 'labels carry the piece')
+  console.log('loop: two pieces run sequentially and the run ends only when both win OK')
+}
+
+// A piece is judged against ITS OWN paths, and told what to ignore.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'render', observable: 'open the frame', candidate: '/tmp/x/render.js', reference: '/tmp/x/ref-render.js' },
+      { name: 'audio', observable: 'play it', candidate: '/tmp/x/audio.js', reference: '/tmp/x/ref-audio.js' }] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+  })
+  const p1 = r.prompts.find(p => p.label === 'render-round-1:ab')
+  ok(p1.prompt.includes('/tmp/x/render.js') && p1.prompt.includes('/tmp/x/ref-render.js'), 'the piece is judged against its own two paths')
+  ok(!p1.prompt.includes(CANDIDATE), 'the whole-artifact path is not shown to a piece critic')
+  ok(/JUDGE ONLY THIS PART: render/.test(p1.prompt), 'the critic is scoped to the piece')
+  ok(/not yours to weigh/.test(p1.prompt), 'and told another critic owns the rest')
+  const b1 = r.prompts.find(p => p.label === 'render-round-1:build')
+  ok(!b1 || b1.prompt.includes('/tmp/x/render.js'), 'the builder edits the piece, not the whole artifact')
+  console.log('loop: a piece is judged against its own paths and scoped explicitly OK')
+}
+
+// THE GUARD. A piece with no observable is dropped in code, whatever the lead
+// claimed — and when fewer than two survive, the run does not pretend to have
+// decomposed.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'sections', pieces: [
+      { name: 'intro', observable: 'open the top of the file' },
+      { name: 'middle', observable: '   ' },
+      { name: 'end', observable: '' }] },
+    rounds: [{ candidateWins: true, gap: 'unused' }],
+  })
+  eq(r.result.history[0].piece, null, 'one surviving piece is not a decomposition — the run went whole')
+  ok(r.logs.some(l => /fewer than two pieces carried an observable/.test(l)), 'and it says why, naming the guard that fired')
+  console.log('loop: pieces without an observable are dropped, and one survivor is not a split OK')
+}
+
+// A lead that refuses is a correct answer, not a failure.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: false, split_criterion: 'this is one argument; its defects are properties of the whole', pieces: [] },
+    rounds: [{ candidateWins: true, gap: 'unused' }],
+  })
+  eq(r.result.outcome.status, 'WON', 'refusing to split does not stop the run')
+  ok(r.logs.some(l => /not decomposed/.test(l) && /properties of the whole/.test(l)), 'the refusal and its reason are reported')
+  console.log('loop: a lead refusing to split is a correct answer OK')
+}
+
+// A stop during one piece stops the whole run — pieces are not independent runs.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'alpha', observable: 'run it' }, { name: 'beta', observable: 'run it' }] },
+    breaker: r => r <= 2,
+    rounds: [],
+  })
+  eq(r.result.outcome.status, 'CANCELLED', 'a cancel inside the first piece ends the run')
+  ok(!r.labels.some(l => l.startsWith('beta-')), 'the second piece never started')
+  console.log('loop: a stop during one piece ends the whole run OK')
+}
+
+// The split is reported and disclosed as unverified — a lead chose what gets
+// judged and nothing checks the choice.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'each module runs alone', pieces: [
+      { name: 'alpha', observable: 'node alpha.js' }, { name: 'beta', observable: 'node beta.js' }] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+  })
+  eq(r.result.decomposition.pieces.map(p => p.name), ['alpha', 'beta'], 'the verdict lists the pieces')
+  eq(r.result.decomposition.split_criterion, 'each module runs alone', 'and the criterion the lead used')
+  eq(r.result.decomposition.lead_spawns, 1, 'and that the lead ran once')
+  ok(r.result.not_enforced.some(b => /THE SPLIT IS NOT CHECKED/.test(b)), 'the unverified split is disclosed')
+  ok(r.result.enforced.some(b => /EVERY one of the 2 piece/.test(b)), 'enforced states the exit actually reached')
+
+  const whole = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [{ candidateWins: true, gap: 'unused' }],
+  })
+  ok(whole.result.not_enforced.some(b => /NOT DECOMPOSED/.test(b)), 'an undecomposed run says so in not_enforced')
+  eq(whole.result.decomposition.pieces, [], 'and reports no pieces')
+  console.log('loop: the split, its criterion and its unverifiability are all reported OK')
+}

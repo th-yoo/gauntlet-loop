@@ -57,6 +57,29 @@ Arguments the script takes:
 | `token` | the run token; its existence means "keep going" |
 | `inspect` | optional — how to look at them: a command to run, a thing to open |
 
+## It splits the goal first
+
+A lead agent looks at both artifacts and proposes the smallest pieces that can be
+improved and judged **independently** — then each piece gets its own rounds, its
+own builder and its own critic, run one piece at a time. The run ends when every
+piece has beaten the reference.
+
+**A piece is a piece only if the lead can name what would be inspected to judge it
+alone** — a command to run, a file to open, an output to look at. Pieces that name
+none are dropped in code, and if fewer than two survive the artifact runs whole.
+
+**Refusing to split is a correct answer.** Prose, specs and decisions usually do
+not decompose: their defects are properties of the whole — what is missing, what
+order things come in — and no single section is wrong. The loop then runs the
+artifact whole and says so.
+
+Sequential, not parallel, on the source's own recorded result: "Sequential
+single-owner passes beat parallel fan-out decisively... moved it +1.00 and cut
+defects 66 → 26."
+
+Where pieces exist you rarely need `critics` above 1: width comes from the split,
+which is where the source gets it.
+
 ## What a round does
 
 1. **Budget, then the breaker.** A Bash-only agent reports whether the run token
@@ -112,8 +135,9 @@ was not — and that is the signal, not the outcome.
 
 ## What it does not do
 
-- **No decomposition.** Shumer's width comes from splitting the goal into pieces
-  and giving each its own builder and critic. This runs one artifact whole.
+- **The split is not checked.** A lead chooses what gets judged and nothing
+  verifies the choice. Every piece can win while the artifact as a whole is worse
+  than the reference, and no part of this run would notice.
 - **No ratchet.** The builder edits in place; a bad round is permanent, and the
   loop holds no prior version to compare against.
 - **Critics are not independent judgments.** They are the same model in fresh

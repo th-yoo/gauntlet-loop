@@ -242,7 +242,7 @@ const BREAKER_SCHEMA = {
   },
 }
 
-async function tokenPresent(round) {
+async function tokenPresent(round, tag) {
   const probe = await agent(
     `Report whether ONE file exists. This is the whole task — do not read it, do not create it,
 do not modify it, and do not look at anything else on the filesystem.
@@ -256,7 +256,7 @@ Run exactly this and report what it prints:
 Return that word in \`token\`, and the command plus its literal output in \`evidence\`. If the
 command cannot be run at all, return ABSENT — a breaker that cannot be read is a breaker that
 has failed, and this run stops rather than continuing uncancellable.`,
-    { label: `round-${round}:breaker`, phase: 'Loop', schema: BREAKER_SCHEMA, agentType: 'gauntlet-loop:gauntlet-breaker' }
+    { label: `${tag}:breaker`, phase: 'Loop', schema: BREAKER_SCHEMA, agentType: 'gauntlet-loop:gauntlet-breaker' }
   )
   if (!probe) {
     log(`WARNING: the breaker returned nothing at round ${round} — treating the run as cancelled rather than continuing a loop nobody can stop`)
@@ -305,16 +305,111 @@ const BUILD_SCHEMA = {
 // single round remains reproducible.
 // ---------------------------------------------------------------------------
 
-function sides(round, i) {
+function sides(round, i, cand, ref) {
   const candidateIsA = (round + i) % 2 === 0
   return {
-    A: candidateIsA ? CANDIDATE : REFERENCE,
-    B: candidateIsA ? REFERENCE : CANDIDATE,
+    A: candidateIsA ? cand : ref,
+    B: candidateIsA ? ref : cand,
     candidateSide: candidateIsA ? 'A' : 'B',
   }
 }
 
-function criticPrompt(s) {
+// ---------------------------------------------------------------------------
+// DECOMPOSITION. The source's first structural instruction: "Fan out sub-agents
+// and have sub-agents tackle each one individually", and from the guide, "divide
+// the goal into the smallest pieces that can be improved and judged
+// independently. For each important piece, it should fan out a builder and a
+// separate critic with fresh context."
+//
+// Width in the source comes from HERE, not from stacking judges on one piece:
+// many pieces, one critic each, and "Don't stop until EACH sub-agent is utterly
+// wowed" then quantifies over a real set. `args.critics` exists because this
+// loop had no decomposition; where pieces exist, k=1 per piece is both cheaper
+// and closer to the method.
+//
+// THE SPLIT CRITERION IS THE DANGEROUS PART. A split chosen because we already
+// know where the artifact is weak is an answer key: it hides the defects it was
+// drawn around, and every piece can pass while the whole is worse. So the lead
+// is required to name, for each piece, WHAT WOULD BE INSPECTED to judge that
+// piece alone. A piece with no observable is dropped here, in code, not argued
+// about in the prompt.
+//
+// Refusing to split is a correct answer. Prose, specs and decisions usually do
+// not decompose — their defects are properties of the whole (ordering, omission,
+// coherence) and are invisible from inside any one section. When the lead
+// refuses, or returns nothing, or nothing survives the observable check, the
+// loop runs the artifact WHOLE, which is exactly its behaviour before this
+// existed.
+//
+// Pieces run SEQUENTIALLY, one at a time. That is not a cost compromise: the
+// source's own retrospective reports "Sequential single-owner passes beat
+// parallel fan-out decisively... One sequential pass with a single owner per
+// coupled concern moved it +1.00 and cut defects 66 -> 26."
+// ---------------------------------------------------------------------------
+const PIECE_SCHEMA = {
+  type: 'object',
+  required: ['decomposes', 'split_criterion', 'pieces'],
+  properties: {
+    decomposes: { type: 'boolean', description: 'false if this goal has no parts that can be judged independently. Refusing is a correct answer.' },
+    split_criterion: { type: 'string', description: 'one sentence: what property of the artifacts made these the seams. Not "these are the weak parts".' },
+    pieces: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['name', 'observable'],
+        properties: {
+          name: { type: 'string', description: 'short handle for this piece' },
+          observable: { type: 'string', description: 'REQUIRED. What would be inspected to judge THIS piece alone — a command to run, a file to open, an output to look at. Not a topic.' },
+          candidate: { type: 'string', description: 'absolute path, when this piece really is its own file' },
+          reference: { type: 'string', description: 'absolute path to the matching part of the reference, when it is its own file' },
+          focus: { type: 'string', description: 'when the piece is not a separate file: what a critic should attend to, and what it should ignore' },
+        },
+      },
+    },
+  },
+}
+
+let leadSpawns = 0
+let decomposition = null
+
+async function decompose() {
+  leadSpawns++
+  const plan = await agent(
+    `Divide this goal into the smallest pieces that can be improved and judged INDEPENDENTLY.
+
+THE GOAL:
+${GOAL}
+
+THE ARTIFACT BEING IMPROVED: ${CANDIDATE}
+THE REFERENCE IT IS JUDGED AGAINST: ${REFERENCE}
+${INSPECT ? `\nHOW TO INSPECT THEM:\n${INSPECT}\n` : ''}
+Open both before deciding. How the reference is organised is evidence about the natural
+seams, and it is evidence you did not invent.
+
+For every piece you propose, name the OBSERVABLE: what would be inspected to judge that
+piece alone — a command to run, a file to open, an output to look at. If you cannot name
+one, it is not a piece.
+
+Refusing to split is a correct answer. Most prose, specs and decisions do not decompose:
+their defects are properties of the whole — what is missing, what order things come in —
+and no single section is wrong. Say so and the loop will run the artifact whole.
+
+Also state your split criterion in one sentence. If that sentence is really "these are the
+parts I think are weak", discard it and look again: a split drawn around known weaknesses
+hides exactly those weaknesses, because every piece can pass while the whole is worse.`,
+    { label: 'decompose', phase: 'Loop', schema: PIECE_SCHEMA, agentType: 'gauntlet-loop:gauntlet-lead' }
+  )
+  if (!plan) return null
+  if (!plan.decomposes) return { refused: true, why: plan.split_criterion }
+  // The observable check runs HERE, in code. A piece that cannot say what would
+  // be inspected to judge it alone is dropped, whatever the prompt asked for.
+  const kept = (plan.pieces || []).filter(p => p && p.name && typeof p.observable === 'string' && p.observable.trim().length > 0)
+  const dropped = (plan.pieces || []).length - kept.length
+  if (kept.length < 2) return { refused: true, why: `fewer than two pieces carried an observable (${kept.length} of ${(plan.pieces || []).length}); one piece is not a decomposition`, dropped }
+  return { pieces: kept, split_criterion: plan.split_criterion, dropped }
+}
+
+function criticPrompt(s, piece) {
   return `Compare two artifacts and pick the better one. You are not told which is which.
 
 BE A REALLY HARSH CRITIC. That is the one property this method asks of the judge, and it
@@ -326,7 +421,7 @@ is nearer and say plainly what is still missing from it.
 
 THE GOAL these are being judged against:
 ${GOAL}
-
+${piece && piece.name ? `\nJUDGE ONLY THIS PART: ${piece.name}\nWhat to inspect for it: ${piece.observable}${piece.focus ? `\n${piece.focus}` : ''}\nDifferences outside this part are not yours to weigh — another critic owns them.\n` : ''}
 ARTIFACT A: ${s.A}
 ARTIFACT B: ${s.B}
 ${INSPECT ? `\nHOW TO INSPECT THEM:\n${INSPECT}\n` : ''}
@@ -354,27 +449,57 @@ look again.`
 
 phase('Loop')
 
-const history = []
-let round = 0
-let outcome = null
 let criticSpawns = 0 // every agent() call for a critic, including ones that return null — NOT history.length
 let breakerSpawns = 0 // every breaker probe, including the one that reports the cancel
 
-while (true) {
+// The breaker goes FIRST, before the lead spawns. Decomposition reads both
+// artifacts and is the most expensive spawn in the run; a cancel must not pay
+// for it. This probe is round 1's probe, hoisted — it is not an extra one, and
+// the loop below consumes its result rather than asking again.
+breakerSpawns++
+let pendingProbe = await tokenPresent(1, 'round-1')
+
+const decomposition_ = pendingProbe ? await decompose() : null
+decomposition = decomposition_
+if (decomposition && decomposition.refused) {
+  log(`NOTE: not decomposed — ${decomposition.why}. Running the artifact whole, which is this loop's behaviour when nothing splits.`)
+} else if (decomposition) {
+  log(`decomposed into ${decomposition.pieces.length} piece(s): ${decomposition.pieces.map(p => p.name).join(', ')}${decomposition.dropped ? ` (${decomposition.dropped} dropped for naming no observable)` : ''}`)
+}
+
+// One implicit piece when nothing decomposed: the whole artifact, unnamed, so
+// every label and every prompt is byte-identical to the undecomposed run.
+const PIECES = (decomposition && decomposition.pieces) || [{ name: null, candidate: CANDIDATE, reference: REFERENCE }]
+
+const history = []
+let outcome = null
+let lastWon = null
+
+
+for (const piece of PIECES) {
+  const PC = piece.candidate || CANDIDATE
+  const PR = piece.reference || REFERENCE
+  let round = 0
+  let pieceOutcome = null
+
+  while (true) {
   round++
+  const TAG = piece.name ? `${piece.name}-round-${round}` : `round-${round}`
 
   // Budget first: it is free to check, so a run that is already out of money
   // does not pay for a breaker probe to be told so.
   if (budgetLeft() < ROUND_RESERVE) {
-    outcome = { status: 'BUDGET', why: `stopped with ~${Math.round(budgetLeft() / 1000)}k left — under the ${ROUND_RESERVE / 1000}k a round needs` }
+    pieceOutcome = { status: 'BUDGET', why: `stopped with ~${Math.round(budgetLeft() / 1000)}k left — under the ${ROUND_RESERVE / 1000}k a round needs` }
     break
   }
   // Then the breaker, BEFORE the critic — so a cancel costs at most one cheap
   // probe, never a critic and a builder. Round 1 checks too: that is what
   // catches a mistyped token path before the run spends anything real.
-  breakerSpawns++
-  if (!(await tokenPresent(round))) {
-    outcome = {
+  let tokenOk
+  if (pendingProbe !== null) { tokenOk = pendingProbe; pendingProbe = null }
+  else { breakerSpawns++; tokenOk = await tokenPresent(round, TAG) }
+  if (!tokenOk) {
+    pieceOutcome = {
       status: 'CANCELLED',
       why: round === 1
         ? `the run token at ${TOKEN} was already absent before round 1 — either the operator cancelled immediately, or it was never created (check the path)`
@@ -403,12 +528,12 @@ while (true) {
   let critic_died = false
 
   async function spawnCritic(i) {
-    const s = sides(round, i)
+    const s = sides(round, i, PC, PR)
     criticSpawns++
     const v = await agent(
-      criticPrompt(s),
+      criticPrompt(s, piece),
       {
-        label: CRITICS === 1 ? `round-${round}:ab` : `round-${round}:ab:${i + 1}`,
+        label: CRITICS === 1 ? `${TAG}:ab` : `${TAG}:ab:${i + 1}`,
         phase: 'Loop',
         schema: AB_SCHEMA,
         agentType: 'gauntlet-loop:gauntlet-ab-critic',
@@ -441,7 +566,7 @@ while (true) {
   // line than the operator asked for is a quietly weaker standard, applied at
   // the moment something is already going wrong.
   if (critic_died || positions.length === 0) {
-    outcome = {
+    pieceOutcome = {
       status: 'ERROR',
       why: CRITICS === 1
         ? `critic returned nothing at round ${round}`
@@ -482,6 +607,7 @@ while (true) {
 
   history.push({
     round,
+    piece: piece.name,
     critics: CRITICS,
     candidateSide: primary.side,
     winner: primary.winner,
@@ -501,7 +627,7 @@ while (true) {
   log(`round ${round}: ${positions.length} critic(s) — ${positions.length - dissenters.length} for the candidate, ${dissenters.length} against — ${candidateWon ? 'CANDIDATE WINS' : 'reference still ahead'}`)
 
   if (candidateWon) {
-    outcome = {
+    pieceOutcome = {
       status: 'WON',
       why: CRITICS === 1
         ? `the candidate beat the reference in a blind A/B at round ${round}`
@@ -534,7 +660,7 @@ while (true) {
     `You are building toward this goal:
 ${GOAL}
 
-THE CANDIDATE: ${CANDIDATE}
+THE CANDIDATE: ${PC}
 ${round === 1 ? '\nIf it does not exist yet, build the first version now.\n' : ''}
 A critic compared it blind against a reference and the candidate lost. It named ONE gap —
 the single largest thing standing between them:
@@ -553,15 +679,31 @@ loop is concerned.
 
 Do not assess your own work. Do not say whether it now matches or should pass — you do not
 know, and a fresh critic decides next round. Report what you changed, factually.`,
-    { label: `round-${round}:build`, phase: 'Loop', schema: BUILD_SCHEMA, agentType: 'gauntlet-loop:gauntlet-builder' }
+    { label: `${TAG}:build`, phase: 'Loop', schema: BUILD_SCHEMA, agentType: 'gauntlet-loop:gauntlet-builder' }
   )
 
   if (!built) {
-    outcome = { status: 'ERROR', why: `builder returned nothing at round ${round}` }
+    pieceOutcome = { status: 'ERROR', why: `builder returned nothing at round ${round}${piece.name ? ` of piece "${piece.name}"` : ''}` }
     break
   }
 
   history[history.length - 1].built = { changed: built.changed, where: built.where, ambiguity: built.ambiguity || null }
+  }
+
+  // A piece winning does NOT end the run — the source stops when EVERY piece is
+  // satisfied. Any other stop is a stop for the whole run, so it propagates.
+  if (pieceOutcome && pieceOutcome.status !== 'WON') { outcome = pieceOutcome; break }
+  lastWon = pieceOutcome
+  if (piece.name) log(`piece "${piece.name}" won after ${round} round(s)`)
+}
+
+// An undecomposed run keeps the round's own WON verdict verbatim — it already
+// says what the exit was, including how long the line was. A decomposed run
+// needs a verdict about the SET, since no single piece winning ended it.
+if (!outcome) {
+  outcome = (PIECES.length === 1 && !PIECES[0].name)
+    ? lastWon
+    : { status: 'WON', why: `every one of the ${PIECES.length} pieces beat the reference in a blind A/B`, round: history.length, pieces: PIECES.map(p => p.name) }
 }
 
 // ---------------------------------------------------------------------------
@@ -605,12 +747,19 @@ return {
 
   position_balance: balanced,
 
-  gaps_in_order: history.map(h => `round ${h.round}: ${h.gap}`),
+  gaps_in_order: history.map(h => `${h.piece ? `${h.piece} ` : ''}round ${h.round}: ${h.gap}`),
+
+  decomposition: decomposition && decomposition.pieces
+    ? { split_criterion: decomposition.split_criterion, pieces: decomposition.pieces.map(p => ({ name: p.name, observable: p.observable })), dropped_for_no_observable: decomposition.dropped || 0, lead_spawns: leadSpawns }
+    : { split_criterion: null, pieces: [], refused: decomposition ? decomposition.why : 'no lead returned a plan', lead_spawns: leadSpawns },
 
   enforced: [
     ...(SIDES_LOOK_ALIKE ? [
       'the critic was never TOLD which artifact was the candidate — sides alternate by round parity and the prompt never uses the word "candidate"',
     ] : []),
+    decomposition && decomposition.pieces
+      ? `the run ended only when EVERY one of the ${decomposition.pieces.length} piece(s) beat the reference, each with its own rounds, its own builder and its own critics, run sequentially`
+      : 'the artifact was judged whole — one piece, so "every piece satisfied" is one judgment, not a set',
     CRITICS === 1
       ? 'the exit was ONE critic picking the candidate in one round — a line of one, which satisfies "every judge" vacuously (args.critics defaults to 1)'
       : `the exit required ALL ${CRITICS} critics in a single round to pick the candidate, each spawned fresh, with positions split across the line by (round + index) parity`,
@@ -634,6 +783,9 @@ return {
       ? 'Position bias is averaged across rounds by alternation, not eliminated within a round.'
       : 'Position bias is split across the line within each round, which measures it rather than eliminating it. It is not removed.',
     `The ${CRITICS} critic(s) share a model family and prompt, so their verdicts are not independent judgments; k copies resample one model's habits. Nothing here measures how much independence the line actually supplies, and no arithmetic over k should be read as if it did.`,
+    decomposition && decomposition.pieces
+      ? `THE SPLIT IS NOT CHECKED. A lead agent chose these ${decomposition.pieces.length} piece(s) and nothing verifies the choice: its criterion was "${decomposition.split_criterion}". Each piece was required to name what would be inspected to judge it alone, and pieces that named none were dropped in code — but a plausible observable is not a correct seam. A split drawn around known weaknesses hides them, and every piece can win while the artifact as a whole is worse than the reference. Nothing in this run would notice that.`
+      : 'NOT DECOMPOSED — the artifact was judged whole. The source divides a goal into pieces that are improved and judged independently; where that is not done, every gap this loop finds is a whole-artifact gap, and defects local to one part compete with each other for the single gap slot each round.',
     'k>1 is an ADDITION, not source fidelity. Both primary texts say one critic per piece, singular; the source gets width by decomposing the goal, which this loop does not do. What k restores is the source\'s property — every judge satisfied — by a mechanism the source does not describe.',
     'Critic and builder share a model family, so the critic may be blind to exactly the mistakes the builder is prone to making.',
     'The critic holds Bash and KillShell, which can write files directly (redirection, heredocs, etc.) — nothing mechanically stops it from altering either artifact through Bash instead of Write/Edit. The no-Write/no-Edit property above is real but narrow (prompt-deep, not structural).',
