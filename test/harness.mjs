@@ -101,7 +101,7 @@ export async function runLoop(opts) {
 
   async function agent(prompt, o) {
     const label = (o && o.label) || '(unlabeled)'
-    prompts.push({ label, prompt, agentType: o && o.agentType, phase: o && o.phase })
+    prompts.push({ label, prompt, agentType: o && o.agentType, phase: o && o.phase, schema: o && o.schema })
 
     const guardRound = roundOf(label)
     if (guardRound != null && guardRound > RUNAWAY_GUARD) {
@@ -118,6 +118,10 @@ export async function runLoop(opts) {
     //                        | a raw BREAKER_SCHEMA-shaped object
     // opts.lead -> PIECE_SCHEMA object, or null (no lead / refuses). Default
     // null, so every existing test runs the artifact whole exactly as before.
+    // opts.fairness -> FAIRNESS_SCHEMA object, or null (unchecked). Default
+    // null, so an existing test's run reports verdict 'unchecked'.
+    if (label === 'goal-fairness') return opts.fairness || null
+
     if (label === 'decompose') return opts.lead || null
 
     if (label.endsWith(':breaker')) {

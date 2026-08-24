@@ -268,7 +268,7 @@ has failed, and this run stops rather than continuing uncancellable.`,
 
 const AB_SCHEMA = {
   type: 'object',
-  required: ['winner', 'why', 'gap', 'inspected'],
+  required: ['winner', 'why', 'gap', 'inspected', 'margin'],
   properties: {
     winner: { type: 'string', enum: ['A', 'B'], description: 'which artifact is better. You must choose; there is no tie.' },
     why: { type: 'string', description: 'what separates them, concretely' },
@@ -277,7 +277,7 @@ const AB_SCHEMA = {
       description: 'THE SINGLE LARGEST thing standing between the loser and the winner, stated concretely enough to act on. Exactly one. If the winner is already the better artifact by a wide margin, this is still one gap — the biggest.',
     },
     inspected: { type: 'string', description: 'what you actually opened, ran or rendered to reach this verdict' },
-    margin: { type: 'string', enum: ['decisive', 'clear', 'narrow'], description: 'how far apart they are' },
+    margin: { type: 'string', enum: ['decisive', 'clear', 'narrow'], description: 'REQUIRED. How far apart they are. This does not gate the exit — a narrow win still ends a round — but a win with the separation unstated cannot be audited afterwards, and the first two live runs of this loop both produced exactly that.' },
   },
 }
 
@@ -312,6 +312,66 @@ function sides(round, i, cand, ref) {
     B: candidateIsA ? ref : cand,
     candidateSide: candidateIsA ? 'A' : 'B',
   }
+}
+
+// ---------------------------------------------------------------------------
+// GOAL FAIRNESS. A blind A/B is a fair test only when both sides are trying to
+// do the same thing. If the goal describes properties the candidate was built
+// for and the reference never attempted, the comparison is settled before a
+// critic looks: the reference loses on a dimension it never entered, and every
+// verdict in the run is about the choice of goal rather than about the work.
+//
+// This is not hypothetical. The first live run of this build won every piece at
+// round 1 against a reference that was not attempting the goal, with critics
+// that were careful, honest and correct about every observation they made. The
+// failure is invisible from inside the comparison — both critics see both
+// artifacts, so neither can tell that one of them was never in the game.
+//
+// So it is checked by the one party that never sees both: an agent handed the
+// GOAL and the REFERENCE only, never told what the candidate is. It reports
+// whether the reference attempts the goal, and the run says so loudly and keeps
+// going. It does not halt: an operator may have good reason to judge an artifact
+// on a goal it never took on, and that judgment is theirs, not this script's.
+// ---------------------------------------------------------------------------
+const FAIRNESS_SCHEMA = {
+  type: 'object',
+  required: ['verdict', 'what_it_is_for'],
+  properties: {
+    verdict: { type: 'string', enum: ['attempts', 'partly', 'does-not-attempt'], description: 'does this artifact attempt the goal at all — not whether it succeeds' },
+    what_it_is_for: { type: 'string', description: 'what the artifact is actually for, quoted from it where possible' },
+    parts_not_attempted: { type: 'string', description: 'for `partly`: which parts of the goal it does not take on' },
+  },
+}
+
+let fairness = null
+
+async function checkGoalFairness() {
+  const f = await agent(
+    `Here is one artifact and one goal. Answer only: does this artifact attempt that goal at all?
+
+THE GOAL:
+${GOAL}
+
+THE ARTIFACT: ${REFERENCE}
+
+You are not told what this will be compared against and must not go looking. Read enough of
+it to know what it is for, then say whether it is trying to do what the goal describes.
+
+You are not judging quality. An excellent artifact that is not trying to do what the goal
+describes is still \`does-not-attempt\`; a poor one that is trying is still \`attempts\`.`,
+    { label: 'goal-fairness', phase: 'Loop', schema: FAIRNESS_SCHEMA, agentType: 'gauntlet-loop:gauntlet-goal-check' }
+  )
+  if (!f) return null
+  if (f.verdict === 'does-not-attempt') {
+    log(`WARNING: the reference does not attempt this goal. It is for: ${f.what_it_is_for}. ` +
+        'A blind A/B against it will be decided by the choice of goal rather than by the work — the reference ' +
+        'loses on a dimension it never entered. The run continues, because judging an artifact on a goal it ' +
+        'never took on may be what you intend, but no verdict from this run is evidence that the candidate is better.')
+  } else if (f.verdict === 'partly') {
+    log(`NOTE: the reference attempts only part of this goal. Not attempted: ${f.parts_not_attempted}. ` +
+        'Verdicts on those parts measure the goal, not the work.')
+  }
+  return f
 }
 
 // ---------------------------------------------------------------------------
@@ -459,6 +519,7 @@ let breakerSpawns = 0 // every breaker probe, including the one that reports the
 breakerSpawns++
 let pendingProbe = await tokenPresent(1, 'round-1')
 
+fairness = pendingProbe ? await checkGoalFairness() : null
 const decomposition_ = pendingProbe ? await decompose() : null
 decomposition = decomposition_
 if (decomposition && decomposition.refused) {
@@ -747,6 +808,17 @@ return {
 
   position_balance: balanced,
 
+  // A piece that wins its FIRST round was never built on: the builder never ran,
+  // no gap was ever acted on, and the loop did not loop. That is not a better
+  // result than winning after five rounds — it usually means the bar was weak or
+  // the goal was chosen to fit what the candidate already did. Counted here so
+  // the verdict cannot report it as ordinary success.
+  rounds_with_a_build: history.filter(h => h.built).length,
+
+  goal_fairness: fairness
+    ? { verdict: fairness.verdict, reference_is_for: fairness.what_it_is_for, parts_not_attempted: fairness.parts_not_attempted || null }
+    : { verdict: 'unchecked', reference_is_for: null, parts_not_attempted: null },
+
   gaps_in_order: history.map(h => `${h.piece ? `${h.piece} ` : ''}round ${h.round}: ${h.gap}`),
 
   decomposition: decomposition && decomposition.pieces
@@ -786,6 +858,9 @@ return {
     decomposition && decomposition.pieces
       ? `THE SPLIT IS NOT CHECKED. A lead agent chose these ${decomposition.pieces.length} piece(s) and nothing verifies the choice: its criterion was "${decomposition.split_criterion}". Each piece was required to name what would be inspected to judge it alone, and pieces that named none were dropped in code — but a plausible observable is not a correct seam. A split drawn around known weaknesses hides them, and every piece can win while the artifact as a whole is worse than the reference. Nothing in this run would notice that.`
       : 'NOT DECOMPOSED — the artifact was judged whole. The source divides a goal into pieces that are improved and judged independently; where that is not done, every gap this loop finds is a whole-artifact gap, and defects local to one part compete with each other for the single gap slot each round.',
+    fairness && fairness.verdict === 'does-not-attempt'
+      ? `THE REFERENCE DOES NOT ATTEMPT THIS GOAL — it is for: ${fairness.what_it_is_for}. Every verdict in this run is about the choice of goal, not about the work: the reference was marked down on a dimension it never entered. Nothing here is evidence that the candidate is better than the reference at what the reference is for.`
+      : 'The goal is operator-supplied and unchecked against the CANDIDATE. A goal written to describe what the candidate already does cannot discriminate, and nothing in this run would notice.',
     'k>1 is an ADDITION, not source fidelity. Both primary texts say one critic per piece, singular; the source gets width by decomposing the goal, which this loop does not do. What k restores is the source\'s property — every judge satisfied — by a mechanism the source does not describe.',
     'Critic and builder share a model family, so the critic may be blind to exactly the mistakes the builder is prone to making.',
     'The critic holds Bash and KillShell, which can write files directly (redirection, heredocs, etc.) — nothing mechanically stops it from altering either artifact through Bash instead of Write/Edit. The no-Write/no-Edit property above is real but narrow (prompt-deep, not structural).',
@@ -796,6 +871,10 @@ return {
     'Nothing stops the token being re-created after a cancel. The breaker reports the state at each boundary; it does not latch.',
     'With no budget target set, there is no pre-committed ceiling at all — the run continues until it wins, an agent fails, or the operator cancels. That is the source\'s design, not an oversight, and it means an unattended run is bounded only by the host\'s own runaway backstop.',
   ],
+
+  won_without_building: outcome.status === 'WON' && history.every(h => !h.built)
+    ? 'THIS RUN NEVER BUILT ANYTHING. Every piece won its first round, so the builder never ran, no gap was ever acted on, and nothing iterated. A gauntlet loop that does not loop has tested its judges and not its method. Before reading this as success, check the bar: a goal written to describe what the candidate already does cannot discriminate, and a reference that does not attempt the goal cannot lose to it fairly.'
+    : null,
 
   reading_note:
     'Stopping on CANCELLED or BUDGET is not failure. The source is explicit that a hard bar "does ' +

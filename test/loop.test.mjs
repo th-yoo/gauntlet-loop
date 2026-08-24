@@ -896,3 +896,80 @@ console.log('loop: args.critics is validated OK')
   eq(whole.result.decomposition.pieces, [], 'and reports no pieces')
   console.log('loop: the split, its criterion and its unverifiability are all reported OK')
 }
+
+// ---------------------------------------------------------------------------
+// The three defects the first live run of this build exposed.
+// ---------------------------------------------------------------------------
+
+// margin is REQUIRED. Two live runs won with the separation unstated because it
+// was optional. It still does not gate the exit — a narrow win ends a round —
+// but a win nobody can audit afterwards is not a record.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [{ candidateWins: true, gap: 'unused', margin: 'narrow' }],
+  })
+  // Assert the SCHEMA, not the stub. The offline runtime does not validate
+  // schemas, so a test that only checks what the stub returned would pass with
+  // margin optional — which is exactly how it stayed optional through two live
+  // runs that then won with the separation unstated.
+  const call = r.prompts.find(p => p.label === 'round-1:ab')
+  ok(call.schema.required.includes('margin'), 'the critic schema REQUIRES a margin')
+  ok(!call.schema.required.includes('nothing'), 'sanity: required is the real list')
+  eq(r.result.outcome.status, 'WON', 'a narrow win still ends the run — margin records, it does not gate')
+  eq(r.result.history[0].margin, 'narrow', 'and the margin is recorded')
+  console.log('loop: margin is required by the schema and does not gate the exit OK')
+}
+
+// A run where every piece won its first round never built anything, and the
+// verdict has to say so rather than reporting ordinary success.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [{ candidateWins: true, gap: 'unused', margin: 'decisive' }],
+  })
+  eq(r.result.outcome.status, 'WON', 'it won')
+  eq(r.result.rounds_with_a_build, 0, 'and the verdict counts zero rounds that built anything')
+  ok(/NEVER BUILT ANYTHING/.test(r.result.won_without_building || ''), 'a win with no building is called out, not reported as ordinary success')
+  ok(/check the bar/.test(r.result.won_without_building), 'and it points at the bar as the likely cause')
+
+  const built = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [{ candidateWins: false, gap: 'g1', margin: 'clear' }, { candidateWins: true, gap: 'unused', margin: 'clear' }],
+  })
+  eq(built.result.rounds_with_a_build, 1, 'a run that built once counts one')
+  eq(built.result.won_without_building, null, 'and is not flagged')
+  console.log('loop: a win with no building is reported as such, a win after building is not OK')
+}
+
+// The goal-fairness probe: the one party that never sees the candidate.
+{
+  const unfair = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    fairness: { verdict: 'does-not-attempt', what_it_is_for: 'exploring intent before building, not iterating against a reference' },
+    rounds: [{ candidateWins: true, gap: 'unused', margin: 'decisive' }],
+  })
+  eq(unfair.result.goal_fairness.verdict, 'does-not-attempt', 'the verdict carries the fairness finding')
+  ok(unfair.logs.some(l => /does not attempt this goal/.test(l)), 'and it is warned about while the run is still cheap to stop')
+  ok(unfair.result.not_enforced.some(b => /DOES NOT ATTEMPT THIS GOAL/.test(b)), 'and disclosed as voiding the comparison')
+  eq(unfair.result.outcome.status, 'WON', 'but the run is not halted — judging on such a goal may be intended')
+
+  const probe = unfair.prompts.find(p => p.label === 'goal-fairness')
+  ok(probe && !probe.prompt.includes(CANDIDATE), 'the prober is never told what the candidate is')
+  ok(probe.prompt.includes(REFERENCE), 'only the reference and the goal')
+
+  const fair = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    fairness: { verdict: 'attempts', what_it_is_for: 'the same job' },
+    rounds: [{ candidateWins: true, gap: 'unused', margin: 'clear' }],
+  })
+  ok(!fair.result.not_enforced.some(b => /DOES NOT ATTEMPT/.test(b)), 'a fair goal draws no such disclosure')
+  ok(fair.result.not_enforced.some(b => /operator-supplied and unchecked against the CANDIDATE/.test(b)), 'but the residual that nothing checks the goal against OUR side remains')
+
+  const none = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [{ candidateWins: true, gap: 'unused', margin: 'clear' }],
+  })
+  eq(none.result.goal_fairness.verdict, 'unchecked', 'a probe that returns nothing reports unchecked, not fair')
+  console.log('loop: the goal-fairness probe is blind to the candidate and voids the comparison honestly OK')
+}

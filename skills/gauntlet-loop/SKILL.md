@@ -121,6 +121,24 @@ There is no round cap, deliberately: the source names a fixed round count as a
 failure mode, and a test fails the build if one reappears. If you set no budget,
 nothing but you will stop it.
 
+## The goal is the part that goes wrong
+
+Before anything is judged, one agent is shown **the goal and the reference only** —
+never told what your candidate is — and asked whether the reference *attempts*
+that goal at all. Not whether it is good: whether it is in the game.
+
+This exists because a blind A/B is a fair test only when both sides are trying to
+do the same thing. A goal that describes what your artifact already does cannot
+discriminate: the reference then loses on a dimension it never entered, every
+critic can be careful and correct, and the verdict still measures nothing but
+your choice of goal. The first live run of this loop failed exactly that way.
+
+The run warns and continues — judging something on a goal it never took on may be
+what you intend — and the verdict says so, so a win under an unfair goal cannot
+be read as a win.
+
+**Write the goal as a need, before you look at what your artifact does well.**
+
 ## What the run tells you afterwards
 
 Every run returns `enforced` and `not_enforced`, computed from that run rather
@@ -128,6 +146,11 @@ than written once. Read `not_enforced` first — it says what this particular ru
 did **not** guarantee. If the two artifact paths were not comparable, the
 blindness claim is withheld and replaced by a disclosure that the A/B was not
 blind at all.
+
+**A win where nothing was ever built is flagged.** If every piece wins its first
+round, the builder never ran and the loop never looped — usually a sign the bar
+was weak or the goal was fitted to the candidate. The verdict says
+`won_without_building` rather than reporting it as ordinary success.
 
 Read `gaps_in_order` before the verdict. If the gaps got smaller and more
 specific, the loop was working. If the last round names the first round's gap, it
