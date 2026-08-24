@@ -1,7 +1,14 @@
 import { runGauntlet, ok, eq } from './harness.mjs'
 
-// An explicit lens set must be honored verbatim, and calibratedLens must
-// override whatever gate 2 nominated.
+// An explicit lens set must be honored verbatim, and gate 2's own lenses
+// discarded. The calibration lens is gate 2's call, not the operator's --
+// args.calibratedLens was removed when this merged with fix/dogfood-findings,
+// because SKILL.md gives that choice to gate 2 ("the one where a miss is most
+// expensive") and an operator override lets the operator second-guess the one
+// party positioned to make it. What replaces it is stricter, not weaker: if
+// gate 2 names a lens that is not in the set it emitted, the run falls back to
+// the first lens AND records that it did, so a fallback can never be read as
+// an aimed calibration.
 const r = await runGauntlet({
   args: {
     artifact: '/tmp/x/artifact.md',
@@ -10,7 +17,6 @@ const r = await runGauntlet({
       { key: 'alpha', lane: 'lane A' },
       { key: 'beta', lane: 'lane B' },
     ],
-    calibratedLens: 'beta',
   },
   // gate 2 nominates 'alpha' and offers three lenses of its own; both must lose
   design: {
@@ -28,7 +34,10 @@ const r = await runGauntlet({
 })
 
 eq(r.result.round1.map(x => x.lens).sort(), ['alpha', 'beta'], 'operator lens set honored')
-eq(r.result.calibration.lens, 'beta', 'calibratedLens override honored')
+// gate 2 nominated 'gate2one', which is not in the operator's set, so this is
+// the malformed-nomination path: fall back to the first lens and say so.
+eq(r.result.calibration.lens, 'alpha', 'a calibration lens outside the operator\'s set falls back to the first lens of that set')
+eq(r.result.calibration.calibration_lens_fallback, true, 'and the fallback is RECORDED, so it cannot be read as an aimed calibration')
 ok(!r.result.round1.some(x => x.lens.startsWith('gate2')), 'gate 2 lenses discarded when operator supplied a set')
 
 console.log('orchestration: lens resolution OK')
@@ -73,6 +82,9 @@ const BASE = {
 
 const seed = n => ({
   seeded_path: `/tmp/x/scratch/seeded-${n}.md`,
+  // The merged script runs a control arm; a seed with no control copy is a
+  // VOID by contract, so every fixture carries one on an unrelated root.
+  control_path: `/tmp/x/control/trial-${n}/subject.md`,
   removed_verbatim: [`removed string number ${n} long enough to count`],
   inserted_verbatim: ['wrong'],
   location: 'line 10',
@@ -238,8 +250,33 @@ const seed = n => ({
   const r = await runGauntlet({ args: BASE })
   const writeBullet = r.result.enforced.find(b => /no Write or Edit/i.test(b))
   ok(writeBullet, 'the critic Write/Edit bullet is present')
-  ok(/those TOOLS/i.test(writeBullet), 'the bullet claims only what the tool allowlist buys')
-  const residual = r.result.not_enforced.find(b => /hold Bash and KillShell/i.test(b))
+  // Wording is theirs after the merge and is stronger than the phrasing this
+  // test was written against: it names the channel that IS closed rather than
+  // hedging the claim. Assert the property, not the sentence.
+  ok(/file-editing tool call/i.test(writeBullet), 'the bullet claims only the channel the allowlist actually closes')
+  ok(!/^critics cannot alter the artifact$/i.test(writeBullet.trim()), 'the bullet does not claim a blanket write-block')
+  const residual = r.result.not_enforced.find(b => /general shell and can write files/i.test(b))
   ok(residual, 'the Bash residual is disclosed in not_enforced')
+  ok(/false as stated/i.test(residual), 'and the disclosure says outright that the blanket claim would be false')
   console.log('orchestration: critic Write/Edit claim narrowed to the tool allowlist, Bash residual disclosed OK')
+}
+
+// DESIGN_SCHEMA.lenses.minItems must track WANT_LENSES, not sit at a hardcoded
+// 2. The gate-2 prompt asks for "exactly N" lenses; a schema floor above N
+// contradicts the prompt it is attached to, and at N=1 (gate 1's width-1
+// refusal) it makes the request unsatisfiable. Previously untestable: the
+// harness discarded the schema argument, a gap recorded in the SDD ledger.
+{
+  const r = await runGauntlet({ args: { ...BASE, lenses: 1 } })
+  const design = r.prompts.find(p => p.label === 'gate2:design')
+  ok(design && design.schema, 'the gate-2 design call was given a schema, and the harness now records it')
+  eq(design.schema.properties.lenses.minItems, 1, 'a width-1 request asks the schema for exactly 1 lens, not 2')
+  eq(design.schema.properties.lenses.maxItems, 4, 'maxItems stays a flat ceiling')
+  ok(/exactly 1\b/.test(design.prompt), 'and the prompt asks for exactly that many, so prompt and schema agree')
+}
+{
+  const r = await runGauntlet({ args: { ...BASE, lenses: 3 } })
+  const design = r.prompts.find(p => p.label === 'gate2:design')
+  eq(design.schema.properties.lenses.minItems, 3, 'a 3-lens request asks the schema for exactly 3')
+  console.log('orchestration: DESIGN_SCHEMA.minItems tracks WANT_LENSES, so prompt and schema cannot contradict OK')
 }

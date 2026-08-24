@@ -49,6 +49,7 @@ export async function runGauntlet(opts) {
   const prompts = []
   let seedIdx = 0
   let judgeIdx = 0
+  let controlJudgeIdx = 0
 
   const defaultDesign = {
     need_restatement: 'a restated need',
@@ -73,6 +74,11 @@ export async function runGauntlet(opts) {
 
   const defaultSeed = {
     seeded_path: '/tmp/x/scratch/seeded-1.md',
+    // The merged gauntlet.js runs a two-armed calibration: the planted defect
+    // measures sensitivity, and a control copy with NO defect measures
+    // specificity. A seed with no control_path is a VOID by contract, so the
+    // default has to carry one or every orchestration test halts at gate 7.
+    control_path: '/tmp/x/control/trial-1/subject.md',
     removed_verbatim: ['the removed sentence that is definitely long enough'],
     inserted_verbatim: ['a wrong sentence'],
     location: 'line 10',
@@ -82,7 +88,7 @@ export async function runGauntlet(opts) {
 
   async function agent(prompt, o) {
     const label = (o && o.label) || '(unlabeled)'
-    prompts.push({ label, prompt, agentType: o && o.agentType, phase: o && o.phase })
+    prompts.push({ label, prompt, agentType: o && o.agentType, phase: o && o.phase, schema: o && o.schema })
 
     if (label === 'gate2:design') return opts.design === undefined ? defaultDesign : opts.design
     if (label === 'gate5:blind-bar') return opts.bar === undefined ? defaultBar : opts.bar
@@ -90,6 +96,14 @@ export async function runGauntlet(opts) {
       const s = opts.seeds ? opts.seeds[seedIdx] : defaultSeed
       seedIdx++
       return s === undefined ? null : s
+    }
+    // Control arm. Default: the critic did NOT file at the plant site on a clean
+    // copy, i.e. the catch survives its own control. Override with
+    // opts.controlJudges to test the FALSE-POSITIVE path.
+    if (label.startsWith('gate7:control-judge')) {
+      const c = opts.controlJudges ? opts.controlJudges[controlJudgeIdx] : { filed_at_plant_site: false, reasoning: 'clean copy drew nothing at the site' }
+      controlJudgeIdx++
+      return c === undefined ? null : c
     }
     if (label.startsWith('gate7:judge')) {
       const j = opts.judges ? opts.judges[judgeIdx] : { caught: true, in_lane: true, reasoning: 'named it' }

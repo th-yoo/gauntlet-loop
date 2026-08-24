@@ -31,7 +31,11 @@ export const meta = {
 //                   all, so nothing the calibration critic is pointed at leads
 //                   to it. A critic that walks one level higher still reaches
 //                   it — the separation is by path, never by permission.
-//   args.lenses     (optional) integer 2-4. Default 3. Gate 2 names them.
+//   args.lenses     (optional) either a COUNT (integer 1-4, default 3 — gate 2
+//                   names the lenses) or an explicit ARRAY of {key, lens}
+//                   objects (the operator names them, and the run is
+//                   reproducible). 1 is allowed and is gate 1's width-1
+//                   refusal, not a degenerate case.
 //   args.need       (optional) operator's restatement of the need. Supplying
 //                   this is stronger than letting gate 2 derive it, because
 //                   gate 2 has read the artifact and the bar writer must not
@@ -85,7 +89,25 @@ const AT = {
 
 const ARTIFACT = args && args.artifact
 const SCRATCH = args && args.scratch
-const WANT_LENSES = Math.max(2, Math.min(4, (args && args.lenses) || 3))
+// args.lenses is either a COUNT (gate 2 names them — the SKILL.md default) or
+// an explicit ARRAY (the operator named them, so the run is reproducible).
+// Before this, an array reached Math.min(4, <array>) -> NaN -> Math.max(2, NaN)
+// -> NaN -> design.lenses.slice(0, NaN) -> [] -> calLens undefined -> TypeError
+// at the gate-2 log, AFTER the design agent had already been paid for.
+const RAW_LENSES = args && args.lenses
+const EXPLICIT_LENSES = Array.isArray(RAW_LENSES) && RAW_LENSES.length
+  ? RAW_LENSES.slice(0, 4).map(l => ({ key: l.key, lens: l.lens || l.lane }))
+  : null
+// Floor is 1, not 2: SKILL.md's gate 1 width-1 refusal (bar writer, one critic,
+// verifier, no cross-check) is a real, recorded outing — five defects, one fatal
+// to the artifact's central claim, ~150k against 1.1M — and the operator must be
+// able to ask for it. A floor of 2 makes the shape SKILL.md calls gate 1's own
+// answer unrunnable. An empty explicit array ([]) carries no lens and is not a
+// request for a 0-width run, so it falls back to gate 2's count exactly as an
+// absent args.lenses would.
+const WANT_LENSES = EXPLICIT_LENSES
+  ? Math.max(1, EXPLICIT_LENSES.length)
+  : Math.max(1, Math.min(4, (Array.isArray(RAW_LENSES) ? null : RAW_LENSES) || 3))
 const OPERATOR_NEED = (args && args.need) || null
 const REFERENCE = (args && args.reference) || null
 const WANT_REPORT = !(args && args.report === false)
@@ -200,7 +222,13 @@ const DESIGN_SCHEMA = {
       description: 'The underlying NEED, stated without naming the artifact\'s own proposed solution. This is all the bar writer will ever see.',
     },
     lenses: {
-      type: 'array', minItems: 2, maxItems: 4,
+      // minItems follows WANT_LENSES rather than a hardcoded 2: the Design
+      // prompt below asks for "exactly WANT_LENSES" lenses, and a schema floor
+      // higher than that count makes the prompt and the schema contradict each
+      // other whenever an operator asks for fewer than 2 (a width-1 run).
+      // maxItems stays a flat ceiling — gate 2 may still propose extra
+      // candidates up to 4; only the extras beyond WANT_LENSES get sliced off.
+      type: 'array', minItems: WANT_LENSES, maxItems: 4,
       items: {
         type: 'object', required: ['key', 'lens'],
         properties: {
@@ -442,12 +470,13 @@ if (!design) {
   return halt
 }
 
-const LENSES = design.lenses.slice(0, WANT_LENSES)
+const LENSES = EXPLICIT_LENSES || design.lenses.slice(0, WANT_LENSES)
 const NEED = OPERATOR_NEED || design.need_restatement
 const calLensExact = LENSES.find(l => l.key === design.calibration_lens)
 const calLens = calLensExact || LENSES[0]
 const calLensFallback = !calLensExact
 
+if (EXPLICIT_LENSES) log('gate 2: operator supplied the lens set; gate 2\'s own lenses discarded')
 log(`gate 2: ${LENSES.length} lenses [${LENSES.map(l => l.key).join(', ')}] · calibrating "${calLens.key}" — ${design.calibration_reason}`)
 if (calLensFallback) {
   log(`gate 2 MALFORMED: named calibration lens "${design.calibration_lens}" is not one of the lenses it emitted. Fell back to "${calLens.key}" — which is the listed-first default gate 2 was told not to use. Recorded in the verdict; do not read the calibration as aimed.`)
