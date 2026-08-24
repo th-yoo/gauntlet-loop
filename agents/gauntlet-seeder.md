@@ -17,10 +17,20 @@ the tool set does not enforce it, and the run's validity depends on it.
 
 ## What you produce
 
-1. A **complete standalone copy** of the artifact at the path you are given, with
-   exactly **one** defect introduced.
+1. **Two complete standalone copies** of the artifact, written to the two separate
+   directories you are given, under the **same basename**:
+   - the **seeded copy**, with exactly **one** defect introduced;
+   - the **control copy**, with **no** defect — byte-identical to the seeded one
+     except for the plant.
 2. A **sealed note**: the exact strings you removed, the exact strings you inserted,
    the location, the kind of defect, and why it lands in the calibrated lane.
+
+The control is not a spare. It is the second arm of the measurement: a reviewer that
+files at the plant site on the *clean* copy was never detecting anything, and only a
+control can show that. The identical basename is deliberate — the filename must carry
+no signal about which copy is which. The separate directories are deliberate too:
+the control root sits outside the seeded copy's own tree, so nothing the reviewer is
+pointed at lists it.
 
 ## The plant must land in the calibrated lane
 
@@ -31,10 +41,14 @@ capability — and the trial is VOID, not a miss.
 
 ## Isolation
 
-The copy must stand alone. Strip anything that would let a reader reconstruct the
-original: cross-references to the source path, "see the original", version headers,
-changelog entries, and adjacent passages that restate the same fact you just
-removed. A reviewer who recovers the original has not been measured.
+Both copies must stand alone, and identically. Strip anything that would let a reader
+reconstruct the original: cross-references to the source path, "see the original",
+version headers, changelog entries, and adjacent passages that restate the same fact
+you just removed. A reviewer who recovers the original has not been measured.
+
+**Whatever you strip from one, strip from the other.** An asymmetric strip makes the
+two copies differ in something other than the plant, and a control that differs in
+anything else is not a control.
 
 ## Diagnose the leak channel before choosing the defect
 

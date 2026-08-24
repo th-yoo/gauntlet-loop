@@ -1,14 +1,16 @@
 export const meta = {
   name: 'gauntlet',
-  description: 'Run the gauntlet: blind bar, seeded-defect critic calibration, lens-split critics, grounding verifier, terminal cross-check round',
-  whenToUse: 'After the operator has passed gates 0, 1 and 4 by hand. This script owns gate 2 onward; it never decides whether the run happens.',
+  description: 'Run the gauntlet: blind bar, two-armed critic calibration, lens-split critics, grounding verifier, terminal cross-check with a tallied margin, and an optional blind A/B against a reference exemplar',
+  whenToUse: 'After the operator has passed gates 0, 1 and the cost ceiling by hand. This script owns gate 2 onward; it never decides whether the run happens.',
   phases: [
     { title: 'Design', detail: 'gate 2 — one agent emits lenses, the calibration target, and the need restatement' },
-    { title: 'Bar', detail: 'gates 3/5/6 — bar writer never receives the artifact' },
-    { title: 'Calibrate', detail: 'gate 7 — blind seeder plants one in-lane defect; a deployed critic is measured against it' },
+    { title: 'Bar', detail: 'gates 3/5/6 — bar writer never receives the artifact; unfireable criteria are re-asked, then dropped' },
+    { title: 'Calibrate', detail: 'gate 7 — two arms: a planted defect measures sensitivity, an unseeded control measures specificity' },
     { title: 'Review', detail: 'round 1 — one critic per lens, dispatched together, blind to each other' },
     { title: 'Verify', detail: 'grounding verifier — exists / says / supports over pooled findings' },
-    { title: 'Round2', detail: 'terminal cross-check — fresh spawns, each attacks a finding it did not author' },
+    { title: 'Round2', detail: 'terminal cross-check — fresh spawns, each attacks a finding it did not author; outcomes are tallied' },
+    { title: 'Compare', detail: 'optional — blind A/B against a reference exemplar, labels stripped, forced choice, ensemble tallied' },
+    { title: 'Report', detail: 'a durable run report written to disk, so a run survives the session that spawned it' },
   ],
 }
 
@@ -18,11 +20,35 @@ export const meta = {
 //   args.artifact   (required) absolute path to the thing under review
 //   args.scratch    (required) absolute path to an EMPTY dir the seeder may
 //                   write into. Must not be inside the artifact's own tree.
-//   args.lenses     (optional) integer 2-4. Default 3. Gate 2 names them.
+//   args.control_scratch (optional) absolute path to an EMPTY dir for the
+//                   control copy only. For this to buy anything, it must be a
+//                   directory the operator considers UNRELATED to args.scratch
+//                   — a different branch of the filesystem, not a subdirectory
+//                   of it. If omitted, the control goes to a SIBLING of
+//                   args.scratch: `${SCRATCH}-b/trial-N/...`. That is weaker
+//                   than an unrelated branch but not weak: the seeded copy's
+//                   own directory and its parent no longer list the control at
+//                   all, so nothing the calibration critic is pointed at leads
+//                   to it. A critic that walks one level higher still reaches
+//                   it — the separation is by path, never by permission.
+//   args.lenses     (optional) either a COUNT (integer 1-4, default 3 — gate 2
+//                   names the lenses) or an explicit ARRAY of {key, lens}
+//                   objects (the operator names them, and the run is
+//                   reproducible). 1 is allowed and is gate 1's width-1
+//                   refusal, not a degenerate case.
 //   args.need       (optional) operator's restatement of the need. Supplying
 //                   this is stronger than letting gate 2 derive it, because
 //                   gate 2 has read the artifact and the bar writer must not
 //                   inherit the artifact's own framing (gate 5).
+//   args.reference  (optional) absolute path to a REFERENCE EXEMPLAR — a real
+//                   artifact of the kind this one wants to be. Supplying it
+//                   opens the Compare lane: a blind A/B, labels stripped,
+//                   forced choice, one vote per lens. This is the source
+//                   method's own mechanism and it is strictly better evidence
+//                   than a criteria bar, because a comparative judgment does
+//                   not require the critic to invent a threshold. Use it
+//                   whenever an exemplar exists.
+//   args.report     (optional) set false to skip the durable run report.
 //
 // The script has NO filesystem access. Every file touch is done by an agent.
 // ---------------------------------------------------------------------------
@@ -35,24 +61,74 @@ export const meta = {
 //   critic      has no Agent/ListAgents/SendMessage -> it CANNOT reach a peer
 //   verifier    same, and no Write/Edit
 //   seeder      has no web tools, no Agent
+//   isolator    has no web tools, no Agent — writes neutral-named copies
+//   reporter    has no Read, no web tools — it can only write what it was told
+//   judge       has only TodoWrite — it cannot go read the artifact and grade
+//               a critic against its own opinion instead of against the plant
 //
-// If the plugin loader namespaces plugin agents (feature-dev's show up as
-// `feature-dev:code-architect`), prefix these with `gauntlet-loop:`. Verify
-// once against ListAgents after installing; it is a one-line fix here.
+// The plugin loader namespaces plugin agents. Checked against ListAgents on
+// 2026-08-24: it returned `gauntlet-loop:gauntlet-critic`,
+// `gauntlet-loop:gauntlet-bar-writer`, `gauntlet-loop:gauntlet-isolator`,
+// `gauntlet-loop:gauntlet-reporter`, `gauntlet-loop:gauntlet-seeder`,
+// `gauntlet-loop:gauntlet-verifier` — hence the prefix below.
+//
+// `gauntlet-loop:gauntlet-judge` is the one value here that check did NOT
+// return: agents/gauntlet-judge.md was added afterwards, and its name is
+// INFERRED from the same prefix pattern rather than observed. If the pattern
+// does not hold for it, both gate-7 judge calls throw — there is no try/catch
+// around either — and the run dies at gate 7 with no report written.
 const AT = {
-  bar: 'gauntlet-bar-writer',
-  seeder: 'gauntlet-seeder',
-  critic: 'gauntlet-critic',
-  verifier: 'gauntlet-verifier',
+  bar: 'gauntlet-loop:gauntlet-bar-writer',
+  seeder: 'gauntlet-loop:gauntlet-seeder',
+  critic: 'gauntlet-loop:gauntlet-critic',
+  verifier: 'gauntlet-loop:gauntlet-verifier',
+  isolator: 'gauntlet-loop:gauntlet-isolator',
+  reporter: 'gauntlet-loop:gauntlet-reporter',
+  judge: 'gauntlet-loop:gauntlet-judge',
 }
 
 const ARTIFACT = args && args.artifact
 const SCRATCH = args && args.scratch
-const WANT_LENSES = Math.max(2, Math.min(4, (args && args.lenses) || 3))
+// args.lenses is either a COUNT (gate 2 names them — the SKILL.md default) or
+// an explicit ARRAY (the operator named them, so the run is reproducible).
+// Before this, an array reached Math.min(4, <array>) -> NaN -> Math.max(2, NaN)
+// -> NaN -> design.lenses.slice(0, NaN) -> [] -> calLens undefined -> TypeError
+// at the gate-2 log, AFTER the design agent had already been paid for.
+const RAW_LENSES = args && args.lenses
+const EXPLICIT_LENSES = Array.isArray(RAW_LENSES) && RAW_LENSES.length
+  ? RAW_LENSES.slice(0, 4).map(l => ({ key: l.key, lens: l.lens || l.lane }))
+  : null
+// Floor is 1, not 2: SKILL.md's gate 1 width-1 refusal (bar writer, one critic,
+// verifier, no cross-check) is a real, recorded outing — five defects, one fatal
+// to the artifact's central claim, ~150k against 1.1M — and the operator must be
+// able to ask for it. A floor of 2 makes the shape SKILL.md calls gate 1's own
+// answer unrunnable. An empty explicit array ([]) carries no lens and is not a
+// request for a 0-width run, so it falls back to gate 2's count exactly as an
+// absent args.lenses would.
+const WANT_LENSES = EXPLICIT_LENSES
+  ? Math.max(1, EXPLICIT_LENSES.length)
+  : Math.max(1, Math.min(4, (Array.isArray(RAW_LENSES) ? null : RAW_LENSES) || 3))
 const OPERATOR_NEED = (args && args.need) || null
+const REFERENCE = (args && args.reference) || null
+const WANT_REPORT = !(args && args.report === false)
 
 if (!ARTIFACT) throw new Error('args.artifact is required — absolute path to the artifact under review')
 if (!SCRATCH) throw new Error('args.scratch is required — an empty dir the seeder can write an isolated copy into')
+
+// Root the control copy somewhere the calibration critic is never pointed.
+// Passing args.control_scratch on an unrelated branch of the filesystem buys
+// the most distance; the fallback is a SIBLING of SCRATCH, not a child of it,
+// so the seeded critic's own directory and its parent contain no trace of the
+// control. Sibling, not child, is the whole difference — see the args header
+// above and the not_enforced note below.
+const CONTROL_ROOT = (args && args.control_scratch) || `${SCRATCH}-b`
+
+// A removed string shorter than this cannot carry a leak check: short text
+// recurs by chance in any critic's output, so matching it proves nothing and
+// failing to match it proves nothing either. A plant whose removal is not
+// leak-checkable is not a measurable trial — it VOIDs rather than passing
+// quietly, which is the difference between a hole and a halt.
+const LEAK_MIN_CHARS = 24
 
 // ---------------------------------------------------------------------------
 // THE CRITIC CONTRACT
@@ -99,10 +175,11 @@ SPILLOVER: <optional, one line each>
 
 Missing GETS-RIGHT or FAILED-ATTACK is malformed and will be returned.`
 
-// Byte-identical body for every deployed critic AND for the calibration
-// critic. That identity is the whole point of gate 7: a stand-in measures a
-// critic nobody is using.
-function criticPrompt(artifactPath, lens, otherLenses, bar, n) {
+// Byte-identical body for every deployed critic, for the calibration critic,
+// AND for the control critic. That identity is the whole point of gate 7: a
+// stand-in measures a critic nobody is using, and a control run under a
+// different prompt measures a different critic than the one it is controlling.
+function criticPrompt(lensKey, artifactPath, lens, otherLenses, bar, n) {
   return `You are one of ${n} critics reviewing the artifact at ${artifactPath}. Read it now.
 
 STANCE
@@ -127,7 +204,9 @@ ${lens}
 
 BUDGET: read once, spend the rest on anchors. Max 5 findings. Fewer is normal.
 
-${OUTPUT_CONTRACT}`
+${OUTPUT_CONTRACT}
+
+Use "${lensKey}" as the <id> prefix for every finding you file, so findings can be addressed by id across critics.`
 }
 
 // ---------------------------------------------------------------------------
@@ -143,7 +222,13 @@ const DESIGN_SCHEMA = {
       description: 'The underlying NEED, stated without naming the artifact\'s own proposed solution. This is all the bar writer will ever see.',
     },
     lenses: {
-      type: 'array', minItems: 2, maxItems: 4,
+      // minItems follows WANT_LENSES rather than a hardcoded 2: the Design
+      // prompt below asks for "exactly WANT_LENSES" lenses, and a schema floor
+      // higher than that count makes the prompt and the schema contradict each
+      // other whenever an operator asks for fewer than 2 (a width-1 run).
+      // maxItems stays a flat ceiling — gate 2 may still propose extra
+      // candidates up to 4; only the extras beyond WANT_LENSES get sliced off.
+      type: 'array', minItems: WANT_LENSES, maxItems: 4,
       items: {
         type: 'object', required: ['key', 'lens'],
         properties: {
@@ -152,7 +237,7 @@ const DESIGN_SCHEMA = {
         },
       },
     },
-    calibration_lens: { type: 'string', description: 'key of the lens to calibrate — the one where a miss is most expensive' },
+    calibration_lens: { type: 'string', description: 'key of the lens to calibrate — MUST be one of the keys you emitted above' },
     calibration_reason: { type: 'string', description: 'why a miss in THAT lens costs most. "it is listed first" is not a reason.' },
     acceptance_rule: { type: 'string', description: 'what makes a finding count, and the stop condition' },
     findings_for_operator: {
@@ -185,10 +270,14 @@ const BAR_SCHEMA = {
 
 const SEED_SCHEMA = {
   type: 'object',
-  required: ['seeded_path', 'removed_verbatim', 'inserted_verbatim', 'location', 'defect_kind', 'why_in_lane'],
+  required: ['seeded_path', 'control_path', 'removed_verbatim', 'inserted_verbatim', 'location', 'defect_kind', 'why_in_lane'],
   properties: {
-    seeded_path: { type: 'string', description: 'absolute path of the isolated copy you wrote' },
-    removed_verbatim: { type: 'array', items: { type: 'string' }, description: 'EXACT strings you deleted. The leak check greps critic output for these.' },
+    seeded_path: { type: 'string', description: 'absolute path of the isolated copy WITH the defect, written under the seeded trial directory (SCRATCH/trial-N/subject.ext)' },
+    control_path: { type: 'string', description: 'absolute path of the isolated copy WITHOUT the defect, written under the SEPARATE control root outside the seeded tree (CONTROL_ROOT/trial-N/subject.ext) — same basename, same isolation treatment, byte-identical to the seeded copy except for the plant' },
+    removed_verbatim: {
+      type: 'array', items: { type: 'string' },
+      description: `EXACT strings you deleted. The leak check greps critic output for these, so at least one must be ${LEAK_MIN_CHARS}+ characters or the trial is not leak-checkable and VOIDS.`,
+    },
     inserted_verbatim: { type: 'array', items: { type: 'string' }, description: 'EXACT strings you added' },
     location: { type: 'string' },
     defect_kind: { type: 'string' },
@@ -206,6 +295,130 @@ const CAL_JUDGE_SCHEMA = {
   },
 }
 
+const CONTROL_JUDGE_SCHEMA = {
+  type: 'object',
+  required: ['filed_at_plant_site', 'reasoning'],
+  properties: {
+    filed_at_plant_site: {
+      type: 'boolean',
+      description: 'Did this critic — reviewing a copy with NO defect in it — file a finding at the location where the defect would have been, making the same or an equivalent claim? True means the earlier catch measured the critic\'s habit, not its detection.',
+    },
+    reasoning: { type: 'string' },
+  },
+}
+
+const ROUND2_SCHEMA = {
+  type: 'object',
+  required: ['body', 'withdrawn', 'narrowed', 'cross_checks', 'new_findings'],
+  properties: {
+    body: { type: 'string', description: 'your full prose output, unabridged — the schema is a tally, never a substitute for the reasoning' },
+    withdrawn: { type: 'array', items: { type: 'string' }, description: 'ids of your own findings you withdrew' },
+    narrowed: { type: 'array', items: { type: 'string' }, description: 'ids you narrowed to what the anchor actually supports' },
+    cross_checks: {
+      type: 'array',
+      items: {
+        type: 'object', required: ['finding_id', 'outcome', 'basis'],
+        properties: {
+          finding_id: { type: 'string', description: 'the finding you attacked — one you did NOT author' },
+          outcome: { type: 'string', enum: ['KNOCKED-DOWN', 'HELD'] },
+          basis: { type: 'string', description: 'the anchor your attack rested on; an attack without one is an opinion' },
+        },
+      },
+    },
+    new_findings: { type: 'array', items: { type: 'string' }, description: 'claims only, max 2; "none" is normal' },
+    adjacent: { type: 'array', items: { type: 'string' }, description: 'a different defect your own reasoning surfaced, per refutation' },
+  },
+}
+
+const AB_ISOLATE_SCHEMA = {
+  type: 'object',
+  required: ['left_path', 'right_path', 'ours_side', 'treatment'],
+  properties: {
+    left_path: { type: 'string', description: 'absolute path of the copy you named LEFT' },
+    right_path: { type: 'string', description: 'absolute path of the copy you named RIGHT' },
+    ours_side: { type: 'string', enum: ['LEFT', 'RIGHT'], description: 'which side holds the artifact under review. This value is never shown to a comparing critic.' },
+    treatment: { type: 'string', description: 'what you stripped from BOTH copies so neither can be identified by anything except its content' },
+  },
+}
+
+const AB_VOTE_SCHEMA = {
+  type: 'object',
+  required: ['winner', 'largest_gap', 'why'],
+  properties: {
+    winner: { type: 'string', enum: ['LEFT', 'RIGHT'], description: 'you must pick one. A tie is not an available answer — that is the point of a forced choice.' },
+    largest_gap: { type: 'string', description: 'the single largest gap between the loser and the winner, stated as the change that would close it' },
+    why: { type: 'string', description: 'what you inspected to decide, in your lens' },
+  },
+}
+
+// ---------------------------------------------------------------------------
+// REPORT DISPATCH
+//
+// One report path per run — a halt and a completion never coexist in a
+// single run, so there is nothing to disambiguate. Every `return` funnels
+// through here: the five halts (gate 2 empty, gate 5 empty, gate 6, gate 7,
+// an empty round 1) and the final verdict. This has to run BEFORE each early
+// `return`, not after the run completes, or a halted run's blind artifacts
+// never reach disk and SKILL.md's promise to carry them into a rerun is
+// unkeepable.
+//
+// A return is not the only way out. The two argument checks at the top of
+// this file still throw, deliberately — nothing has been paid for yet and a
+// loud crash is the right answer. And any unguarded `await agent()` can
+// reject: a rejection anywhere outside a halt-and-report path takes the run
+// down without a report, and this function is not a defense against that.
+//
+// Failure here must not turn a halt into a crash: if the reporter throws or
+// returns nothing, the run's own result still returns with report_path null.
+// A non-null report_path is NOT evidence the file exists. This script has no
+// filesystem access and cannot stat; it returns the path whenever the reporter
+// returns any truthy value, so a reporter that answers in prose without ever
+// calling Write yields a report_path for a file that is not there.
+// ---------------------------------------------------------------------------
+
+async function writeReport(runObject) {
+  if (!WANT_REPORT) return null
+  phase('Report')
+  const reportPath = `${SCRATCH}/gauntlet-report.md`
+  let written = null
+  try {
+    written = await agent(
+      `Write a run report to ${reportPath}. You have no Read tool: everything you need is below,
+and anything not below did not happen as far as this report is concerned.
+
+Reproduce, do not summarise away, whatever the run below actually contains. A completed run
+carries the verdict, the bar and which form it took, the calibration result INCLUDING BOTH
+ARMS, the margin tally, every finding with its anchor and its cross-check outcome, the
+comparison result if present, and enforced / not_enforced lists. A halted run carries none
+of that — its report IS the halt: which stage stopped it, why, and whatever blind artifacts
+(such as bar or need) survived the halt to be carried into a rerun. Write down what is
+there; do not invent what is not, and do not apologise for the run being short.
+
+If an enforced or not_enforced list is present, reproduce both verbatim. The not_enforced
+list is the part a reader is most likely to skip and most needs — give it its own section
+with its own heading, not a footnote.
+
+Head the file with a one-line status a reader can scan, then the run identity: artifact
+path, lens keys, calibration verdict — whichever of those the run actually carries. Do not
+add praise, do not add recommendations of your own, and do not resolve a contested finding
+— a split is a result, not a defect in the report.
+
+THE RUN
+${JSON.stringify(runObject, null, 2)}`,
+      { label: 'report:write', phase: 'Report', agentType: AT.reporter }
+    )
+  } catch (e) {
+    log(`report: writer threw instead of returning — ${e && e.message ? e.message : e} — the run's own result still returns`)
+    return null
+  }
+  if (!written) {
+    log("report: writer returned nothing — the run's own result still returns")
+    return null
+  }
+  log(`report written to ${reportPath} — the run survives this session`)
+  return reportPath
+}
+
 // ---------------------------------------------------------------------------
 // PHASE: DESIGN (gate 2 — no veto)
 // ---------------------------------------------------------------------------
@@ -216,11 +429,12 @@ const design = await agent(
   `You are gate 2 of the gauntlet. Read the artifact at ${ARTIFACT} in full, then emit the
 orchestration for the review of it.
 
-YOU HAVE NO VETO. The operator already ruled at gates 0, 1 and 4 — the only gates that
-weigh what being wrong costs, and the only ones the operator can run for free. Your job is
-to emit the orchestration, not to decide whether the run happens. If you discover a reason
-the run is premature, that is a FINDING you report in findings_for_operator; the operator
-rules on it. Do not refuse, do not stall, do not emit an empty lens set.
+YOU HAVE NO VETO. The operator already ruled at gates 0, 1 and on the cost ceiling — the
+only gates that weigh what being wrong costs, and the only ones the operator can run for
+free. Your job is to emit the orchestration, not to decide whether the run happens. If you
+discover a reason the run is premature, that is a FINDING you report in
+findings_for_operator; the operator rules on it. Do not refuse, do not stall, do not emit
+an empty lens set.
 
 Emit:
 
@@ -234,22 +448,39 @@ Emit:
    monotonic but lens DIVERSITY is what buys coverage: identical critics converge on
    meaningless consensus.
 
-3. calibration_lens + calibration_reason — which single lens gets gate-7 calibrated. Pick
-   the one where a MISS IS MOST EXPENSIVE, not the one listed first. For a spec that is
-   almost always the acceptance criteria: a criterion that cannot fail silently licenses
-   everything downstream of it. State the cost, not the ordering.
+3. calibration_lens + calibration_reason — which single lens gets gate-7 calibrated. It MUST
+   be one of the keys you just emitted; naming anything else is a malformed orchestration and
+   is recorded as one. Pick the one where a MISS IS MOST EXPENSIVE, not the one listed first.
+   For a spec that is almost always the acceptance criteria: a criterion that cannot fail
+   silently licenses everything downstream of it. State the cost, not the ordering.
 
 4. acceptance_rule — what makes a finding count, and the stop condition.`,
   { label: 'gate2:design', phase: 'Design', schema: DESIGN_SCHEMA }
 )
 
-if (!design) throw new Error('gate 2 returned nothing — cannot orchestrate a run without an orchestration')
+if (!design) {
+  log('gate 2 returned nothing — there is no orchestration, so there is nothing to run.')
+  const halt = {
+    verdict: 'NO VERDICT',
+    stage: 'gate 2',
+    why: 'the gate-2 designer returned nothing — no lenses, no calibration target, no need restatement',
+    note: 'Nothing downstream was paid for. Supply args.need and rerun; if gate 2 returns nothing twice, the artifact path is the first thing to check.',
+  }
+  halt.report_path = await writeReport(halt)
+  return halt
+}
 
-const LENSES = design.lenses.slice(0, WANT_LENSES)
+const LENSES = EXPLICIT_LENSES || design.lenses.slice(0, WANT_LENSES)
 const NEED = OPERATOR_NEED || design.need_restatement
-const calLens = LENSES.find(l => l.key === design.calibration_lens) || LENSES[0]
+const calLensExact = LENSES.find(l => l.key === design.calibration_lens)
+const calLens = calLensExact || LENSES[0]
+const calLensFallback = !calLensExact
 
+if (EXPLICIT_LENSES) log('gate 2: operator supplied the lens set; gate 2\'s own lenses discarded')
 log(`gate 2: ${LENSES.length} lenses [${LENSES.map(l => l.key).join(', ')}] · calibrating "${calLens.key}" — ${design.calibration_reason}`)
+if (calLensFallback) {
+  log(`gate 2 MALFORMED: named calibration lens "${design.calibration_lens}" is not one of the lenses it emitted. Fell back to "${calLens.key}" — which is the listed-first default gate 2 was told not to use. Recorded in the verdict; do not read the calibration as aimed.`)
+}
 if (design.findings_for_operator && design.findings_for_operator.trim() && !/^(none|n\/a|nothing)\b/i.test(design.findings_for_operator.trim())) {
   log(`gate 2 REPORTS TO OPERATOR (not a veto): ${design.findings_for_operator}`)
 }
@@ -260,12 +491,17 @@ if (OPERATOR_NEED) log('gate 5: using the OPERATOR-supplied need restatement, no
 //
 // Structural property this buys over prose: the bar writer is never told where
 // the artifact is. It cannot read what it was not pointed at.
+//
+// Gate 6 is ENFORCED here rather than warned about. A criterion with no
+// concrete failing case cannot discriminate, and one with no concrete passing
+// case is unmeetable — a bar written blind is the likeliest place for both.
+// The writer gets one correction pass, then the dead criteria are dropped, and
+// if fewer than two survive there is no bar and the run does not proceed.
 // ---------------------------------------------------------------------------
 
 phase('Bar')
 
-const bar = await agent(
-  `You are writing the acceptance bar for a review. You have NOT been told what the artifact
+const BAR_TASK = `You are writing the acceptance bar for a review. You have NOT been told what the artifact
 is, where it lives, or who wrote it. That is deliberate and you must not go looking: if you
 locate and read the artifact, the bar is contaminated and the whole review is void. Work
 only from the need below.
@@ -284,24 +520,93 @@ GATE 3 — the bar must be anchored OUTSIDE any particular solution. Either
 GATE 6 — every criterion must be able to FIRE IN BOTH DIRECTIONS. For each one, name a
   concrete case where it PASSES and a concrete case where it FAILS. A criterion for which
   you cannot construct a failing case cannot discriminate; delete it and write another. A
-  saturated criterion that never engages is worse than no criterion, because it reads as
-  coverage.
+  criterion for which you cannot construct a passing case is unmeetable by anything, which
+  is the characteristic failure of a bar written without seeing the work. A saturated
+  criterion that never engages is worse than no criterion, because it reads as coverage.
 
-Then emit bar_text: the frozen bar exactly as critics will receive it.`,
-  { label: 'gate5:blind-bar', phase: 'Bar', schema: BAR_SCHEMA, agentType: AT.bar }
-)
+Then emit bar_text: the frozen bar exactly as critics will receive it.`
 
-if (!bar) throw new Error('bar writer returned nothing — critics cannot run against no bar')
+function deadCriteria(criteria) {
+  return (criteria || []).filter(c =>
+    !c.fails_when || !c.fails_when.trim() || !c.passes_when || !c.passes_when.trim()
+  )
+}
 
-const unfireable = bar.criteria.filter(c => !c.fails_when || !c.fails_when.trim())
-if (unfireable.length) log(`gate 6 WARNING: ${unfireable.length} criteria have no failing case`)
-log(`gate 3/5/6: ${bar.criteria.length} criteria, form=${bar.gate3_form}, written blind`)
+let bar = await agent(BAR_TASK, { label: 'gate5:blind-bar', phase: 'Bar', schema: BAR_SCHEMA, agentType: AT.bar })
+if (!bar) {
+  log('gate 5 returned nothing — there is no bar, so there is nothing for critics to review against.')
+  const halt = {
+    verdict: 'NO VERDICT',
+    stage: 'gate 5',
+    why: 'the blind bar writer returned nothing',
+    need: NEED,               // blind, survives the halt — carry it into the rerun
+    lenses: LENSES.map(l => l.key),
+    note: 'The need restatement above was written before any bar existed and is still blind. Carry `need` into the rerun rather than re-deriving it.',
+  }
+  halt.report_path = await writeReport(halt)
+  return halt
+}
+
+let dead = deadCriteria(bar.criteria)
+let barRepaired = false
+
+if (dead.length) {
+  log(`gate 6: ${dead.length} criteria cannot fire in both directions — re-asking the bar writer once`)
+  const repaired = await agent(
+    `${BAR_TASK}
+
+CORRECTION PASS. Your previous bar had ${dead.length} criteria that cannot fire in both
+directions: ${dead.map(c => c.id).join(', ')}. For each, you either gave no concrete failing
+case (it cannot discriminate) or no concrete passing case (nothing can meet it). Replace
+them. Keep the criteria that were sound. Do not go looking for the artifact — you still have
+not been told what it is.`,
+    { label: 'gate6:bar-repair', phase: 'Bar', schema: BAR_SCHEMA, agentType: AT.bar }
+  )
+  if (repaired && repaired.criteria) {
+    bar = repaired
+    barRepaired = true
+    dead = deadCriteria(bar.criteria)
+  }
+}
+
+if (dead.length) {
+  const deadIds = new Set(dead.map(c => c.id))
+  bar.criteria = bar.criteria.filter(c => !deadIds.has(c.id))
+  log(`gate 6: dropped ${deadIds.size} criteria that still could not fire after the correction pass`)
+}
+
+if (!bar.criteria || bar.criteria.length < 2) {
+  log('gate 6 leaves fewer than two criteria that can fire — there is no bar, so there is nothing for critics to review against.')
+  const halt = {
+    verdict: 'NO VERDICT',
+    stage: 'gate 6',
+    why: 'the blind bar could not produce two criteria that fire in both directions, even after a correction pass',
+    need: NEED,
+    lenses: LENSES.map(l => l.key),
+    note: 'Gate 6 firing here usually means the need restatement is too abstract to write criteria against. Supply args.need yourself and rerun.',
+  }
+  halt.report_path = await writeReport(halt)
+  return halt
+}
+
+log(`gate 3/5/6: ${bar.criteria.length} criteria, form=${bar.gate3_form}, written blind${barRepaired ? ', one correction pass' : ''}`)
 
 // ---------------------------------------------------------------------------
-// PHASE: CALIBRATE (gate 7)
+// PHASE: CALIBRATE (gate 7) — TWO ARMS
+//
+// Arm 1, SENSITIVITY: a planted in-lane defect. Did the deployed critic catch
+// it? This is the arm the skill has always had.
+//
+// Arm 2, SPECIFICITY: the same critic prompt over an unseeded copy carrying
+// the identical isolation treatment. If it files the same claim at the same
+// location with no defect present, then arm 1's catch measured a habit, not a
+// detection — and a panel calibrated on a habit is calibrated on nothing. Only
+// a catch that survives its own control counts.
 //
 // VOID != miss. A VOID means the measurement never happened and cannot consume
-// the retry; a miss consumes it and the retry uses a DIFFERENT plant.
+// the retry; a miss consumes it and the retry uses a DIFFERENT plant. A VOID
+// re-runs the SAME defect kind with the cause corrected, which is why a voided
+// attempt must not burn the kind it used.
 // Two VOIDs -> NO VERDICT. Missed twice -> NO VERDICT.
 // ---------------------------------------------------------------------------
 
@@ -309,47 +614,82 @@ phase('Calibrate')
 
 const otherLensNames = LENSES.filter(l => l.key !== calLens.key).map(l => l.lens)
 
-async function calibrationAttempt(attempt, priorKinds) {
+function extOf(p) {
+  const base = p.slice(p.lastIndexOf('/') + 1)
+  const dot = base.lastIndexOf('.')
+  return dot > 0 ? base.slice(dot) : '.txt'
+}
+
+async function calibrationAttempt(attempt, spentKinds, priorVoid) {
   const seed = await agent(
     `You are seeding a defect to test whether a reviewer can catch one. You have NOT seen the
 reviewer's prompt and must not go looking for it — knowing how the reviewer is instructed
 would let you tune the defect to evade it, which measures evasion rather than capability.
 
 1. Read the artifact at ${ARTIFACT}.
-2. Write a COMPLETE copy to ${SCRATCH}/seeded-${attempt}${extOf(ARTIFACT)} with exactly ONE
-   defect introduced.
+2. Write TWO complete copies, each into its OWN directory, under the SAME basename:
+     ${SCRATCH}/trial-${attempt}/subject${extOf(ARTIFACT)}         — with exactly ONE defect introduced
+     ${CONTROL_ROOT}/trial-${attempt}/subject${extOf(ARTIFACT)}    — with NO defect
+   The identical basename is deliberate: the filename must carry no signal about which
+   copy is which. The two directories are deliberate too — the reviewer that will read
+   the seeded copy is never pointed at ${CONTROL_ROOT}, and that root is not inside the
+   seeded tree, so neither the seeded file's own directory nor its parent lists the
+   control. That is distance, not a wall: a reviewer that walks further up the
+   filesystem can still find it. The two files must still be byte-identical except for
+   the plant. The control is the other arm of this measurement: a reviewer that files at
+   the plant site on the CONTROL was never detecting anything, and the trial has to be
+   able to show that.
 3. The defect must land inside this lane, because that is the reviewer being measured:
      ${calLens.lens}
    A plant outside this lane VOIDS the measurement — the reviewer is instructed to stay in
    its lane, so an out-of-lane plant measures obedience, not capability.
-${priorKinds.length ? `4. A previous attempt already used: ${priorKinds.join('; ')}. Use a DIFFERENT kind of defect — re-running the same plant fits the reviewer to the test.` : ''}
+${spentKinds.length ? `4. Previous attempts genuinely MISSED using: ${spentKinds.join('; ')}. Use a DIFFERENT kind of defect — re-running a plant the reviewer already failed fits the reviewer to the test.` : ''}
+${priorVoid ? `4. The previous attempt did not measure anything: ${priorVoid}. Re-run the SAME KIND of defect with that cause corrected. Reusing the defect is safe precisely because the reviewer was never shown it.` : ''}
 
-ISOLATION — the copy must stand alone. Strip anything that would let a reader recover the
-original: cross-references to the source path, "see the original", version headers, adjacent
-duplicated statements of the same fact.
+ISOLATION — both copies must stand alone, and identically. Strip anything that would let a
+reader recover the original: cross-references to the source path, "see the original",
+version headers, adjacent duplicated statements of the same fact. Whatever you strip from
+one, strip from the other, or the control is not a control.
 
 DIAGNOSE THE LEAK CHANNEL BEFORE YOU CHOOSE. If the text you remove is recoverable from
 public sources or from a model's own prior knowledge, no sandbox closes that channel and a
 tighter re-run only yields a FALSE PASS. Prefer ground truth that is specific to this
-artifact and not recallable from anywhere else.
+artifact and not recallable from anywhere else. Inverting a constraint that exists only
+here is the strongest shape available: it removes a real string, so the leak stays
+checkable, and its correct form cannot be recalled from any prior.
 
 Record removed_verbatim as the EXACT strings you deleted. A grep for them in the reviewer's
-output is how a leak is proven, so they must match byte for byte.`,
+output is how a leak is proven, so they must match byte for byte, and at least one of them
+must be ${LEAK_MIN_CHARS} characters or longer — a shorter string recurs by chance and can
+prove nothing in either direction.`,
     { label: `gate7:seeder-${attempt}`, phase: 'Calibrate', schema: SEED_SCHEMA, agentType: AT.seeder }
   )
 
   if (!seed || !seed.seeded_path) return { status: 'VOID', why: 'seeder produced no isolated copy' }
+  if (!seed.control_path) return { status: 'VOID', why: 'seeder produced no control copy — the specificity arm cannot run, so the trial cannot distinguish a detection from a habit', seed }
+
+  const checkable = (seed.removed_verbatim || []).filter(s => s && s.trim().length >= LEAK_MIN_CHARS)
+  if (!checkable.length) {
+    return {
+      status: 'VOID',
+      why: `no removed string reaches ${LEAK_MIN_CHARS} characters — this plant is not leak-checkable, so a pass could not be distinguished from the critic having reached the original`,
+      seed,
+    }
+  }
 
   // Byte-identical to a DEPLOYED critic. It is not told it is being calibrated.
   const calCritic = await agent(
-    criticPrompt(seed.seeded_path, calLens.lens, otherLensNames, bar.bar_text, LENSES.length),
+    criticPrompt(calLens.key, seed.seeded_path, calLens.lens, otherLensNames, bar.bar_text, LENSES.length),
     { label: `gate7:critic-${attempt}`, phase: 'Calibrate', agentType: AT.critic }
   )
 
-  if (!calCritic) return { status: 'VOID', why: 'calibration critic returned nothing' }
+  if (!calCritic) return { status: 'VOID', why: 'calibration critic returned nothing', seed }
 
   // LEAK CHECK — code, not judgment. A match proves it reached the original.
-  const leaked = (seed.removed_verbatim || []).filter(s => s && s.length > 12 && calCritic.indexOf(s) !== -1)
+  // String() because a critic dispatched without a schema is expected to return
+  // text but is not guaranteed to: an object here would throw on .indexOf and
+  // take the run down at gate 7 instead of VOIDing it.
+  const leaked = checkable.filter(s => String(calCritic).indexOf(s) !== -1)
   if (leaked.length) {
     return { status: 'VOID', why: `leak — critic output contains ${leaked.length} verbatim string(s) the seeder removed`, seed, leaked }
   }
@@ -377,61 +717,131 @@ Two independent questions:
   in_lane — does the plant actually sit inside the calibrated lane as described? If the
             seeder's in-lane argument does not hold, the trial is void regardless of the
             outcome, because the reviewer was instructed not to file outside its lane.`,
-    { label: `gate7:judge-${attempt}`, phase: 'Calibrate', schema: CAL_JUDGE_SCHEMA, effort: 'high' }
+    { label: `gate7:judge-${attempt}`, phase: 'Calibrate', schema: CAL_JUDGE_SCHEMA, effort: 'high', agentType: AT.judge }
   )
 
   if (!judged) return { status: 'VOID', why: 'calibration judge returned nothing', seed }
   if (!judged.in_lane) return { status: 'VOID', why: `plant landed outside the calibrated lane — ${judged.reasoning}`, seed }
-  if (judged.caught) return { status: 'PASS', seed, judged }
-  return { status: 'MISS', seed, judged }
-}
+  if (!judged.caught) return { status: 'MISS', seed, judged }
 
-function extOf(p) {
-  const base = p.slice(p.lastIndexOf('/') + 1)
-  const dot = base.lastIndexOf('.')
-  return dot > 0 ? base.slice(dot) : '.txt'
+  // ---- ARM 2: SPECIFICITY. Only a catch needs a control; a miss is already
+  // uninformative about habit. Same prompt, same lane, no defect.
+  const controlCritic = await agent(
+    criticPrompt(calLens.key, seed.control_path, calLens.lens, otherLensNames, bar.bar_text, LENSES.length),
+    { label: `gate7:control-${attempt}`, phase: 'Calibrate', agentType: AT.critic }
+  )
+
+  if (!controlCritic) return { status: 'VOID', why: 'control critic returned nothing — the catch is unconfirmed, and an unconfirmed catch is not a measurement', seed, judged }
+
+  const controlJudged = await agent(
+    `Judge the CONTROL arm of a calibration trial. A reviewer was given a copy of an artifact
+with NO defect in it. Separately, a defect had been planted in a different copy at the
+location below, and another reviewer running the identical prompt named it.
+
+WHERE THE DEFECT WOULD HAVE BEEN
+  location: ${seed.location}
+  kind: ${seed.defect_kind}
+  what the plant did: removed ${JSON.stringify(seed.removed_verbatim)}, inserted ${JSON.stringify(seed.inserted_verbatim)}
+
+THE CONTROL REVIEWER'S OUTPUT (reviewing the clean copy)
+${controlCritic}
+
+One question: filed_at_plant_site — did this reviewer file a finding at that location making
+the same claim, or an equivalent one, with no defect present? Filing elsewhere does not
+count. A low-severity remark that does not assert the same defect does not count. Be strict
+in the other direction too: if it named that exact site as wrong when nothing was wrong,
+that is exactly what this arm exists to catch, and the earlier catch measured a habit rather
+than a detection.`,
+    { label: `gate7:control-judge-${attempt}`, phase: 'Calibrate', schema: CONTROL_JUDGE_SCHEMA, effort: 'high', agentType: AT.judge }
+  )
+
+  if (!controlJudged) return { status: 'VOID', why: 'control judge returned nothing', seed, judged }
+  if (controlJudged.filed_at_plant_site) {
+    return { status: 'FALSE-POSITIVE', seed, judged, controlJudged }
+  }
+
+  return { status: 'PASS', seed, judged, controlJudged }
 }
 
 let voids = 0
 let misses = 0
 let calibration = null
-const usedKinds = []
+const spentKinds = []
+let lastVoidWhy = null
 
-for (let attempt = 1; attempt <= 4; attempt++) {
-  const r = await calibrationAttempt(attempt, usedKinds)
-  if (r.seed && r.seed.defect_kind) usedKinds.push(r.seed.defect_kind)
+// Three attempts is the bound the terminators actually allow. One VOID and one
+// MISS can each occur without terminating; a second of either ends the loop. So
+// the worst surviving history is one VOID plus one MISS, and attempt 3 ends the
+// run whatever it returns. A fourth iteration is unreachable, and a loop bound
+// that cannot be reached advertises a retry the run will never spend.
+for (let attempt = 1; attempt <= 3; attempt++) {
+  const r = await calibrationAttempt(attempt, spentKinds, lastVoidWhy)
 
   if (r.status === 'VOID') {
     voids++
+    lastVoidWhy = r.why
+    // A VOID must not burn the defect kind: the reviewer never saw it, so the
+    // same kind is re-run with the cause corrected. Burning it here would make
+    // a VOID consume something after all.
     log(`gate 7 attempt ${attempt}: VOID (${r.why}) — does not consume the retry [voids=${voids}]`)
     if (voids >= 2) { calibration = { verdict: 'NO VERDICT', why: 'two VOIDs — the measurement never happened twice' }; break }
     continue
   }
+
+  lastVoidWhy = null
+
   if (r.status === 'MISS') {
     misses++
+    if (r.seed && r.seed.defect_kind) spentKinds.push(r.seed.defect_kind)
     log(`gate 7 attempt ${attempt}: MISS — consumes the retry [misses=${misses}]`)
     if (misses >= 2) { calibration = { verdict: 'NO VERDICT', why: 'the deployed critic missed a planted in-lane defect twice' }; break }
     continue
   }
-  calibration = { verdict: 'CALIBRATED', lens: calLens.key, attempt, why: r.judged.reasoning }
-  log(`gate 7: CALIBRATED on lens "${calLens.key}" at attempt ${attempt}`)
+
+  if (r.status === 'FALSE-POSITIVE') {
+    calibration = {
+      verdict: 'NO VERDICT',
+      why: `the control arm failed: this critic files the same claim at the same location with no defect present — ${r.controlJudged.reasoning}. The catch measured a habit, not a detection.`,
+      arm: 'specificity',
+    }
+    log('gate 7: CONTROL FAILED — the critic filed at the plant site on a clean copy. A catch that its own control reproduces is not evidence.')
+    break
+  }
+
+  calibration = {
+    verdict: 'CALIBRATED',
+    lens: calLens.key,
+    attempt,
+    sensitivity: `caught a planted in-lane ${r.seed.defect_kind} — ${r.judged.reasoning}`,
+    specificity: `did not file at the plant site on a clean copy carrying the identical isolation treatment — ${r.controlJudged.reasoning}`,
+  }
+  log(`gate 7: CALIBRATED on lens "${calLens.key}" at attempt ${attempt} — both arms: caught the plant, clean on the control`)
   break
 }
 
-if (!calibration) calibration = { verdict: 'NO VERDICT', why: 'calibration did not resolve within 4 attempts' }
+// Unreachable as the statuses stand above: every one of them either sets
+// `calibration` or increments a counter that terminates by attempt 3. Kept as a
+// guard, not as a described outcome — if a status is ever added that neither
+// terminates nor counts, the run must halt here rather than deploy a panel on
+// no calibration at all.
+if (!calibration) calibration = { verdict: 'NO VERDICT', why: 'the calibration loop ended without an outcome — a trial status was returned that neither resolves the calibration nor counts toward a terminator' }
 
 if (calibration.verdict === 'NO VERDICT') {
   log('gate 7 returned NO VERDICT — the panel does not spawn. This is the designed outcome, not a failure of the run.')
-  return {
+  const halt = {
     verdict: 'NO VERDICT',
     stage: 'gate 7',
     why: calibration.why,
+    arm: calibration.arm || 'sensitivity',
     voids, misses,
     bar: bar.bar_text,           // blind, survives the halt — do not re-pay gate 5
     need: NEED,
     lenses: LENSES.map(l => l.key),
+    calibration_lens_fallback: calLensFallback,
     note: 'A halted run\'s blind artifacts survive it. Carry `bar` and `need` into the rerun.',
   }
+  halt.report_path = await writeReport(halt)
+  return halt
 }
 
 // ---------------------------------------------------------------------------
@@ -443,14 +853,20 @@ phase('Review')
 const round1 = (await parallel(
   LENSES.map(l => () =>
     agent(
-      criticPrompt(ARTIFACT, l.lens, LENSES.filter(o => o.key !== l.key).map(o => o.lens), bar.bar_text, LENSES.length),
+      criticPrompt(l.key, ARTIFACT, l.lens, LENSES.filter(o => o.key !== l.key).map(o => o.lens), bar.bar_text, LENSES.length),
       { label: `critic:${l.key}`, phase: 'Review', agentType: AT.critic }
     ).then(out => (out ? { key: l.key, lens: l.lens, output: out } : null))
+     // A critic that REJECTS is the failure mode the null-handling below was
+     // written for; without this catch, parallel() rejects and one bad critic
+     // takes the whole panel down after gate 7 has already been paid for.
+     .catch(() => null)
   )
 )).filter(Boolean)
 
 if (!round1.length) {
-  return { verdict: 'NO VERDICT', stage: 'round 1', why: 'every critic returned empty', bar: bar.bar_text, need: NEED }
+  const halt = { verdict: 'NO VERDICT', stage: 'round 1', why: 'every critic returned empty', bar: bar.bar_text, need: NEED }
+  halt.report_path = await writeReport(halt)
+  return halt
 }
 log(`round 1: ${round1.length}/${LENSES.length} critics returned`)
 
@@ -502,6 +918,11 @@ ${pooled}`,
 //
 // Structural property: these are new agent() calls. A round-1 critic continued
 // would defend its own findings instead of cross-checking them.
+//
+// The schema is what turns the cross-check into a MARGIN. Free prose flattens
+// "every critic attacked it and it held" into the same verdict as "one critic
+// attacked it and it barely held". The body field keeps the reasoning intact;
+// the tally exists so the operator can see disagreement without reading for it.
 // ---------------------------------------------------------------------------
 
 phase('Round2')
@@ -536,13 +957,164 @@ ${verifier || '(verifier returned nothing — treat every anchor as unverified)'
 
 Every refutation ends with ADJACENT: <a different defect your own reasoning
 surfaced, or "none">. Measured twice: the best finding arrived inside a
-refutation of a weaker claim.`,
-      { label: `round2:${r.key}`, phase: 'Round2', agentType: AT.critic }
+refutation of a weaker claim.
+
+Put your full prose in the body field. The other fields are a tally over what the
+prose already says — they are not permission to say less.`,
+      { label: `round2:${r.key}`, phase: 'Round2', schema: ROUND2_SCHEMA, agentType: AT.critic }
     ).then(out => (out ? { key: r.key, output: out } : null))
+     // One rejecting cross-check must cost its own lens's vote, not the run:
+     // everything above it — panel, verifier — has already been paid for.
+     .catch(() => null)
   )
 )).filter(Boolean)
 
 log(`round 2: ${round2.length} cross-checks returned — terminal`)
+
+// MARGIN — assembled from the tally, not asserted by any one agent.
+//
+// cross_checks[].finding_id is free text a critic typed, not a value the
+// script defined. Trusting it straight into margin[id] lets three critics
+// naming the same finding three different ways produce three singleton rows
+// and an empty `contested` — the margin feature reporting no disagreement
+// precisely when there was some. So the id space is pinned to what round 1
+// actually filed: only a finding_id that appears as "FINDING <id>" in a
+// round-1 output can accumulate a tally row. Anything else is not repaired
+// or fuzzy-matched — that would manufacture the same false confidence this
+// guards against — it is recorded in margin.unmatched instead.
+// String() for the same reason as the gate-7 leak check: round-1 output is
+// expected to be text and is not guaranteed to be. This point is past the
+// panel, the verifier and round 2 — the most expensive place in the run to
+// throw on a type assumption.
+const filedIds = new Set()
+for (const r of round1) {
+  for (const m of String(r.output).matchAll(/^FINDING\s+(\S+)/gm)) filedIds.add(m[1])
+}
+
+const margin = {}
+const unmatched = []
+for (const r of round2) {
+  for (const c of (r.output.cross_checks || [])) {
+    const id = c.finding_id
+    if (!filedIds.has(id)) {
+      unmatched.push({ finding_id: id, lens: r.key, outcome: c.outcome, basis: c.basis })
+      continue
+    }
+    if (!margin[id]) margin[id] = { finding_id: id, held: 0, knocked_down: 0, attackers: [] }
+    if (c.outcome === 'HELD') margin[id].held++
+    else margin[id].knocked_down++
+    margin[id].attackers.push({ lens: r.key, outcome: c.outcome, basis: c.basis })
+  }
+}
+const contested = Object.values(margin).filter(m => m.held > 0 && m.knocked_down > 0)
+const withdrawnCount = round2.reduce((n, r) => n + ((r.output.withdrawn || []).length), 0)
+if (contested.length) log(`round 2: ${contested.length} finding(s) SPLIT — attacked and defended by different lenses. A split is the cheapest confidence signal here; read those first.`)
+log(`round 2: ${withdrawnCount} finding(s) withdrawn under grounding`)
+log(`round 2: ${unmatched.length} cross-check(s) named a finding_id no round-1 output filed — recorded in margin.unmatched, not tallied`)
+
+// ---------------------------------------------------------------------------
+// PHASE: COMPARE (optional — the source method's own mechanism)
+//
+// A criteria bar asks the critic to invent a threshold. A reference exemplar
+// does not: the critic picks the better of two things it can both inspect, and
+// a forced choice has no "seems fine" exit. Where an exemplar exists this is
+// stronger evidence than the frozen bar, which is why the source method uses
+// nothing else.
+//
+// What is STRUCTURAL here and merely asked-for there: the comparing critic is
+// never told which side is ours. The mapping lives in the isolator's return
+// value, which the critic prompt does not contain.
+//
+// The pair is written to a SIBLING of SCRATCH rather than into it. Writing it
+// into SCRATCH put the neutral-named copies in the same directory tree as
+// trial-N/subject.ext — the seeded copy of the artifact under review — where
+// one `ls` and one `diff` name which side is ours. The sibling does not close
+// that channel (the critic can still reach ARTIFACT itself) but it stops the
+// script from laying the answer beside the question.
+// ---------------------------------------------------------------------------
+
+let comparison = null
+
+if (REFERENCE) {
+  phase('Compare')
+
+  const AB_ROOT = `${SCRATCH}-ab`
+
+  const ab = await agent(
+    `Prepare a blind A/B. Two artifacts are to be compared by reviewers who must not be able
+to tell which is which.
+
+  ${ARTIFACT}
+  ${REFERENCE}
+
+1. Copy BOTH into ${AB_ROOT} under neutral names: left${extOf(ARTIFACT)} and right${extOf(ARTIFACT)}.
+   That directory holds nothing else — do not write the pair anywhere that already
+   contains a copy of either artifact, because a reviewer listing the directory would
+   then be able to identify the sides by comparison rather than by content.
+   You choose which artifact goes on which side. Record it in ours_side — that field names
+   the side holding the FIRST path above. No reviewer will ever see this field.
+2. Apply the SAME treatment to both copies. Strip titles, bylines, filenames, version
+   headers, repository names, dates, and any self-reference that identifies either document
+   or its author. Anything you strip from one you strip from the other: an asymmetric strip
+   is itself a label.
+3. Do not improve, reorder, summarise, or repair either one. A copy that reads better
+   because you cleaned it is not the artifact.
+
+Report what you stripped in the treatment field, so an operator can see what the
+reviewers could not use.`,
+    { label: 'compare:isolate', phase: 'Compare', schema: AB_ISOLATE_SCHEMA, agentType: AT.isolator }
+  )
+
+  if (!ab || !ab.left_path || !ab.right_path) {
+    log('compare: isolator produced no blinded pair — the A/B lane is skipped, the criteria lane stands')
+  } else {
+    const votes = (await parallel(
+      LENSES.map(l => () =>
+        agent(
+          `You are comparing two artifacts, LEFT and RIGHT. They answer the same need. One of them
+is a real, working example of the kind of thing the other is trying to be — you are NOT told
+which, and you must not try to work it out. Judge only what is in front of you.
+
+  LEFT:  ${ab.left_path}
+  RIGHT: ${ab.right_path}
+
+Read both in full.
+
+YOUR LENS — judge on this and nothing else:
+${l.lens}
+
+You must pick a winner. A tie is not available. If they seem close, find the thing that
+separates them under your lens and decide on that. "Both are good" is the answer this
+comparison exists to refuse.
+
+Then name the single largest gap: the one change that would most move the loser toward the
+winner, stated as a change someone could make.
+
+Do not attempt to identify the authors, the projects, or which document is the reference.
+Speculation about provenance is not a judgment about quality.`,
+          { label: `compare:${l.key}`, phase: 'Compare', schema: AB_VOTE_SCHEMA, agentType: AT.critic }
+        ).then(v => (v ? { lens: l.key, ...v } : null))
+         // A rejecting comparer loses its own vote. The tally below already
+         // handles a short vote list; without this it never gets to run.
+         .catch(() => null)
+      )
+    )).filter(Boolean)
+
+    if (votes.length) {
+      const forOurs = votes.filter(v => v.winner === ab.ours_side).length
+      const forReference = votes.length - forOurs
+      comparison = {
+        reference: REFERENCE,
+        votes_for_artifact: forOurs,
+        votes_for_reference: forReference,
+        verdict: forOurs > forReference ? 'ARTIFACT WINS' : forOurs === forReference ? 'SPLIT' : 'REFERENCE WINS',
+        blinding: ab.treatment,
+        gaps: votes.map(v => ({ lens: v.lens, picked_ours: v.winner === ab.ours_side, largest_gap: v.largest_gap, why: v.why })),
+      }
+      log(`compare: ${forOurs}-${forReference} ${comparison.verdict} — blind A/B against ${REFERENCE}`)
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // VERDICT — assembled, not asserted
@@ -550,7 +1122,7 @@ log(`round 2: ${round2.length} cross-checks returned — terminal`)
 
 const uncalibrated = LENSES.length - 1
 
-return {
+const verdict = {
   verdict: 'COMPLETE',
   artifact: ARTIFACT,
 
@@ -558,42 +1130,82 @@ return {
     ...calibration,
     voids,
     misses,
+    arms: 'sensitivity (planted in-lane defect caught) AND specificity (clean control not filed on)',
     caveat: uncalibrated > 0
       ? `${uncalibrated}-of-${LENSES.length} lenses uncalibrated — one calibrated critic licenses one critic, not a verdict computed from all of them`
       : null,
+    calibration_lens_fallback: calLensFallback,
   },
 
-  bar: { text: bar.bar_text, form: bar.gate3_form, criteria: bar.criteria, written_blind: true },
+  bar: { text: bar.bar_text, form: bar.gate3_form, criteria: bar.criteria, written_blind: true, repaired: barRepaired },
   need: NEED,
   acceptance_rule: design.acceptance_rule,
 
   round1: round1.map(r => ({ lens: r.key, output: r.output })),
   grounding: verifier,
-  round2: round2.map(r => ({ lens: r.key, output: r.output })),
+  round2: round2.map(r => ({ lens: r.key, output: r.output.body, tally: { withdrawn: r.output.withdrawn, narrowed: r.output.narrowed, cross_checks: r.output.cross_checks, new_findings: r.output.new_findings } })),
+
+  margin: {
+    per_finding: Object.values(margin),
+    contested: contested.map(m => m.finding_id),
+    withdrawn_total: withdrawnCount,
+    unmatched,
+    note: 'A finding no one attacked is not a finding that survived attack. Read `attackers` before reading `held`. `unmatched` holds cross-checks whose finding_id matched no round-1 output — not tallied, not guessed at.',
+  },
+
+  comparison,
 
   // Properties this run made STRUCTURAL — a thing the run cannot lose, not a
   // property the operator adds. Each is enforced by a tool allowlist in
   // agents/*.md or by code in this script, never by asking an agent nicely.
   enforced: [
     `bar writer ran as "${AT.bar}", whose tool allowlist has no Read, Grep, Glob or Bash — it could not open the artifact even if instructed to`,
-    `critics ran as "${AT.critic}", whose allowlist has no Agent, ListAgents or SendMessage — no critic could discover or address a peer`,
-    `critics have no Write or Edit — none could alter the artifact the others were reading`,
+    `critics ran as "${AT.critic}", whose allowlist has no Agent, ListAgents or SendMessage — the agent-messaging channel is closed: no critic could spawn, enumerate or message a peer through a tool call`,
+    'critics have no Write or Edit tool — no critic could alter the artifact through a file-editing tool call',
     `verifier ran as "${AT.verifier}" and could not delegate its own checking`,
+    `both gate-7 judges ran as "${AT.judge}", whose allowlist is TodoWrite alone — no Read, no shell, no web — so a judge could not open the artifact and grade the critic against its own reading of it instead of against the sealed plant note`,
     'seeder was never handed the critic prompt',
-    'calibration critic ran the byte-identical deployed prompt and was not told it was a trial',
-    'leak check is a literal string match over the critic output, not a judgment',
-    'VOID and MISS are counted separately in code; only MISS consumes the retry',
+    'calibration critic and control critic ran the byte-identical deployed prompt, and neither prompt says it is a calibration trial, names a plant, or names a control',
+    'leak check is a literal string match over the critic output, not a judgment, and a plant with no string long enough to check VOIDs rather than passing quietly',
+    'VOID and MISS are counted separately in code; only MISS consumes the retry, and only MISS burns a defect kind',
+    'a catch is discarded unless its own control comes back clean — the specificity arm runs in code, not on request',
+    'gate 6 is enforced: criteria that cannot fire in both directions are re-asked once, then dropped, and fewer than two survivors halts the run',
     'round 2 agents are fresh agent() calls, not continuations of round-1 critics',
-  ],
+    'cross-check outcomes are tallied into a margin by code; no agent reports its own consensus',
+    REFERENCE ? 'the comparing critics were never TOLD which side is the artifact — ours_side is a field of the isolator\'s return value and appears in no prompt any comparing critic received, and the pair is written outside the seeded scratch tree rather than beside it' : null,
+  ].filter(Boolean),
 
   // Say what you did NOT enforce. Do not claim independence you did not buy.
   not_enforced: [
+    'The gate-2 designer runs unrestricted: it needs to read the artifact in full, so no allowlist is applied to it. It names the lenses and picks the calibration target, and nothing mechanically stops it from spawning agents of its own.',
     'The seeder holds Read, so nothing mechanically stopped it from opening critic-prompt.md or this script and tuning the plant to evade the critic. That restraint is prompt-deep.',
     'The bar writer cannot read files, but it retains WebSearch/WebFetch — a published artifact could in principle be reached over the network.',
     'Isolation of the seeded copy is best-effort. If the removed text is recoverable from public sources or the model\'s own prior, no sandbox closes that channel and a tighter re-run yields a false pass rather than a catch.',
+    'The specificity arm is n=1, like the sensitivity arm. A clean control rules out a habit this critic has every time; it does not rule out one it has sometimes.',
     'n=1 per calibrated lens — one planted defect, one session.',
-    'Critics share a model family unless the operator varied it. Judge-panel correlation is measured ACROSS families; varying only the lens does not buy independent votes.',
-  ],
+    'Copies are separated by path, not by permission: a critic holds LS and Glob and can walk the filesystem. The control root sits outside the seeded tree — by default a sibling of args.scratch — so nothing the calibration critic is pointed at lists it, but a walk one level higher still reaches it. Isolation of the control arm is path-deep, not tool-deep.',
+    'The seeded and control copies live in trial-N directories, so the path handed to each calibration critic contains the word "trial". The prompt does not tell them they are in a trial; the path does.',
+    'Critics share a model family unless the operator varied it. Judge-panel correlation is measured ACROSS families; varying only the lens does not buy independent votes, and this harness offers no second family to vary to.',
+    'Critics hold Bash, which is a general shell and can write files. "Critics cannot alter the artifact" is therefore false as stated: the Write/Edit denial closes the tool-call channel and not the shell. Bash is load-bearing — the HARNESS anchor type requires running commands — so this is a disclosed exposure, not an oversight. Round-1 critics all read the same live path concurrently.',
+    'That same shell is also a peer channel and a discovery channel. Round-1 critics run concurrently on one machine: the filesystem is readable and writable between them, and ps lists the processes. The peer claim in `enforced` above is about the agent-messaging channel and nothing else — a critic cannot spawn, enumerate or message a peer, and can still find one. Lens independence past that point is asked of the critic in agents/gauntlet-critic.md, not enforced against it.',
+    REFERENCE ? 'Which side of the A/B is ours was chosen by the isolator, not by a code-level randomiser — this runtime has none. A comparing critic cannot see the mapping, but the choice is an agent\'s, not a coin\'s.' : null,
+    REFERENCE ? 'Blinding is content-deep only. A reference exemplar famous enough to be recognised from its prose is not blinded by stripping its title.' : null,
+    REFERENCE ? 'Blinding is also prompt-deep only, not filesystem-deep. A comparing critic holds Read, LS, Glob and Bash, and the artifact under review and the reference exemplar both remain at their original paths, which it can reach. One diff against either path names which side is ours. Writing the pair to a directory of its own keeps the script from laying the answer beside the question; it does not close the channel.' : null,
+  ].filter(Boolean),
 
   reporting_note: 'Zero surviving findings is not a clean sheet until the refutation bodies are read. Report as: PASS — no critic broke it under <framing>. Untested shared belief: <the premise every critic assumed>.',
 }
+
+// ---------------------------------------------------------------------------
+// PHASE: REPORT
+//
+// The source method's answer to a long expensive run is a live page you can
+// watch and stop. This runtime cannot serve one, but the failure it prevents is
+// the same: a run whose only output is a value in a session that ends. One
+// agent, no Read, writes down what it was handed — via writeReport(), defined
+// above, which is the same call every early halt makes before it returns.
+// ---------------------------------------------------------------------------
+
+verdict.report_path = await writeReport(verdict)
+
+return verdict
