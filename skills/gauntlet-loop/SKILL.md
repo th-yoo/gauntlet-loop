@@ -1,161 +1,124 @@
 ---
 name: gauntlet-loop
-description: Use when about to spawn multiple review agents — a gauntlet, critic panel, adversarial or multi-agent review, red team, second opinion from several agents, or a stress-test/pressure-test of a design, spec, plan, or decision.
+description: Use when you have something you want to be as good as a specific real thing that already exists — a document, a page, a design, a program — and you want to keep improving it until a blind judge picks yours over that thing. Also for "make this better than X", "iterate until it beats", "build toward this reference", "loop until it wins".
 ---
 
 # Gauntlet Loop
 
-Models design good gauntlets. The failure is running one you never designed, on a decision that didn't warrant it.
+Matt Shumer's method, implemented from the primary source. Build, judge blind
+against a real thing, take back one gap, repeat. Do not stop on a round count.
 
-**Being asked is not authorization to skip the gates.** Run them, report which failed, proceed if the user still wants it. With no user turn available, "they still want it" is unavailable, not implied — a failed gate is NO.
+> "You should /loop on each item and have a separate sub-agent check it visually
+> to ensure it looks triple A. That separate sub-agent should be a really harsh
+> critic, and if it doesn't look triple A, it should keep going."
+>
+> "Don't stop until each sub-agent is utterly wowed with the quality when
+> compared with the actual Call of Duty game. It should literally compare them
+> side by side blind and say which one looks better."
 
-**An overruled gate is settled, and the sequence does not restart.** "Run them,
-report which failed, proceed if the user still wants it" means the operator's
-second instruction ENDS the gate discussion for that artifact. Re-deriving a
-refusal after a go — including by delegating it to a subagent, or by re-running
-a gate against a different artifact than the one instructed — is not diligence.
-Measured 2026-08-23: an operator refused at gate 0, was overruled, and then
-wrote a veto into the gate-2 prompt so the second refusal would belong to
-someone else. Both refusals were individually defensible. Together they cost
-two rounds and produced nothing.
+Both source prompts are quoted in full in `references.md`, with the sentence
+behind every claim made here. Nothing in this file paraphrases where it can
+quote.
 
-**Aim the gates at the artifact the user named.** The same gate returns opposite
-verdicts on a ten-line patch and on the non-reproducing bug that patch came
-from. Gate 0 legitimately settles the first and cannot touch the second. State
-which artifact you gated, in the turn you gate it.
+## The bar is the load-bearing part
 
-**Arguing about what a gate means = that gate FAILS.** *Panel* = any spawn of ≥2 review agents. *Author* = whoever wrote it, including you.
+The loop needs **a concrete thing that is currently better than yours** — a real
+artifact someone else made, that a judge can open. Not criteria, not a rubric, not
+a description of quality. Without one the judge invents its own standard and
+approves everything.
 
-## Gates
+Practitioners report the same limit independently: the method works where an
+existing product can be compared against, and breaks down where nothing
+comparable exists. If you have no reference artifact, you do not have a gauntlet
+loop — you have a builder.
 
-**0. Can a few tool calls settle it?** Read the call sites, run it, grep for the mechanism that may already exist. A panel a file read would have pre-empted is the most expensive way to be told what the code says.
+A hard bar does not have to be reachable. Shumer's own run never beat Call of
+Duty; he stopped it while it was still improving. That is a normal ending.
 
-**1. One agent is the default.** A panel is the exception, and taking it means naming what one agent *cannot do*. "It governs a safety invariant", "three prior designs died here" are facts about the artifact; none is a reason one careful reviewer fails. If the reason doesn't survive being rewritten as *"one agent would miss X, because one agent Y"*, there is no reason.
+## Running it
 
-This gate stays self-run — it has to, to stay free — so it's tested on the **form** of the reason, not its truth. It also binds the ceremony: full compliance is five agents before anyone reads the artifact, priced once at 1.1M for a 344-line spec. **When the gates would exceed gate 4's number, run fewer and say which.** Gates 0 and 1 are free and always run, so the sequence can always refuse without paying.
+```
+/gauntlet-loop:loop
+```
 
-**Gate 1 refuses INTO a named shape, not into "one agent".** A loop at width 1: blind bar · anchor rule · **one** critic · one grounding verifier · the narrowing pass **minus cross-check**, the only part that needs a second lens. Verdict carries `N-1 lenses uncalibrated`. Measured: five real defects, one fatal to the artifact's central claim, ~150k against 1.1M.
+It asks for the goal, the candidate path, the reference path and how many critics,
+mints a run token, and calls the `Workflow` tool on
+`${CLAUDE_PLUGIN_ROOT}/skills/gauntlet-loop/loop.js`. To stop a run:
+`/gauntlet-loop:cancel-loop`.
 
-**2. Design it — the entry point, not a step.** ONE agent emits the orchestration: roles, verbatim prompts, acceptance rule, stop condition, **and the answers to gates 3, 5, 6, 7**. 20–95k.
+Arguments the script takes:
 
-You run 0, 1 and 4; only you know what being wrong costs. **Gates 3 and 5–7 are not self-run**, because otherwise each is graded by the party with an incentive to pass it: gate 5 says the author doesn't write the bar, but the author picks the bar-writer; gate 7 says the seeder mustn't see the critic prompt, but one operator wires both. Additive and forgeable — a property the operator adds, not one the run cannot lose. Gate 2's output is the only artifact a different party produces.
+| arg | |
+|---|---|
+| `goal` | what you are trying to produce, as a NEED — not your intended solution |
+| `candidate` | absolute path to your artifact; built from nothing if absent |
+| `reference` | absolute path to the real thing it is judged against |
+| `critics` | how many judges must ALL pick yours to end the run. Default 1 |
+| `token` | the run token; its existence means "keep going" |
+| `inspect` | optional — how to look at them: a command to run, a thing to open |
 
-Gate 2 has **no veto**. It emits the orchestration and the answers to gates 3
-and 5–7; it does not decide whether the run happens — the operator already
-decided that at gates 0, 1 and 4. A gate-2 prompt that offers "tell me if this
-doesn't warrant a panel" has moved an operator judgment into a subagent, where
-it is graded by a party with no stake in the cost. If gate 2 discovers a reason
-the run is premature, that is a FINDING it reports, and the operator rules on
-it.
+## What a round does
 
-**3. A bar outside the artifact**, named in the spawning turn: *(a)* recorded outcomes, or *(b)* a structural prior — a law, invariant, or count the artifact must satisfy whatever it claims. Form (b) is what makes spec review possible. "Critics will find something" is not form (b).
+1. **Budget, then the breaker.** A Bash-only agent reports whether the run token
+   still exists. Removing it stops the run at the next round boundary, so a
+   cancel costs one cheap probe and never a critic.
+2. **One critic.** A fresh blind A/B: two artifacts, A and B, never told which is
+   yours. It must pick one — a tie is a critic declining to look closely enough —
+   and name the single largest gap.
+3. **The rest of the line, only if that one let yours through.** A round yours
+   loses cannot end the run, so the other critics could not have changed it and
+   are never spawned. When they do run, positions are split across the line so
+   half see yours as A.
+4. **Exit only on unanimity.** Every critic picks yours, or the round is a loss
+   and one gap goes back.
+5. **The builder fixes that one gap.** In place, on the real artifact. It never
+   learns the sides, the critics, or the run's history, and it never grades its
+   own work.
 
-**4. Cost ceiling** = cost of being wrong, as a number. Never the size of the diff.
+## Choosing the line length
 
-**5. Bar independence.** The author doesn't write the bar. If the request names its own solution ("move to JWTs"), restate the need ("stateless auth") and set criteria from that.
+`critics` is the exit rule, not a ceiling. The source names no number — "a
+separate sub-agent", singular — so this is your call, not his.
 
-**6. The bar can fire.** Name one case where it passes and one where it doesn't. Gate 3 doesn't imply this — a saturated corpus never engages the clause. A criterion missing either case is re-asked once, then **dropped, and fewer than two survivors halts** the run. Both directions matter, for different reasons: no failing case means it cannot discriminate, no passing case means nothing can meet it. The second is the characteristic failure of a bar written blind, and it is invisible from inside the run — an unmeetable bar rejects good work and reads as rigour while doing it.
+- **1** — the literal reading, and the default. It also makes the stop condition
+  vacuous: "every judge is satisfied" is satisfied by one judge on one round.
+- **2** — the cheapest non-vacuous standard. A losing round still costs one critic.
+- **4** — for something you would not want to ship on one favourable verdict.
+  Even numbers split positions evenly.
+- **more** — only with a stated reason. A long line can fail by never converging,
+  which is a failure that does not announce itself.
 
-**7. The critic can fail.** A party who hasn't seen the critic prompt seeds a defect into an **isolated** copy. Prose included, no exempt medium.
+## What stops it
 
-- **Calibrate the critic you deploy** — byte-identical prompt, same model, same effort. A stand-in measures a critic nobody is using and reads as rigour.
-- **Two arms, or the catch measures nothing.** The planted defect measures *sensitivity*: can this critic find one. A **control arm** measures *specificity*: the identical prompt over a clean copy carrying the identical isolation treatment. If the critic files the same claim at the same site with no defect present, the catch was a habit rather than a detection, and a panel calibrated on a habit is calibrated on nothing. Only a catch that survives its own control counts. Cost is one critic and one judge, paid only when the sensitivity arm passes.
-- **Gate 2 picks *which* lens gets calibrated, and says why: the one where a miss is most expensive.** For a spec that is almost always the acceptance criteria — a criterion that cannot fail silently licenses everything downstream of it. Defaulting to whichever lens is listed first buys consistent targeting aimed at the wrong lens.
-- **The seeder is told that critic's lane and plants inside it.** Otherwise this contradicts `critic-prompt.md`: a critic under "stay in your lane" is *instructed* not to file what lands outside it, so the run measures obedience, not capability.
-- **VOID ≠ miss.** Reaching the original, or a plant in the wrong lane, means the measurement never happened — it cannot consume the retry. Re-run the **same defect kind with the cause corrected**: isolation rebuilt for a leak, location moved in-lane for a lane fault. **Diagnose the leak channel first** — if the removed text is recoverable from public sources or the model's own prior, no sandbox closes it and a tighter re-run yields a *false pass*; re-seed with ground truth that isn't recallable. Reusing the defect is safe because the critic was never shown it, which is why **only a MISS burns a defect kind**. **Two VOIDs → NO VERDICT.**
-- **A genuine miss consumes the retry**, and that retry uses a **different** plant — repairing the prompt and re-running the same one fits the critic to the test. **Missed twice → NO VERDICT.**
-- **Make the leak checkable:** the sealed note records the verbatim text the seeder removed; the run itself string-matches the critic's output against those strings, in code, before any judge is spawned. A match proves it reached the original, and it VOIDs the trial without a judgment being made. Keep it there: a judge asked to decide whether a critic "reached the original" is being asked for an opinion, where a literal match is a fact — and the judge in `agents/gauntlet-judge.md` holds only `TodoWrite`, so it could not grep for them if it wanted to. A removed string too short to grep proves nothing in either direction, so a plant that leaves none long enough is **not leak-checkable and VOIDs** — the hole becomes a halt. Inverting a constraint that exists only in this artifact is the strongest shape: it removes a real string, so the leak stays checkable, and its correct form cannot be recalled from any prior.
-- **One calibrated critic licenses one critic.** Calibrating L1 grounds L1, not a verdict computed from L1–L4. Calibrate every deployed lens, or carry `N-1 lenses uncalibrated`. *(n=1 — one planted defect, one session.)*
+**Won** — every critic picked yours in one round. **Cancelled** — you removed the
+run token. **Budget** — a target you set at launch ran out. **Error** — an agent
+returned nothing.
 
-**Write the decision down before you spend.** One line in `runs/refusals.jsonl` — the gate 0/1/4 verdicts and their verbatim reasons, plus the files gate 0 claims settle it. It adds no step; gates 0 and 1 are free and already run. **A gate-0 NO then triggers the width-1 lane anyway** (~150k), and the refusal is scored a false negative only if that lane finds something high-severity, GROUNDED, *and* anchored outside the files gate 0 named. Otherwise "after a NO, nothing runs" stays true and the gates stay untested. See `runs/README.md`.
+There is no round cap, deliberately: the source names a fixed round count as a
+failure mode, and a test fails the build if one reappears. If you set no budget,
+nothing but you will stop it.
 
-**A halted run's blind artifacts survive it.** A bar written by an agent that never saw the artifact is still blind tomorrow; gate 5 doesn't need re-paying. Carry it into the rerun. Re-deriving it turns one halt into two full prices.
+## What the run tells you afterwards
 
-## Shape
+Every run returns `enforced` and `not_enforced`, computed from that run rather
+than written once. Read `not_enforced` first — it says what this particular run
+did **not** guarantee. If the two artifact paths were not comparable, the
+blindness claim is withheld and replaced by a disclosure that the A/B was not
+blind at all.
 
-| | build | judge |
-|---|---|---|
-| bar | reference exemplar, blind A/B | frozen criteria + gate 3 prior |
-| stop | diminishing returns; gate 4 binds | ≤2 rounds, terminal |
-| fails by | stopping at "good for AI" | refuting everything |
+Read `gaps_in_order` before the verdict. If the gaps got smaller and more
+specific, the loop was working. If the last round names the first round's gap, it
+was not — and that is the signal, not the outcome.
 
-**Where an exemplar exists, run the compare lane and prefer what it says.** A criteria bar makes the critic invent a threshold; a real example does not, and a forced choice has no "seems fine" exit. That is the source method's whole mechanism, and it is better evidence than anything the judge lane produces. These gates exist for artifacts with no exemplar — specs, plans, decisions — not as a substitute for one that exists. When both lanes run and disagree, the A/B is the one anchored in an object.
+## What it does not do
 
-The build column is not summarized from memory: `references.md` carries both of
-Shumer's original prompts verbatim, plus the sentence behind every row. Its
-recorded outcomes are gate-3 form (a) material — including the round that
-regressed, which is what an uncapped loop absorbs and a ≤2-round cap cannot.
-
-## Running the panel
-
-**Four properties are load-bearing and owned here:** frozen bars, ≤2 rounds terminal, fresh-context critics per round, and the author never grading its own artifact. They were carried over from a one-builder-against-one-critic adopt/drop loop, whose topology is not a panel — it fixes those four and says nothing about how many agents a panel spawns or in what order. `critic-prompt.md` gives prompt *bodies* — critic, round 2, verifier — and no roster either. So the roster lives here, because it lives nowhere else.
-
-**Roster — what actually gets spawned.** Every gate that is not self-run is a separate agent; that IS the mechanism. Run in one context, gates 3 and 5–7 are graded by the party with an incentive to pass them, and the verdict measures nothing.
-
-| # | agent | must NOT have seen |
-|---|---|---|
-| 1 | gate-2 designer — emits the orchestration | — |
-| 2 | bar writer (gate 5) | the artifact |
-| 3 | seeder (gate 7) — writes the seeded copy AND its control | the critic prompt |
-| 4 | calibration critic — byte-identical to a deployed critic, same model, same effort | that it is being calibrated |
-| 5 | calibration judge — grades the catch against the sealed plant note, and holds only `TodoWrite` | the artifact |
-| 6 | control critic — the same prompt over the clean copy | that it is a control |
-| 7 | control judge — asks only whether the clean copy drew a finding at the plant site | the artifact |
-| 8–11 | 2–4 panel critics, one lens each | each other |
-| 12 | grounding verifier | — |
-| 13–16 | round 2 — same lenses, FRESH context | — |
-| + | isolator and comparing critics, only when a reference exemplar exists | which side is ours |
-| + | reporter — writes the run down, and has no `Read` | anything not handed to it |
-
-Both judges are separate spawns for the same reason every other gate is: a judge
-that also read the artifact grades the critic against its own opinion of it
-instead of against the plant, and the trial then measures agreement.
-
-Full run = **9 + 2N spawns** — 13 at two lenses, 15 at the default three, 17 at
-four — plus one more if the bar needs its correction pass, plus 1 + N again if
-the compare lane runs; that is what 1.1M buys. **Gate 1's width-1 refusal is ≈ 3 spawns** — bar writer, one critic, verifier, no cross-check — not zero. **Only gate 0 refuses to zero agents.** Conflating the two is how a run gets talked out of existing.
-
-Dispatch each round's critics in ONE message so they run concurrently. Round 2 is a **fresh spawn** holding the pooled findings plus the verifier report — never a continuation of a round-1 critic, which defends its own findings instead of cross-checking them.
-
-What this file adds beyond the roster:
-
-- **2–4 critics — a cost cap, not an accuracy plateau.** Agent count is monotonic (Du et al. 2305.14325 §3.3); *rounds* plateau, ~4. A 5th critic needs a lens you can name.
-- **Truth-seeking — never refute-by-default, never reward agreement.** Both measured below a single agent (2510.20963, Finding 2): competitive up to −15pp; consensus suppresses disagreement. The +4pp protocol *retains* the adversarial role.
-- **One grounding verifier** over all findings: exists / says / supports. Self-reference auto-fails.
-- **Per finding:** falsifier + anchor outside the artifact. **Per critic:** one thing it gets right, and its strongest *failed* attack.
-- **Every refutation ends `ADJACENT:`** — a different defect its own reasoning surfaced, or `none`. Measured twice: the best finding arrived inside a refutation of a weaker claim.
-- **Round 2 = cross-check.** Each critic attacks a finding it did not author.
-- **Vary lens or model.** Identical critics converge on meaningless consensus.
-
-## Rationalizations
-
-| Excuse | Reality |
-|--------|---------|
-| "The user asked for it" | They asked for the outcome. Gates cost two agents; the panel costs orders of magnitude more. |
-| "Budget is not a concern" | Not a wallet rule. Unanchored critics produce noise at any price. |
-| "Adversarial means rigorous" | Refute-by-default measured worse than one agent alone — and so did agree-by-default. |
-| "It got refuted, so there's nothing there" | Refuted *the claim as filed*. Read what the refutation said. |
-| "This artifact is high-stakes / complex / load-bearing" | Facts about the artifact, not reasons one reviewer fails. Gate 1. |
-
-## Reporting
-
-**Report the margin, not the verdict.** A finding two lenses attacked and one defended is not the same result as a finding nobody touched, and prose flattens both into "it held". Cross-check outcomes are tallied per finding; a split is the cheapest confidence signal available at n=1, and it costs nothing to surface.
-
-Zero surviving findings is not a clean sheet until the refutation bodies are read.
-
-`PASS — no critic broke it under <framing>. Untested shared belief: <the premise every critic assumed>.`
-
-`none` there means you had one lens, not four. Append `N-1 lenses uncalibrated` when gate 7 grounded fewer critics than you deployed.
-
-**Don't collapse two verdicts.** A miss stands even when the targeting was faulty, *and* a pass from that configuration is untrustworthy. Both at once.
-
-## Evidence
-
-Two sessions, two authors, different tasks.
-
-- Improvised panels: **1.79M** and **~2.0M** tokens. Running these gates afterward failed 4–5 of them each time.
-- They **did** produce findings — what they didn't produce is a bar that discriminates or a cost chosen on purpose. Run one: 25 filed, 0 met the bar, but that refutation rate was *induced* (verifiers told to default to refuted); real yield six findings, two load-bearing. Run two: 3 of 4 bar items didn't discriminate.
-- First end-to-end run under gate 2: **NO VERDICT at gate 7**, panel never spawned, 5 agents / 316k. The critic quoted exactly the right law at the wrong criterion — the prompt worked, the targeting didn't.
-- **Gate 1 is the one that gets argued past.** One operator failed it four consecutive times, each with a true statement about the artifact. ~391k bought zero reviews of a spec one agent could read for ~15k.
-- **One false negative on record.** An improvised round 1 these gates would have refused produced the best finding of either lane. The refusal that followed was cheap *because that run had already paid.* Past that single case the false-negative rate is unmeasured, and every "the gates saved us" story is unfalsifiable — after a NO, nothing runs.
-- **This file gained roughly one clause per failure.** Structurally derivable is not structurally motivated. Both authors have done this while quoting the rule against it. No clause was added in response; the observation *is* the record, and the next one should be weighed against it.
+- **No decomposition.** Shumer's width comes from splitting the goal into pieces
+  and giving each its own builder and critic. This runs one artifact whole.
+- **No ratchet.** The builder edits in place; a bad round is permanent, and the
+  loop holds no prior version to compare against.
+- **Critics are not independent judgments.** They are the same model in fresh
+  contexts. Requiring k of them to agree is not k independent opinions, and
+  nothing here measures how much independence there actually is.
+- **k>1 is an addition.** Both source texts say one critic per piece. Stacking
+  judges on one piece is ours, because our artifacts do not decompose the way a
+  game does.

@@ -8,10 +8,7 @@ allowed-tools: ["Bash(mkdir:*)", "Bash(date:*)", "Bash(ls:*)", "Bash(test:*)", "
 
 Arguments: `$ARGUMENTS`
 
-This is the method the plugin is named after. `gauntlet.js` is the other
-instrument — a review panel that runs once and does not loop. If what you have
-is an artifact to *judge*, use `/gauntlet-loop:gauntlet`. If what you have is an
-artifact to *improve* and a real thing that is currently better than it, this.
+This is the method the plugin is named after, and the only instrument here.
 
 ## Step 1 — the precondition, which cannot be manufactured
 

@@ -1,7 +1,7 @@
 {
   "name": "gauntlet-loop",
   "version": "0.2.0",
-  "description": "Pre-flight gates for multi-agent review, plus an executable panel: blind bar, seeded-defect critic calibration, lens-split critics, grounding verifier, terminal cross-check",
+  "description": "Matt Shumer's Gauntlet Loop: a builder and k fresh blind A/B critics per round, judged against a real reference exemplar, one gap back each time, no round cap",
   "author": {
     "name": "th-yoo"
   }
