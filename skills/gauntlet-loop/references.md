@@ -1,13 +1,9 @@
-# References — the baseline this instrument is not
+# References — the source this instrument implements
 
-`critic-prompt.md` requires every finding to carry an anchor outside the artifact,
-and `SOURCE` means *URL plus the sentence you rely on*. Until this file existed,
-every claim `README.md` made about Shumer's method was a paraphrase with no
-sentence behind it — the repo held its critics to a standard its own provenance
-section did not meet.
-
-Two artifacts are the baseline. Both are quoted in full below, because the whole
-point of a `SOURCE` anchor is that the reader does not have to trust the summary.
+Two artifacts are the source. Both are quoted in full below, because the point of
+a citation is that the reader does not have to trust the summary. Until this file
+existed, every claim this repo made about Shumer's method was a paraphrase with no
+sentence behind it.
 
 **Transcribed 2026-08-24.** Published prompts get edited; verify against the live
 source before relying on exact wording.

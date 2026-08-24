@@ -45,7 +45,8 @@ for (const a of ALLOWLIST) {
 }
 
 // loop.js is a second Workflow script under the same runtime constraints as
-// gauntlet.js (no import/require, no filesystem, no Node APIs; Date.now(),
+// the Workflow runtime's constraints (no import/require, no filesystem, no Node
+// APIs; Date.now(),
 // Math.random() and argless new Date() THROW in the real runtime). Nothing
 // previously guarded it. This is a static scan, not execution — the offline
 // harness in test/harness.mjs runs scripts via AsyncFunction, which happily
@@ -94,8 +95,7 @@ for (const name of CAP_NAMES) {
 // loop.js carries its contract in TWO prompt surfaces: the standing agent
 // definitions under agents/ (the system prompt each spawn is born with) and the
 // round prompts rendered inside loop.js. Either can be edited without the other
-// — which is the same drift PINNED guards between critic-prompt.md and
-// gauntlet.js, on the script that had no such guard at all.
+// — a prompt duplicated across two surfaces drifts unless something pins it.
 //
 // Issue #16 is what the failure looks like: the source's one requirement on the
 // judge — "a really harsh critic" — was present in loop.js only inside a comment
@@ -131,6 +131,9 @@ const LOOP_DISCLOSURES = [
   // If this line goes, the verdict starts implying a precedent that does not
   // exist — which is the exact class this tracker files most.
   'ADDITION, not source fidelity',
+  // Deleting the panel deleted the only calibration mechanism. If this line goes,
+  // the plugin stops telling anyone that nothing checks its critics.
+  'NO CALIBRATION ANYWHERE',
   'not independent judgments',
 ]
 

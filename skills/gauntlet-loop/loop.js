@@ -1,7 +1,7 @@
 export const meta = {
   name: 'gauntlet-loop',
   description: 'The loop: a builder and a fresh blind critic per round, A/B against a real reference, one gap back each time. No round cap — it runs until the candidate wins or the operator stops it',
-  whenToUse: 'When you have a goal and a concrete reference artifact that is better than what you have. This is the method the name refers to; gauntlet.js is a different instrument (a review panel) that does not loop. Start it with /gauntlet-loop:loop, stop it with /gauntlet-loop:cancel-loop.',
+  whenToUse: 'When you have a goal and a concrete reference artifact that is already better than what you have, and you want to keep closing the gap until a blind judge picks yours. Start it with /gauntlet-loop:loop, stop it with /gauntlet-loop:cancel-loop.',
   phases: [
     { title: 'Loop', detail: 'build → blind A/B → one gap → build again' },
   ],
@@ -20,20 +20,19 @@ export const meta = {
 //    compared with the actual Call of Duty game. It should literally compare
 //    them side by side blind and say which one looks better."
 //
-// Four properties follow, and this file exists because the review panel in
-// gauntlet.js has none of them:
+// Four properties follow, and each one is load-bearing:
 //
-//   1. IT LOOPS. gauntlet.js is a pipeline that runs once. Nothing there
-//      iterates, so nothing there can improve.
+//   1. IT LOOPS. A pipeline that runs once cannot improve anything; the whole
+//      method is that the artifact changes and gets judged again.
 //   2. THERE IS A BUILDER. Without one, nothing changes between rounds and the
 //      loop degenerates into re-reading the same artifact.
 //   3. ONE CRITIC PER JUDGMENT, not a panel of lenses. Singular throughout the
 //      source, and the default here. `args.critics` may set k>1, but that is
 //      REPLICATION of the identical forced choice — same prompt, same lens,
-//      only the position varies — not gauntlet.js's lens diversity. The line
-//      exists because the source's stop condition quantifies over judges
-//      ("Don't stop until EACH sub-agent is utterly wowed") and a line of one
-//      satisfies that vacuously.
+//      only the position varies — never a set of different lenses pooling
+//      findings. The line exists because the source's stop condition quantifies
+//      over judges ("Don't stop until EACH sub-agent is utterly wowed") and a
+//      line of one satisfies that vacuously.
 //   4. ONE GAP comes back, not a findings list. "the biggest remaining gap".
 //
 // The "really harsh critic" clause above is a REQUIREMENT, not decoration: it is
@@ -44,8 +43,8 @@ export const meta = {
 // survives only in a comment like this one is exactly the failure that check
 // exists to catch (issue #16).
 //
-// And the stop rule, from Shumer's own guide, which forbids what gauntlet.js
-// hardcodes: "Do not tell it to do three rounds and stop. Tell it to keep
+// And the stop rule, from Shumer's own guide: "Do not tell it to do three
+// rounds and stop. Tell it to keep
 // looping... there should be no arbitrary final round." The real terminator is
 // the candidate winning, or the operator's budget running out.
 // ---------------------------------------------------------------------------
@@ -178,9 +177,8 @@ if (!SIDES_LOOK_ALIKE) {
 const BUILD_RESERVE = 60000
 const CRITIC_RESERVE = 60000
 const ROUND_RESERVE = BUILD_RESERVE + CRITICS * CRITIC_RESERVE
-// Defensive: loop.js is the first consumer of `budget` in this plugin (
-// gauntlet.js never touches it), so `budget.remaining` has never met the real
-// runtime. Handle it being a plain number rather than a function, and handle
+// Defensive: nothing else in this plugin consumes `budget`, so
+// `budget.remaining` has never met the real runtime. Handle it being a plain number rather than a function, and handle
 // it throwing, without crashing the loop — and fail SAFE (treat as exhausted)
 // rather than fail open (treat as infinite), because silently spending past a
 // broken budget is the one failure this file exists to prevent.
@@ -641,7 +639,7 @@ return {
     'The critic holds Bash and KillShell, which can write files directly (redirection, heredocs, etc.) — nothing mechanically stops it from altering either artifact through Bash instead of Write/Edit. The no-Write/no-Edit property above is real but narrow (prompt-deep, not structural).',
     'AB_SCHEMA.gap is a free-text string: nothing stops several gaps being packed into it (e.g. "Gap 1: ... Gap 2: ..."). Only one gap SLOT is enforced, not one gap.',
     'Nothing verifies that the named gap is really the LARGEST — only that exactly one slot came back.',
-    'No calibration: this loop never checks that the critic could have failed. gauntlet.js\'s gate 7 does that and is not wired in here.',
+    'NO CALIBRATION ANYWHERE. Nothing in this plugin checks that a critic could have failed — no defect is planted, no control is run on a clean copy, and a critic that approves everything is indistinguishable from a critic that is right. The seeded-defect machinery that used to do this lived in the review panel and was deleted with it; this is now the plugin\'s largest unmeasured property, not a lane that exists elsewhere.',
     'The breaker is checked at ROUND BOUNDARIES, not continuously. Removing the token while a critic or builder is mid-flight does not abort that agent — the run stops before the next round starts. To stop a round already in progress, kill the workflow itself.',
     'Nothing stops the token being re-created after a cancel. The breaker reports the state at each boundary; it does not latch.',
     'With no budget target set, there is no pre-committed ceiling at all — the run continues until it wins, an agent fails, or the operator cancels. That is the source\'s design, not an oversight, and it means an unattended run is bounded only by the host\'s own runaway backstop.',
