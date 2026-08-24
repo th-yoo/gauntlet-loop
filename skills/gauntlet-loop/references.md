@@ -113,8 +113,17 @@ Two facts worth carrying, because both bear on decisions made here:
 
 - **Round 3 regressed** (4.14 → 4.05). An uncapped loop absorbs a bad round; a
   capped one can terminate on it. The source method's answer is the ratchet —
-  keep the best candidate so far, replace it only on a head-to-head win. This
-  instrument has no ratchet and a ≤2-round cap.
+  keep the best candidate so far, replace it only on a head-to-head win.
+  Neither instrument here has one, and this line predates the split into two, so
+  say it separately for each. For `gauntlet.js` the absence is an omission. For
+  `loop.js` it is a DECISION taken 2026-08-24 under issue #18: a Workflow script
+  has no filesystem, so both the snapshot and the revert would be spawned-agent
+  actions the script cannot observe, and a snapshotter that silently no-ops
+  leaves the run reporting a preserved best version that does not exist. A
+  two-party hash probe can falsify the copy; nothing available falsifies the
+  revert, which is the half a ratchet exists for. The caps differ too:
+  `gauntlet.js` is ≤2 rounds terminal by design, and `loop.js` has had no round
+  cap since `1978f66`.
 - **The build lane never won.** Every critic, every round, picked the reference.
   Its record is measured improvement under a bar it never cleared — not a record
   of passing.

@@ -242,6 +242,7 @@ const LOOP_PINNED = [
 // without failing a test is not a disclosure.
 const LOOP_DISCLOSURES = [
   'Nothing verifies that a harsh INSTRUCTION produced a harsh CRITIC',
+  'NO RATCHET, and that is a decision rather than an omission',
 ]
 
 console.log('drift-guard: loop.js round prompts pinned to the agent definitions they spawn')
