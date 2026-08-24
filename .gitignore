@@ -3,3 +3,6 @@
 
 # tool caches
 .km/
+
+# design canvas working files (the seeded payload is 2.2MB of editor code)
+.design/
