@@ -1,0 +1,63 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap">
+  <style>
+    body { margin: 0; background: #100e0c; font-family: 'Space Grotesk', 'Helvetica Neue', system-ui, sans-serif; }
+    a { color: #f2a03d; } a:hover { color: #ffbe6b; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace; }
+  </style>
+</helmet>
+<div style="width: 1400px; height: 900px; box-sizing: border-box; padding: 40px 44px; background: #100e0c; color: #ece7de; display: flex; flex-direction: column; gap: 18px;">
+  <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid #2b2723; padding-bottom: 14px;">
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <div class="mono" style="font-size: 12px; letter-spacing: 0.18em; color: #8f877b;">BUILD MAP</div>
+      <div style="font-size: 32px; font-weight: 700; letter-spacing: -0.02em;">k=1 reduces to today by construction</div>
+    </div>
+    <div class="mono" style="font-size: 12px; color: #8f877b; text-align: right; line-height: 1.7;">not an if-branch<br>zero of 32 existing assertions change</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px;">
+    <div style="border: 1px solid #3a2f1e; background: #17130c; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px;">
+      <div class="mono" style="font-size: 11px; letter-spacing: 0.14em; color: #f2a03d;">THE FORMULAS THAT COLLAPSE AT k=1</div>
+      <div class="mono" style="font-size: 13px; background: #100e0c; border: 1px solid #2b2723; padding: 12px 14px; line-height: 1.9;">sides(round, i) &rarr; (round + i) % 2 === 0<br><span style="color: #8f877b;">// at i=0 this is today&rsquo;s formula, literally</span><br><br>ROUND_RESERVE = BUILD + k &times; CRITIC<br><span style="color: #8f877b;">// 60000 + 60000 = 120000 at k=1</span></div>
+      <div style="font-size: 12px; color: #8f877b; line-height: 1.5;">Only one real branch in the change: the critic label, because tests pin exact strings.</div>
+    </div>
+
+    <div style="border: 1px solid #2b2723; background: #16130f; padding: 18px 20px; display: flex; flex-direction: column; gap: 10px;">
+      <div class="mono" style="font-size: 11px; letter-spacing: 0.14em; color: #4fbfd4;">TWO BUGS TO WRITE TESTS FOR FIRST</div>
+      <div style="font-size: 13px; line-height: 1.5;"><span style="color: #ece7de; font-weight: 500;">Closure capture.</span> Building the k thunks with a mutable loop variable hands every critic the same rendered prompt. No crash &mdash; and the aggregate position balance still looks right while the within-round split silently never happens.</div>
+      <div style="font-size: 13px; line-height: 1.5;"><span style="color: #ece7de; font-weight: 500;">Silent narrowing.</span> A dead critic reducing k to k&minus;1 weakens the exit exactly when something is already wrong. Fail the round.</div>
+      <div style="font-size: 12px; color: #8f877b; line-height: 1.5;">Test by reading all k prompts in one round and asserting the split is real, not inferred from counts.</div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; flex-grow: 1;">
+    <div style="border: 1px solid #2b2723; background: #16130f; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;">
+      <div class="mono" style="font-size: 11px; letter-spacing: 0.14em; color: #4fbfd4;">GAP SELECTION &mdash; REJECTED</div>
+      <div style="font-size: 12px; color: #8f877b; line-height: 1.6;"><span style="color: #ece7de;">Similarity threshold</span> &mdash; a knob tuned to nothing, and it can over-merge invisibly.<br><br><span style="color: #ece7de;">A gap-category enum</span> &mdash; a registry baked in before any evidence about what gaps this loop produces.<br><br><span style="color: #ece7de;">An arbiter agent</span> &mdash; an unaudited critic-of-critics with no calibration story of its own.</div>
+    </div>
+    <div style="border: 1px solid #2b2723; background: #16130f; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;">
+      <div class="mono" style="font-size: 11px; letter-spacing: 0.14em; color: #4fbfd4;">NEW GUARDS REQUIRED</div>
+      <div style="font-size: 12px; color: #8f877b; line-height: 1.6;">A structural check that the round body actually calls parallel() &mdash; the concurrency claim tied to something falsifiable.<br><br>Pinned disclosures: literal restatement is not semantic agreement; k is a run parameter, not a calibrated value.<br><br>The header&rsquo;s &ldquo;ONE CRITIC, not a panel&rdquo; needs amending &mdash; replication on one axis, not lens diversity.</div>
+    </div>
+    <div style="border: 1px solid #2b2723; background: #16130f; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;">
+      <div class="mono" style="font-size: 11px; letter-spacing: 0.14em; color: #f2a03d;">THE FAILURE THIS INTRODUCES</div>
+      <div style="font-size: 12px; color: #8f877b; line-height: 1.6;">If one critic slot dissents <span style="color: #ece7de;">systematically</span> rather than noisily, unanimity never converges. With no ratchet and no round cap it burns budget while the builder keeps fixing a gap that may not be the real problem.<br><br>It does not fail loudly &mdash; it fails by never stopping. Escalation limits the cost to one critic per round, which makes it cheap enough to notice.</div>
+    </div>
+  </div>
+
+  <div style="border-top: 1px solid #2b2723; padding-top: 12px; display: flex; justify-content: space-between;">
+    <div class="mono" style="font-size: 12px; color: #8f877b;">loop.js &middot; test/harness.mjs &middot; test/loop.test.mjs &middot; test/drift-guard.mjs &middot; commands/loop.md</div>
+    <div class="mono" style="font-size: 12px; color: #8f877b;">nothing here is built yet</div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

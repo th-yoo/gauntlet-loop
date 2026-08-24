@@ -243,6 +243,11 @@ const LOOP_PINNED = [
 const LOOP_DISCLOSURES = [
   'Nothing verifies that a harsh INSTRUCTION produced a harsh CRITIC',
   'NO RATCHET, and that is a decision rather than an omission',
+  // k>1 is ours, not the source's. Both primary texts say one critic per piece.
+  // If this line goes, the verdict starts implying a precedent that does not
+  // exist — which is the exact class this tracker files most.
+  'ADDITION, not source fidelity',
+  'not independent judgments',
 ]
 
 console.log('drift-guard: loop.js round prompts pinned to the agent definitions they spawn')
@@ -319,6 +324,17 @@ for (const f of laneFiles) {
 }
 if (comparerLanes === 0) {
   fail('no blind-comparer lane was discovered in ' + SKILLDIR + ' — either both lanes lost their forced-choice schema, or the detector needs updating. A check that matches nothing cannot fail informatively.')
+}
+
+// The line of critics is a CONCURRENCY claim: k critics judging the same
+// artifact must be spawned together, not walked one at a time. Sequential
+// spawning would still pass every behavioural test in loop.test.mjs — the
+// verdicts and the split would be identical — while quietly turning one round
+// into k round-lengths of wall clock. So the claim is tied to something
+// checkable rather than trusted, in the same style as the AT-map scan below.
+console.log('drift-guard: loop.js escalates the critic line through parallel(), not a sequential walk')
+if (!/await parallel\(/.test(loopCode)) {
+  fail('loop.js no longer calls parallel() outside a comment — a line of k critics spawned sequentially costs k times the wall clock and nothing in the behavioural tests would notice')
 }
 
 // The plugin loader namespaces plugin agents (checked against ListAgents —

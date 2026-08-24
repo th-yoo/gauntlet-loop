@@ -218,18 +218,24 @@ export async function runLoop(opts) {
       return { token, evidence: `stub: ${token} at round ${round}` }
     }
 
-    if (label.endsWith(':ab')) {
+    if (/:ab(:\d+)?$/.test(label)) {
       const round = roundOf(label)
+      const idxMatch = /:ab:(\d+)$/.exec(label)
+      const criticIndex = idxMatch ? Number(idxMatch[1]) : 1
       const candidateIsA = CANDIDATE != null && prompt.includes(`ARTIFACT A: ${CANDIDATE}`)
       const candidateSide = candidateIsA ? 'A' : 'B'
       const referenceSide = candidateIsA ? 'B' : 'A'
 
       if (typeof opts.critic === 'function') {
-        const spec = opts.critic(round, { candidateSide, referenceSide })
+        const spec = opts.critic(round, { candidateSide, referenceSide, criticIndex })
         return spec
       }
 
-      const spec = specForRound(round)
+      // A round's spec may be a single object (broadcast to every critic in
+      // the line, which is what a k=1 test has always done) or an ARRAY, one
+      // entry per critic, indexed by criticIndex.
+      let spec = specForRound(round)
+      if (Array.isArray(spec)) spec = spec[criticIndex - 1]
       if (spec === null || spec === undefined) return spec
       const winner = spec.winner !== undefined ? spec.winner : (spec.candidateWins ? candidateSide : referenceSide)
       return {

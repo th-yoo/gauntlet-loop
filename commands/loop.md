@@ -53,7 +53,10 @@ Decide now which you want, and say which:
 - **Attended, no budget.** You watch and cancel. Fine, and it is what the source
   describes. Do not walk away from it.
 
-Each round costs one builder, one critic and one cheap breaker probe.
+Each round costs one builder, one cheap breaker probe, and between one and
+`critics` critics — the line is only bought when the first critic lets the
+candidate through, since a round the candidate loses could not have ended
+whatever the rest said.
 
 ## Step 3 — create the run token
 
@@ -82,7 +85,8 @@ Call the `Workflow` tool:
     "candidate": "<absolute path; built if absent>",
     "reference": "<absolute path to the exemplar>",
     "inspect":   "<optional: how to look at them — a command to run, a thing to open>",
-    "token":     "<the token path from step 3>"
+    "token":     "<the token path from step 3>",
+    "critics":   1
   }
   ```
 

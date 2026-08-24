@@ -27,7 +27,13 @@ export const meta = {
 //      iterates, so nothing there can improve.
 //   2. THERE IS A BUILDER. Without one, nothing changes between rounds and the
 //      loop degenerates into re-reading the same artifact.
-//   3. ONE CRITIC, not a panel. Singular throughout the source.
+//   3. ONE CRITIC PER JUDGMENT, not a panel of lenses. Singular throughout the
+//      source, and the default here. `args.critics` may set k>1, but that is
+//      REPLICATION of the identical forced choice — same prompt, same lens,
+//      only the position varies — not gauntlet.js's lens diversity. The line
+//      exists because the source's stop condition quantifies over judges
+//      ("Don't stop until EACH sub-agent is utterly wowed") and a line of one
+//      satisfies that vacuously.
 //   4. ONE GAP comes back, not a findings list. "the biggest remaining gap".
 //
 // The "really harsh critic" clause above is a REQUIREMENT, not decoration: it is
@@ -107,6 +113,25 @@ if (!TOKEN) throw new Error(
   'and remove it with /gauntlet-loop:cancel-loop. A run with no token is a run nobody can stop.'
 )
 
+// HOW MANY CRITICS. `k` is not a ceiling and not a resource limit — it IS the
+// exit rule: the candidate must get past every one of them in a single round.
+// Setting k=4 chooses a standard; declining to set it chooses k=1, which is a
+// line of one soldier and the reason a single favourable verdict could end a
+// run. Default 1, which is byte-for-byte the old behaviour.
+//
+// The source specifies no number. Both texts say "a separate sub-agent" and "a
+// separate critic", singular, per piece — its width comes from DECOMPOSING the
+// goal, not from stacking judges on one piece. We have one piece and cannot
+// decompose it honestly, so k>1 restores the source's PROPERTY (every judge
+// satisfied) by a mechanism the source does not describe. That is an addition,
+// and the verdict says so rather than claiming precedent.
+const CRITICS = (args && args.critics !== undefined) ? args.critics : 1
+if (!Number.isInteger(CRITICS) || CRITICS < 1) throw new Error(
+  'args.critics must be a positive integer — the number of fresh blind critics the candidate ' +
+  'must get past in a single round. Default 1. It is the exit rule, not a maximum: the round ' +
+  'spawns one and escalates to the rest only when that one lets the candidate through.'
+)
+
 // ---------------------------------------------------------------------------
 // BLINDNESS LEAK CHECK. The ARTIFACT A/B lines rendered into the critic
 // prompt below show CANDIDATE and REFERENCE verbatim. args.reference is
@@ -147,9 +172,12 @@ if (!SIDES_LOOK_ALIKE) {
       'which side is the candidate before the critic looks at either one.')
 }
 
-// A round costs a builder plus a critic. Leave headroom so the loop stops on
-// its own terms rather than dying mid-round when the budget runs out.
-const ROUND_RESERVE = 120000
+// A round costs a builder plus up to k critics. Leave headroom so the loop stops
+// on its own terms rather than dying mid-round when the budget runs out. At
+// k=1 this is the literal 120000 the file carried before.
+const BUILD_RESERVE = 60000
+const CRITIC_RESERVE = 60000
+const ROUND_RESERVE = BUILD_RESERVE + CRITICS * CRITIC_RESERVE
 // Defensive: loop.js is the first consumer of `budget` in this plugin (
 // gauntlet.js never touches it), so `budget.remaining` has never met the real
 // runtime. Handle it being a plain number rather than a function, and handle
@@ -271,18 +299,59 @@ const BUILD_SCHEMA = {
 // is the candidate.
 //
 // Position bias is real and Math.random() throws in this runtime, so the sides
-// alternate deterministically by round parity: the candidate is A on even
-// rounds, B on odd. Over a run the position averages out, and any single
-// round's verdict is reproducible.
+// alternate deterministically by (round + critic index) parity. With one critic
+// that is exactly the old rule — the candidate is A on even rounds, B on odd —
+// and with k critics the line is SPLIT WITHIN the round: consecutive indices
+// land on opposite sides, so an even k is balanced and position bias separates
+// from judge variance every round instead of averaging across rounds. Any
+// single round remains reproducible.
 // ---------------------------------------------------------------------------
 
-function sides(round) {
-  const candidateIsA = round % 2 === 0
+function sides(round, i) {
+  const candidateIsA = (round + i) % 2 === 0
   return {
     A: candidateIsA ? CANDIDATE : REFERENCE,
     B: candidateIsA ? REFERENCE : CANDIDATE,
     candidateSide: candidateIsA ? 'A' : 'B',
   }
+}
+
+function criticPrompt(s) {
+  return `Compare two artifacts and pick the better one. You are not told which is which.
+
+BE A REALLY HARSH CRITIC. That is the one property this method asks of the judge, and it
+is the whole reason a separate judge exists. Not cruel — exacting. Start from the position
+that neither artifact is good enough yet, and make the winner earn the verdict rather than
+collect it for being close. Visible effort is not quality: an artifact that plainly took
+work is not thereby better than one that did not. If neither looks first-rate, say which
+is nearer and say plainly what is still missing from it.
+
+THE GOAL these are being judged against:
+${GOAL}
+
+ARTIFACT A: ${s.A}
+ARTIFACT B: ${s.B}
+${INSPECT ? `\nHOW TO INSPECT THEM:\n${INSPECT}\n` : ''}
+Open them. Where they can be run or measured, run and measure them — a verdict backed by
+something you executed beats one backed by reading.
+
+Then:
+
+1. WINNER — A or B. You must choose. If they seem equal, look harder and find the
+   dimension that separates them; a tie is a critic declining to look closely enough.
+
+2. WHY — what actually separates them. Concrete.
+
+3. GAP — the single largest thing standing between the loser and the winner. Exactly one,
+   and the LARGEST, not the easiest to fix. Concrete enough that someone could act on it
+   without asking you what you meant. "Materials look wrong" is not a gap; "surface shading
+   has no specular response, so metal reads as matte plastic under the same light" is.
+
+4. INSPECTED — what you actually opened, ran or rendered.
+
+Do not try to work out which artifact was generated and which is the reference. If you
+find yourself reasoning about provenance instead of quality, throw that reasoning away and
+look again.`
 }
 
 phase('Loop')
@@ -317,72 +386,130 @@ while (true) {
   }
 
   // --- judge -------------------------------------------------------------
-  // A FRESH critic every round. Not a continuation: a critic that has seen its
-  // own prior verdicts defends them, and one that has seen the builder's
-  // history is no longer blind.
-  const s = sides(round)
+  // A FRESH critic every round, and k of them when the round could actually
+  // end. Not continuations: a critic that has seen its own prior verdicts
+  // defends them, and one that has seen the builder's history is no longer
+  // blind.
+  //
+  // ESCALATION. A round the candidate LOSES cannot exit, so the rest of the
+  // line could not have changed the outcome and is never spawned. Spend one
+  // critic; buy the other k-1 only when the first one lets the candidate
+  // through. The standard is untouched — every soldier must still let it
+  // through — and the ones who could not have blocked it go unspawned.
+  //
+  // What is NOT done here, deliberately: escalating further on a split. That
+  // is optional stopping — "there exists a line length at which they agreed" —
+  // which is the same defect as the old exit, one level down. k is fixed
+  // before the round starts and a split is a loss.
+  const positions = []
+  let critic_died = false
 
-  criticSpawns++
-  const verdict = await agent(
-    `Compare two artifacts and pick the better one. You are not told which is which.
+  async function spawnCritic(i) {
+    const s = sides(round, i)
+    criticSpawns++
+    const v = await agent(
+      criticPrompt(s),
+      {
+        label: CRITICS === 1 ? `round-${round}:ab` : `round-${round}:ab:${i + 1}`,
+        phase: 'Loop',
+        schema: AB_SCHEMA,
+        agentType: 'gauntlet-loop:gauntlet-ab-critic',
+      }
+    )
+    if (!v) { critic_died = true; return null }
+    return {
+      i,
+      side: s.candidateSide,
+      winner: v.winner,
+      candidateWon: v.winner === s.candidateSide,
+      margin: v.margin || null,
+      why: v.why,
+      gap: v.gap,
+      inspected: v.inspected,
+    }
+  }
 
-BE A REALLY HARSH CRITIC. That is the one property this method asks of the judge, and it
-is the whole reason a separate judge exists. Not cruel — exacting. Start from the position
-that neither artifact is good enough yet, and make the winner earn the verdict rather than
-collect it for being close. Visible effort is not quality: an artifact that plainly took
-work is not thereby better than one that did not. If neither looks first-rate, say which
-is nearer and say plainly what is still missing from it.
+  const firstVerdict = await spawnCritic(0)
+  if (firstVerdict) positions.push(firstVerdict)
 
-THE GOAL these are being judged against:
-${GOAL}
+  if (firstVerdict && firstVerdict.candidateWon && CRITICS > 1) {
+    const rest = await parallel(
+      Array.from({ length: CRITICS - 1 }, (_, n) => () => spawnCritic(n + 1))
+    )
+    for (const p of rest) if (p) positions.push(p)
+  }
 
-ARTIFACT A: ${s.A}
-ARTIFACT B: ${s.B}
-${INSPECT ? `\nHOW TO INSPECT THEM:\n${INSPECT}\n` : ''}
-Open them. Where they can be run or measured, run and measure them — a verdict backed by
-something you executed beats one backed by reading.
-
-Then:
-
-1. WINNER — A or B. You must choose. If they seem equal, look harder and find the
-   dimension that separates them; a tie is a critic declining to look closely enough.
-
-2. WHY — what actually separates them. Concrete.
-
-3. GAP — the single largest thing standing between the loser and the winner. Exactly one,
-   and the LARGEST, not the easiest to fix. Concrete enough that someone could act on it
-   without asking you what you meant. "Materials look wrong" is not a gap; "surface shading
-   has no specular response, so metal reads as matte plastic under the same light" is.
-
-4. INSPECTED — what you actually opened, ran or rendered.
-
-Do not try to work out which artifact was generated and which is the reference. If you
-find yourself reasoning about provenance instead of quality, throw that reasoning away and
-look again.`,
-    { label: `round-${round}:ab`, phase: 'Loop', schema: AB_SCHEMA, agentType: 'gauntlet-loop:gauntlet-ab-critic' }
-  )
-
-  if (!verdict) {
-    outcome = { status: 'ERROR', why: `critic returned nothing at round ${round}` }
+  // Fails SAFE, like the breaker and the budget: a round decided on a SHORTER
+  // line than the operator asked for is a quietly weaker standard, applied at
+  // the moment something is already going wrong.
+  if (critic_died || positions.length === 0) {
+    outcome = {
+      status: 'ERROR',
+      why: CRITICS === 1
+        ? `critic returned nothing at round ${round}`
+        : `a critic returned nothing at round ${round} — a round is not decided on a partial line of ${CRITICS}`,
+    }
     break
   }
 
-  const candidateWon = verdict.winner === s.candidateSide
+  const dissenters = positions.filter(p => !p.candidateWon)
+  const candidateWon = dissenters.length === 0
+
+  // WHICH gap goes back, when more than one soldier blocked. Literal
+  // restatement only: normalise whitespace and case, take the largest group of
+  // two or more, else the earliest dissenter by spawn order (parallel()
+  // resolves in input order, so this is reproducible rather than a race).
+  // Gaps are free prose, so this will usually fall through to the first — that
+  // is why the rule that fired is recorded, instead of being assumed to work.
+  let gapSelection = null
+  let primary
+  if (candidateWon) {
+    primary = positions[0]
+  } else {
+    const groups = new Map()
+    for (const d of dissenters) {
+      const key = String(d.gap).trim().replace(/\s+/g, ' ').toLowerCase()
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key).push(d)
+    }
+    let best = null
+    for (const g of groups.values()) {
+      if (g.length >= 2 && (!best || g.length > best.length)) best = g
+    }
+    primary = best ? best[0] : dissenters[0]
+    gapSelection = best
+      ? { method: 'agreed-verbatim', agreed: best.length, from_critic: primary.i }
+      : { method: 'first-by-spawn-order', dissenters: dissenters.length, from_critic: primary.i }
+  }
+
   history.push({
     round,
-    candidateSide: s.candidateSide,
-    winner: verdict.winner,
+    critics: CRITICS,
+    candidateSide: primary.side,
+    winner: primary.winner,
     candidateWon,
-    margin: verdict.margin || null,
-    why: verdict.why,
-    gap: verdict.gap,
-    inspected: verdict.inspected,
+    margin: primary.margin,
+    why: primary.why,
+    gap: primary.gap,
+    inspected: primary.inspected,
+    split: {
+      for_candidate: positions.length - dissenters.length,
+      against_candidate: dissenters.length,
+      positions,
+    },
+    gapSelection,
   })
 
-  log(`round ${round}: candidate was ${s.candidateSide}, critic chose ${verdict.winner} — ${candidateWon ? 'CANDIDATE WINS' : 'reference still ahead'}${verdict.margin ? ` (${verdict.margin})` : ''}`)
+  log(`round ${round}: ${positions.length} critic(s) — ${positions.length - dissenters.length} for the candidate, ${dissenters.length} against — ${candidateWon ? 'CANDIDATE WINS' : 'reference still ahead'}`)
 
   if (candidateWon) {
-    outcome = { status: 'WON', why: `the candidate beat the reference in a blind A/B at round ${round}`, round }
+    outcome = {
+      status: 'WON',
+      why: CRITICS === 1
+        ? `the candidate beat the reference in a blind A/B at round ${round}`
+        : `all ${CRITICS} critics picked the candidate over the reference in a blind A/B at round ${round}`,
+      round,
+    }
     break
   }
 
@@ -414,7 +541,7 @@ ${round === 1 ? '\nIf it does not exist yet, build the first version now.\n' : '
 A critic compared it blind against a reference and the candidate lost. It named ONE gap —
 the single largest thing standing between them:
 
-    ${verdict.gap}
+    ${primary.gap}
 
 Fix that gap. Only that gap.
 
@@ -447,7 +574,7 @@ know, and a fresh critic decides next round. Report what you changed, factually.
 // still improving." What matters is whether the gaps were getting smaller.
 // ---------------------------------------------------------------------------
 
-const sidesUsed = history.map(h => h.candidateSide)
+const sidesUsed = history.flatMap(h => h.split.positions.map(p => p.side))
 const balanced = sidesUsed.filter(x => x === 'A').length + ' as A / ' + sidesUsed.filter(x => x === 'B').length + ' as B'
 
 // Honest per-outcome round-count claim. No branch here can say "no fixed round
@@ -486,6 +613,9 @@ return {
     ...(SIDES_LOOK_ALIKE ? [
       'the critic was never TOLD which artifact was the candidate — sides alternate by round parity and the prompt never uses the word "candidate"',
     ] : []),
+    CRITICS === 1
+      ? 'the exit was ONE critic picking the candidate in one round — a line of one, which satisfies "every judge" vacuously (args.critics defaults to 1)'
+      : `the exit required ALL ${CRITICS} critics in a single round to pick the candidate, each spawned fresh, with positions split across the line by (round + index) parity`,
     `a FRESH critic every round (${criticSpawns} separate critic spawn(s); ${history.length} produced a recorded verdict), so none defended its own prior verdict`,
     'the critic ran as an agent type whose tool allowlist has no Write or Edit — it could not use those TOOLS to alter either artifact (it still holds Bash; see not_enforced)',
     'the builder ran as an agent type with no Agent/ListAgents/SendMessage — it could not reach or spawn a critic',
@@ -502,7 +632,11 @@ return {
       : `this run's args.reference/args.candidate pair was not a comparable filesystem path pair (reference read as ${shapeOf(REFERENCE)}, candidate as ${shapeOf(CANDIDATE)}). The two ARTIFACT lines rendered in visibly different shapes, so this run's A/B was NOT blind — the loop's own formatting gave away which side was the candidate before the critic looked at either one.`,
     'The critic is instructed to be a really harsh critic — the source\'s one requirement on the judge — in both its standing agent definition and the round prompt. Nothing verifies that a harsh INSTRUCTION produced a harsh CRITIC. A lenient verdict and an exacting one are indistinguishable from here: no calibration trial ran, and the loop reads only the letter that came back.',
     'NO RATCHET, and that is a decision rather than an omission (issue #18, 2026-08-24). The builder edits the candidate in place, so a round that makes it worse is permanent, and the loop holds no prior version to compare against: a Workflow script has no filesystem, so a snapshot and a revert would both be spawned-agent actions this script cannot observe. It therefore cannot tell an improvement from a regression from a lateral move — read `gaps_in_order` for that, and stop the run yourself if the gaps stop getting smaller.',
-    'Position bias is averaged across rounds by alternation, not eliminated within a round.',
+    CRITICS === 1
+      ? 'Position bias is averaged across rounds by alternation, not eliminated within a round.'
+      : 'Position bias is split across the line within each round, which measures it rather than eliminating it. It is not removed.',
+    `The ${CRITICS} critic(s) share a model family and prompt, so their verdicts are not independent judgments; k copies resample one model's habits. Nothing here measures how much independence the line actually supplies, and no arithmetic over k should be read as if it did.`,
+    'k>1 is an ADDITION, not source fidelity. Both primary texts say one critic per piece, singular; the source gets width by decomposing the goal, which this loop does not do. What k restores is the source\'s property — every judge satisfied — by a mechanism the source does not describe.',
     'Critic and builder share a model family, so the critic may be blind to exactly the mistakes the builder is prone to making.',
     'The critic holds Bash and KillShell, which can write files directly (redirection, heredocs, etc.) — nothing mechanically stops it from altering either artifact through Bash instead of Write/Edit. The no-Write/no-Edit property above is real but narrow (prompt-deep, not structural).',
     'AB_SCHEMA.gap is a free-text string: nothing stops several gaps being packed into it (e.g. "Gap 1: ... Gap 2: ..."). Only one gap SLOT is enforced, not one gap.',

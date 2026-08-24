@@ -585,3 +585,177 @@ console.log('loop: protocol-relative, Windows, relative and tilde references all
   ok(!r.result.enforced.some(b => /harsh/i.test(b)), 'enforced makes no harshness claim — a prompt instruction is not an enforced property')
   console.log('loop: harshness is disclosed as an unverified instruction, never claimed as enforced OK')
 }
+
+// ---------------------------------------------------------------------------
+// A LINE OF k CRITICS. args.critics is the exit rule, not a ceiling: the
+// candidate must get past every soldier in ONE round. k=1 is the default and
+// every assertion above still describes it.
+// ---------------------------------------------------------------------------
+
+// All k pick the candidate -> WON, and the line really was spawned.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 3 },
+    rounds: [{ candidateWins: true, gap: 'unused' }],
+  })
+  eq(r.result.outcome.status, 'WON', 'a unanimous line ends the run')
+  eq(r.labels.filter(l => /:ab(:\d+)?$/.test(l)).length, 3, 'all three critics were spawned')
+  eq(r.labels.filter(l => l.endsWith(':build')).length, 0, 'a win never triggers a build')
+  eq(r.result.history[0].split.for_candidate, 3, 'the split records three for the candidate')
+  eq(r.result.history[0].split.against_candidate, 0, 'and none against')
+  ok(/all 3 critics/.test(r.result.outcome.why), 'the outcome names the whole line, not one verdict')
+  console.log('loop: k=3 unanimous line wins and reports the split OK')
+}
+
+// ESCALATION. The first soldier blocks it, so the rest are never spawned —
+// a round the candidate loses could not have exited whatever they said.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 4 },
+    breaker: n => n <= 1,
+    rounds: [{ candidateWins: false, gap: 'THE-FIRST-SOLDIERS-GAP' }],
+  })
+  eq(r.labels.filter(l => /:ab(:\d+)?$/.test(l)).length, 1, 'only one critic spawned — the line was not bought')
+  const build = r.prompts.find(p => p.label === 'round-1:build')
+  ok(build && build.prompt.includes('THE-FIRST-SOLDIERS-GAP'), 'the builder got that critic\'s gap')
+  eq(r.result.history[0].split.against_candidate, 1, 'the split records the single dissent')
+  console.log('loop: a losing round spends one critic, not k OK')
+}
+
+// A dissenter later in the line still loses the round, and its gap is the one
+// that goes back.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 4 },
+    breaker: n => n <= 1,
+    rounds: [[
+      { candidateWins: true, gap: 'g1' },
+      { candidateWins: true, gap: 'g2' },
+      { candidateWins: false, gap: 'THE-DISSENTERS-GAP' },
+      { candidateWins: true, gap: 'g4' },
+    ]],
+  })
+  eq(r.result.outcome.status, 'CANCELLED', 'one dissent means the round did not win')
+  eq(r.labels.filter(l => /:ab(:\d+)?$/.test(l)).length, 4, 'the whole line was spawned once the first let it through')
+  const build = r.prompts.find(p => p.label === 'round-1:build')
+  ok(build.prompt.includes('THE-DISSENTERS-GAP'), 'the dissenter\'s gap is what the builder receives')
+  eq(r.result.history[0].split.for_candidate, 3, 'three for')
+  eq(r.result.history[0].split.against_candidate, 1, 'one against')
+  console.log('loop: a single dissent anywhere in the line loses the round OK')
+}
+
+// Two dissenters naming the SAME gap -> the agreed rule fires and is recorded.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 4 },
+    breaker: n => n <= 1,
+    rounds: [[
+      { candidateWins: true, gap: 'g1' },
+      { candidateWins: false, gap: 'the SAME   gap' },
+      { candidateWins: false, gap: 'The same gap' },
+      { candidateWins: false, gap: 'a different gap entirely' },
+    ]],
+  })
+  eq(r.result.history[0].gapSelection.method, 'agreed-verbatim', 'the agreement rule fired')
+  eq(r.result.history[0].gapSelection.agreed, 2, 'two dissenters agreed after normalisation')
+  const build = r.prompts.find(p => p.label === 'round-1:build')
+  ok(build.prompt.includes('the SAME   gap'), 'the agreed gap goes back, in the first agreeing critic\'s words')
+  console.log('loop: whitespace/case-normalised agreement selects the gap OK')
+}
+
+// No two dissenters agree -> the rule falls through, and SAYS it fell through.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 3 },
+    breaker: n => n <= 1,
+    rounds: [[
+      { candidateWins: true, gap: 'g1' },
+      { candidateWins: false, gap: 'gap alpha' },
+      { candidateWins: false, gap: 'gap beta' },
+    ]],
+  })
+  eq(r.result.history[0].gapSelection.method, 'first-by-spawn-order', 'the fallback is recorded, not hidden')
+  eq(r.result.history[0].gapSelection.dissenters, 2, 'and how many dissented')
+  const build = r.prompts.find(p => p.label === 'round-1:build')
+  ok(build.prompt.includes('gap alpha'), 'the earliest dissenter by spawn order supplies the gap')
+  console.log('loop: no agreement falls through to spawn order and records it OK')
+}
+
+// The positions are split WITHIN the round. Read the real prompts: a closure
+// bug would hand every critic the same one, and the aggregate balance would
+// still look right while the split silently never happened.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 4 },
+    breaker: n => n <= 1,
+    rounds: [[
+      { candidateWins: true, gap: 'g1' },
+      { candidateWins: true, gap: 'g2' },
+      { candidateWins: true, gap: 'g3' },
+      { candidateWins: false, gap: 'g4' },
+    ]],
+  })
+  const criticPrompts = r.prompts.filter(p => /:ab(:\d+)?$/.test(p.label))
+  eq(criticPrompts.length, 4, 'four critic prompts captured')
+  const asA = criticPrompts.filter(p => p.prompt.includes(`ARTIFACT A: ${CANDIDATE}`)).length
+  const asB = criticPrompts.filter(p => p.prompt.includes(`ARTIFACT B: ${CANDIDATE}`)).length
+  eq(asA, 2, 'two critics saw the candidate as A')
+  eq(asB, 2, 'two saw it as B — the line is split, not uniform')
+  eq(new Set(r.result.history[0].split.positions.map(p => p.side)).size, 2, 'the recorded positions carry both sides')
+  console.log('loop: k=4 splits positions inside the round OK')
+}
+
+// A dead critic anywhere in the line fails the ROUND. Deciding on a shorter
+// line than the operator asked for is a quietly weaker standard.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 3 },
+    critic: (round, s) => (s.criticIndex === 2 ? null : { winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+  })
+  eq(r.result.outcome.status, 'ERROR', 'one dead critic fails the round')
+  ok(/partial line of 3/.test(r.result.outcome.why), 'the reason names the incomplete line')
+  eq(r.result.history.length, 0, 'no verdict is recorded for a round decided on a partial line')
+  console.log('loop: a dead critic fails the round rather than shortening the line OK')
+}
+
+// The budget reserve scales with the line, so a run that cannot afford k
+// critics stops before spawning any of them.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 5 },
+    budget: { total: 1000000, remaining: () => 200000 },
+    rounds: [],
+  })
+  eq(r.result.outcome.status, 'BUDGET', '200k does not cover a builder plus five critics')
+  eq(r.labels.filter(l => /:ab(:\d+)?$/.test(l)).length, 0, 'nothing was spawned')
+  console.log('loop: ROUND_RESERVE scales with k OK')
+}
+
+// args.critics is validated, and the error explains what k means.
+for (const bad of [0, -1, 2.5, '3', null]) {
+  let threw = null
+  try {
+    await runLoop({ args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: bad }, rounds: [] })
+  } catch (e) { threw = e }
+  ok(threw && /args\.critics must be a positive integer/.test(threw.message), `args.critics = ${JSON.stringify(bad)} is refused`)
+}
+console.log('loop: args.critics is validated OK')
+
+// The verdict states the exit that was actually reached, and discloses that
+// k>1 is an addition rather than source fidelity.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 3 },
+    rounds: [{ candidateWins: true, gap: 'unused' }],
+  })
+  ok(r.result.enforced.some(b => /ALL 3 critics in a single round/.test(b)), 'enforced states the k-of-k exit')
+  ok(r.result.not_enforced.some(b => /not independent judgments/.test(b)), 'the independence residual is disclosed')
+  ok(r.result.not_enforced.some(b => /ADDITION, not source fidelity/.test(b)), 'and that k>1 has no source precedent')
+
+  const one = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [{ candidateWins: true, gap: 'unused' }],
+  })
+  ok(one.result.enforced.some(b => /satisfies "every judge" vacuously/.test(b)), 'at k=1 the verdict says the standard is satisfied vacuously')
+  console.log('loop: the verdict reports the exit reached and discloses the addition OK')
+}

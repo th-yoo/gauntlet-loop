@@ -1,0 +1,100 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;700&display=swap">
+  <style>
+    body { margin: 0; background: #100e0c; font-family: 'Space Grotesk', 'Helvetica Neue', system-ui, sans-serif; }
+    a { color: #f2a03d; } a:hover { color: #ffbe6b; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, 'SF Mono', monospace; }
+  </style>
+</helmet>
+<div style="width: 1280px; height: 900px; box-sizing: border-box; padding: 40px 44px; background: #100e0c; color: #ece7de; display: flex; flex-direction: column; gap: 20px;">
+  <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 1px solid #2b2723; padding-bottom: 14px;">
+    <div style="display: flex; flex-direction: column; gap: 6px;">
+      <div class="mono" style="font-size: 12px; letter-spacing: 0.18em; color: #8f877b;">ONE ROUND &mdash; THE DESIGN</div>
+      <div style="font-size: 38px; font-weight: 700; letter-spacing: -0.02em; line-height: 1;">Gauntlet tunnel loop</div>
+    </div>
+    <div class="mono" style="font-size: 12px; color: #8f877b; text-align: right; line-height: 1.7;">k critics, unanimous exit<br>escalate only when the round can exit<br>R unbounded</div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px;">
+    <div style="grid-column: span 3; border: 1px solid #2b2723; background: #16130f; padding: 16px 18px; display: flex; flex-direction: column; gap: 7px;">
+      <div class="mono" style="font-size: 11px; letter-spacing: 0.16em; color: #4fbfd4;">01&nbsp; BUDGET &rarr; BREAKER</div>
+      <div style="font-size: 17px; font-weight: 500; line-height: 1.25;">Can this round run, and does the operator still want it?</div>
+      <div style="font-size: 12px; color: #8f877b; line-height: 1.5;">Budget first (free), then one Bash-only probe. A cancel costs one cheap spawn, never a critic. Reserve scales with k.</div>
+    </div>
+    <div style="grid-column: span 9; border: 1px solid #3a2f1e; background: #17130c; padding: 16px 18px; display: flex; flex-direction: column; gap: 12px;">
+      <div style="display: flex; justify-content: space-between; align-items: baseline;">
+        <div class="mono" style="font-size: 11px; letter-spacing: 0.16em; color: #f2a03d;">02&nbsp; SPEND ONE CRITIC</div>
+        <div class="mono" style="font-size: 11px; color: #8f877b;">a losing round cannot exit falsely &mdash; so it never needs width</div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px;">
+        <div style="border: 1px solid #2b2723; background: #100e0c; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px;">
+          <div class="mono" style="font-size: 11px; color: #8f877b;">it picks the REFERENCE</div>
+          <div style="font-size: 15px; line-height: 1.4;">No exit is possible. Take its gap, build, next round.</div>
+          <div class="mono" style="font-size: 12px; color: #4fbfd4;">cost: 1</div>
+        </div>
+        <div style="border: 1px solid #3a2f1e; background: #1a1610; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px;">
+          <div class="mono" style="font-size: 11px; color: #f2a03d;">it picks OURS</div>
+          <div style="font-size: 15px; line-height: 1.4;">Now the round could exit. Spawn the other k&minus;1.</div>
+          <div class="mono" style="font-size: 12px; color: #f2a03d;">cost: k</div>
+        </div>
+      </div>
+      <div class="mono" style="font-size: 12px; color: #ece7de; background: #100e0c; border: 1px solid #2b2723; padding: 10px 12px;">the standard is unchanged &mdash; every soldier must still let it through &nbsp;&nbsp;<span style="color: #8f877b;">only the ones who could not have blocked it go unspawned</span></div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px;">
+    <div style="grid-column: span 7; border: 1px solid #2b2723; background: #16130f; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px;">
+      <div class="mono" style="font-size: 11px; letter-spacing: 0.16em; color: #4fbfd4;">03&nbsp; THE TUNNEL</div>
+      <div style="display: flex; gap: 10px;">
+        <div style="flex-grow: 1; border: 1px solid #2b2723; background: #100e0c; padding: 10px 12px; display: flex; flex-direction: column; gap: 5px;">
+          <span class="mono" style="font-size: 11px; color: #100e0c; background: #f2a03d; padding: 2px 6px; align-self: flex-start;">ours = A</span>
+          <span style="font-size: 12px; color: #8f877b;">half the critics</span>
+        </div>
+        <div style="flex-grow: 1; border: 1px solid #2b2723; background: #100e0c; padding: 10px 12px; display: flex; flex-direction: column; gap: 5px;">
+          <span class="mono" style="font-size: 11px; color: #100e0c; background: #4fbfd4; padding: 2px 6px; align-self: flex-start;">ours = B</span>
+          <span style="font-size: 12px; color: #8f877b;">the other half</span>
+        </div>
+      </div>
+      <div style="font-size: 13px; color: #8f877b; line-height: 1.5;">Positions split <span style="color: #ece7de;">inside</span> the round, so position bias separates from judge variance every round instead of averaging across them. Even k keeps the split balanced. Any critic returning nothing fails the whole round &mdash; a round that silently narrows from k to k&minus;1 is failing open.</div>
+    </div>
+    <div style="grid-column: span 5; display: flex; flex-direction: column; gap: 10px;">
+      <div style="border: 1px solid #3a2f1e; background: #1a1610; padding: 14px 16px; display: flex; align-items: center; gap: 14px;">
+        <span class="mono" style="font-size: 11px; color: #100e0c; background: #f2a03d; padding: 3px 8px;">ALL k</span>
+        <div><div style="font-size: 16px; font-weight: 500;">WON &mdash; the run stops</div><div style="font-size: 12px; color: #8f877b;">unanimity, not one favourable draw</div></div>
+      </div>
+      <div style="border: 1px solid #2b2723; background: #16130f; padding: 14px 16px; display: flex; align-items: center; gap: 14px;">
+        <span class="mono" style="font-size: 11px; color: #ece7de; border: 1px solid #4a443c; padding: 3px 8px;">SPLIT</span>
+        <div><div style="font-size: 16px; font-weight: 500;">A loss. One gap goes back.</div><div style="font-size: 12px; color: #8f877b;">never &ldquo;spawn more until they agree&rdquo;</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; flex-grow: 1;">
+    <div style="grid-column: span 5; border: 1px solid #2b2723; background: #16130f; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;">
+      <div class="mono" style="font-size: 11px; letter-spacing: 0.16em; color: #4fbfd4;">04&nbsp; WHICH GAP</div>
+      <div style="font-size: 15px; line-height: 1.45;">The gap named by <span class="mono" style="color: #ece7de;">&ge;2</span> dissenters after whitespace and case normalisation; otherwise the first by spawn order.</div>
+      <div style="font-size: 12px; color: #8f877b; line-height: 1.5;">Literal restatement only &mdash; it never claims agreement it did not get. Record which rule fired, so the mechanism&rsquo;s own hit rate is checkable instead of assumed.</div>
+    </div>
+    <div style="grid-column: span 7; border: 1px solid #2b2723; background: #16130f; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px;">
+      <div class="mono" style="font-size: 11px; letter-spacing: 0.16em; color: #4fbfd4;">05&nbsp; BUILDER &rarr; BACK TO 01</div>
+      <div style="font-size: 15px; line-height: 1.45;">Fix that one gap, in place. Never learns the sides, the critics, or the run history. No ratchet &mdash; a Workflow script holds no prior version.</div>
+      <div style="font-size: 12px; color: #8f877b; line-height: 1.5;">Watch for: the same gap round after round while exactly one critic dissents. That is a structural blind spot, not noise, and unanimity will never converge through it.</div>
+    </div>
+  </div>
+
+  <div style="border-top: 1px solid #2b2723; padding-top: 12px; display: flex; justify-content: space-between;">
+    <div class="mono" style="font-size: 12px; color: #8f877b;">k is the exit rule, set deliberately &mdash; not a ceiling, not a maximum</div>
+    <div class="mono" style="font-size: 12px; color: #8f877b;">stops: WON &middot; CANCELLED &middot; BUDGET (only if a target is set) &middot; ERROR</div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
