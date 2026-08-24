@@ -591,7 +591,7 @@ let outcome = null
 let lastWon = null
 
 
-for (const piece of PIECES) {
+async function runPiece(piece) {
   const PC = piece.candidate || CANDIDATE
   const PR = piece.reference || REFERENCE
   let round = 0
@@ -720,7 +720,7 @@ for (const piece of PIECES) {
       : { method: 'first-by-spawn-order', dissenters: dissenters.length, from_critic: primary.i }
   }
 
-  history.push({
+  const entry = {
     round,
     piece: piece.name,
     critics: CRITICS,
@@ -737,7 +737,8 @@ for (const piece of PIECES) {
       positions,
     },
     gapSelection,
-  })
+  }
+  history.push(entry)
 
   log(`round ${round}: ${positions.length} critic(s) — ${positions.length - dissenters.length} for the candidate, ${dissenters.length} against — ${candidateWon ? 'CANDIDATE WINS' : 'reference still ahead'}`)
 
@@ -802,14 +803,54 @@ know, and a fresh critic decides next round. Report what you changed, factually.
     break
   }
 
-  history[history.length - 1].built = { changed: built.changed, where: built.where, ambiguity: built.ambiguity || null }
+  entry.built = { changed: built.changed, where: built.where, ambiguity: built.ambiguity || null }
   }
 
-  // A piece winning does NOT end the run — the source stops when EVERY piece is
-  // satisfied. Any other stop is a stop for the whole run, so it propagates.
-  if (pieceOutcome && pieceOutcome.status !== 'WON') { outcome = pieceOutcome; break }
-  lastWon = pieceOutcome
-  if (piece.name) log(`piece "${piece.name}" won after ${round} round(s)`)
+  if (piece.name && pieceOutcome && pieceOutcome.status === 'WON') log(`piece "${piece.name}" won after ${round} round(s)`)
+  return pieceOutcome
+}
+
+// ---------------------------------------------------------------------------
+// HOW PIECES ARE DISPATCHED. The source ran "three rounds of SIX AGENTS each
+// owning one directory"; its sequential pass was a later, targeted move on
+// "coupled concerns", not the mode it worked in. Running every piece one at a
+// time is the exception applied as the rule, and it costs an order of magnitude
+// of wall clock on any artifact that really has parts.
+//
+// So the split is by COUPLING, and coupling is read off the pieces rather than
+// judged: pieces that edit the SAME path are coupled — two builders writing one
+// file race, and the loser's work vanishes — and run in sequence. Pieces with
+// DISTINCT paths cannot collide and run concurrently.
+//
+// A piece winning does not end the run: the source stops when EVERY piece is
+// satisfied. Any other stop is a stop for the whole run, and the first one to
+// occur wins — later ones do not overwrite it, so the reported reason is the one
+// that actually happened first.
+// ---------------------------------------------------------------------------
+const byPath = new Map()
+for (const piece of PIECES) {
+  const key = piece.candidate || CANDIDATE
+  if (!byPath.has(key)) byPath.set(key, [])
+  byPath.get(key).push(piece)
+}
+const groups = [...byPath.values()]
+if (groups.length > 1) log(`running ${groups.length} independent piece-group(s) concurrently; pieces sharing a file stay in sequence`)
+
+const groupResults = await parallel(groups.map(group => async () => {
+  const done = []
+  for (const piece of group) {
+    const o = await runPiece(piece)
+    done.push(o)
+    if (o && o.status !== 'WON') break   // a stop ends this group; the others are cut short by their own probes
+  }
+  return done
+}))
+
+for (const done of groupResults) {
+  for (const o of done || []) {
+    if (o && o.status !== 'WON' && !outcome) outcome = o
+    if (o && o.status === 'WON') lastWon = o
+  }
 }
 
 // An undecomposed run keeps the round's own WON verdict verbatim — it already

@@ -73,9 +73,12 @@ not decompose: their defects are properties of the whole — what is missing, wh
 order things come in — and no single section is wrong. The loop then runs the
 artifact whole and says so.
 
-Sequential, not parallel, on the source's own recorded result: "Sequential
-single-owner passes beat parallel fan-out decisively... moved it +1.00 and cut
-defects 66 → 26."
+**Independent pieces run concurrently; pieces that edit the same file run in
+sequence.** Coupling is read off the pieces rather than judged — two builders
+writing one path race and the loser's work vanishes, while pieces in different
+files cannot collide. The source ran "three rounds of six agents each owning one
+directory"; its sequential pass was a later, targeted move on "coupled
+concerns", not the mode it worked in.
 
 Where pieces exist you rarely need `critics` above 1: width comes from the split,
 which is where the source gets it.

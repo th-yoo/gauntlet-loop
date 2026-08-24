@@ -806,9 +806,15 @@ console.log('loop: args.critics is validated OK')
   })
   eq(r.result.outcome.status, 'WON', 'the run wins only after every piece does')
   ok(/every one of the 2 pieces/.test(r.result.outcome.why), 'the verdict is about the SET, not one piece')
-  eq(r.result.history.map(h => h.piece), ['render', 'render', 'audio', 'audio'], 'each piece ran its own rounds, sequentially')
+  const order = r.result.history.map(h => h.piece)
+  eq(order.filter(x => x === 'render').length, 2, 'render ran its own two rounds')
+  eq(order.filter(x => x === 'audio').length, 2, 'audio ran its own two rounds')
   ok(r.labels.includes('render-round-1:ab') && r.labels.includes('audio-round-2:ab'), 'labels carry the piece')
-  console.log('loop: two pieces run sequentially and the run ends only when both win OK')
+  // Different files, so nothing can collide: they run CONCURRENTLY, and the
+  // interleaving is the evidence. Strict piece-major order would mean the
+  // groups were walked one at a time.
+  ok(order.join(',') !== 'render,render,audio,audio', 'independent pieces interleave — they ran concurrently, not one group after the other')
+  console.log('loop: independent pieces run concurrently and the run ends only when both win OK')
 }
 
 // A piece is judged against ITS OWN paths, and told what to ignore.
@@ -1012,4 +1018,58 @@ console.log('loop: args.critics is validated OK')
   })
   eq(none.result.goal_fitted.verdict, 'unchecked', 'a probe returning nothing reports unchecked, never clean')
   console.log('loop: the goal is checked from both sides, by two probers with opposite blindnesses OK')
+}
+
+// Pieces that edit the SAME file are coupled: two builders writing one path
+// race, and the loser's work vanishes. Those stay in sequence, and the proof is
+// that they do NOT interleave.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'two consumers of one file', pieces: [
+      { name: 'frontmatter', observable: 'read lines 1-4' },
+      { name: 'body', observable: 'read the rest' }] },
+    critic: (round, s) => ({ winner: round >= 2 ? s.candidateSide : s.referenceSide, why: 'w', gap: `g${round}`, inspected: 'i', margin: 'clear' }),
+  })
+  eq(r.result.outcome.status, 'WON', 'both coupled pieces won')
+  const order = r.result.history.map(h => h.piece)
+  eq(order, ['frontmatter', 'frontmatter', 'body', 'body'], 'pieces sharing a path run strictly in sequence — no interleaving, so no two builders write one file at once')
+  console.log('loop: pieces sharing a file stay sequential while independent ones do not OK')
+}
+
+// The builder's report attaches to ITS OWN round. With concurrent pieces,
+// indexing history by length-1 would hang one piece's build on another's round.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'alpha', observable: 'run a', candidate: '/tmp/x/a.js', reference: '/tmp/x/ra.js' },
+      { name: 'beta', observable: 'run b', candidate: '/tmp/x/b.js', reference: '/tmp/x/rb.js' }] },
+    critic: (round, s) => ({ winner: round >= 2 ? s.candidateSide : s.referenceSide, why: 'w', gap: `gap-for-round-${round}`, inspected: 'i', margin: 'clear' }),
+    // Keyed on the PIECE, not the round. Keyed on the round, both pieces return
+    // the same string on round 1 and a misattributed build is indistinguishable
+    // from a correct one — the test would pass with the bug present.
+    // ASYMMETRIC LATENCY, deliberately. Real agents take minutes and never take
+    // the same time; the stub resolves uniformly, which keeps concurrent pieces
+    // in lockstep and hides any bug that needs one piece to overtake another.
+    // alpha's builder yields several extra turns so beta pushes its round while
+    // alpha's build is still in flight — the exact interleaving under which
+    // attaching by history index lands a build on another piece's round.
+    builder: async (round, prompt) => {
+      const who = /\/tmp\/x\/(\w+)\.js/.exec(prompt)[1]
+      if (who === 'a') for (let i = 0; i < 5; i++) await Promise.resolve()
+      return { changed: `built ${who}`, where: 'x' }
+    },
+  })
+  const built = r.result.history.filter(h => h.built)
+  eq(built.length, 2, 'each piece recorded exactly one build — its own losing round')
+  for (const h of built) {
+    ok(h.round === 1, `the build hangs on round 1 of piece "${h.piece}", the round that actually lost`)
+  }
+  eq(new Set(built.map(h => h.piece)).size, 2, 'and the two builds belong to different pieces')
+  const alpha = built.find(h => h.piece === 'alpha')
+  const beta = built.find(h => h.piece === 'beta')
+  eq(alpha.built.changed, 'built a', "alpha's round carries alpha's build, not whichever finished last")
+  eq(beta.built.changed, 'built b', "beta's round carries beta's build")
+  console.log('loop: a builder report attaches to its own round under concurrency OK')
 }
