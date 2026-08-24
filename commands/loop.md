@@ -90,6 +90,28 @@ Call the `Workflow` tool:
   }
   ```
 
+**Choose `critics` deliberately — it is the exit rule, not a knob.** The
+candidate must get past every one of them in a single round, so k sets how
+demanding the standard is. Ask the operator if they have a preference; decide
+yourself if they do not, and say which you chose and why in the same turn.
+
+- **1** — the literal reading of "a separate sub-agent", and the default. It
+  also means the source's stop condition ("until EACH sub-agent is utterly
+  wowed") is satisfied by one judge on one round, which is vacuous. Choose it
+  when the run is cheap, exploratory, or you want the old behaviour exactly.
+- **2** — the cheapest non-vacuous standard, and the natural default for real
+  work. A losing round still costs one critic; only a round that could end
+  costs two.
+- **4** — for an artifact you would be embarrassed to ship on a single
+  favourable verdict. Even numbers split positions evenly across the line.
+- **More than 4** — only with a reason you can state. Unanimity over a long
+  line can fail to converge if one critic slot objects for a structural reason
+  rather than a variable one, and it fails by never stopping rather than by
+  stopping wrongly.
+
+Odd values are allowed and buy nothing: the exit is unanimity, not a majority,
+so there is no tie to break — and an odd line leaves one position unbalanced.
+
 **Write the goal as a need, not as an answer.** The critic judges against it, so
 a goal that names your intended solution grades the artifact on whether it did
 what you already decided. "An operator can pick the right instrument and run it"
