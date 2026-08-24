@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-const suites = ['drift-guard.mjs', 'smoke.mjs', 'orchestration.test.mjs', 'loop.test.mjs']
+const suites = ['drift-guard.mjs', 'smoke.mjs', 'orchestration.test.mjs', 'loop.test.mjs', 'canary.test.mjs']
 
 let failed = 0
 for (const s of suites) {
