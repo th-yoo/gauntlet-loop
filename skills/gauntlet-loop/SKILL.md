@@ -180,6 +180,27 @@ Read `gaps_in_order` before the verdict. If the gaps got smaller and more
 specific, the loop was working. If the last round names the first round's gap, it
 was not — and that is the signal, not the outcome.
 
+## Testing the loop itself
+
+To find out whether the loop can close a gap, plant one: remove something from a
+copy of a real artifact and see whether a round puts it back. That measures
+nothing if the removed text is still readable somewhere the builder can reach —
+it will find the answer and copy it, which is what happened the first time this
+was tried here.
+
+```
+node scripts/seed-loop-trial.mjs --artifact <file> --section "## Heading" --to <dir>
+```
+
+It writes the degraded copy and a sealed note, then searches the places a builder
+plausibly looks for the text it just removed — and **refuses** if it finds any.
+Move the original out of reach, or seed a different defect.
+
+What it cannot close is the model's own prior. A conventional section is
+reconstructible from training and no filesystem check touches that. Prefer
+inverting a constraint that exists only in this artifact: the removed string
+stays checkable while its correct form is underivable from anything else.
+
 ## What it does not do
 
 - **The split is not checked.** A lead chooses what gets judged and nothing
