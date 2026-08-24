@@ -136,6 +136,9 @@ const LOOP_DISCLOSURES = [
   // Deleting the panel deleted the only calibration mechanism. If this line goes,
   // the plugin stops telling anyone that nothing checks its critics.
   'NO CALIBRATION ANYWHERE',
+  // A builder that answers every absence by appending grows the artifact while
+  // every round is locally correct. If this goes, nothing reports it.
+  'THE ARTIFACT GREW EVERY ROUND',
   // The lead chooses what gets judged and nothing checks its choice. If this line
   // goes, a run stops admitting that its own decomposition is unverified.
   'THE SPLIT IS NOT CHECKED',

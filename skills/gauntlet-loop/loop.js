@@ -238,7 +238,7 @@ const BREAKER_SCHEMA = {
   required: ['token'],
   properties: {
     token: { type: 'string', enum: ['PRESENT', 'ABSENT'], description: 'PRESENT if the file exists, ABSENT if it does not. Report what the test returned; do not guess and do not create the file.' },
-    evidence: { type: 'string', description: 'the exact command you ran and its exact output' },
+    evidence: { type: 'string', description: 'the exact commands you ran and their exact output' },
   },
 }
 
@@ -266,6 +266,44 @@ has failed, and this run stops rather than continuing uncancellable.`,
   return true
 }
 
+// A loop whose builder answers every absence by appending grows its artifact
+// monotonically while every individual round is locally correct — and nothing
+// else in a run would notice. One number per round makes it visible.
+//
+// It is a SEPARATE probe rather than an extra field on the breaker, and the
+// split is deliberate: the breaker is kept blind to the artifacts (a test
+// asserts it is never handed a path), and this one is kept blind to the token.
+// Two parties that each know one narrow fact beat one that knows both, and the
+// second spawn is a `wc -c`.
+const SIZE_SCHEMA = {
+  type: 'object',
+  required: ['bytes'],
+  properties: {
+    bytes: { type: 'number', description: 'the number the command printed. Report it; do not open the file and do not judge it.' },
+    evidence: { type: 'string', description: 'the exact command and its exact output' },
+  },
+}
+
+const sizeByRound = []
+
+async function measureSize(round, tag, pieceName, path) {
+  const m = await agent(
+    `Report the SIZE of one file. That is the whole task — do not read it, do not open it, do not
+form an opinion about what is in it, and do not look at anything else.
+
+Run exactly this and report the number it prints:
+
+    wc -c < ${JSON.stringify(path)}
+
+Return that number in \`bytes\` and the command plus its literal output in \`evidence\`. If the
+command cannot be run, return 0 — a size that cannot be measured is not a size to guess at.`,
+    { label: `${tag}:size`, phase: 'Loop', schema: SIZE_SCHEMA, agentType: 'gauntlet-loop:gauntlet-breaker' }
+  )
+  if (m && typeof m.bytes === 'number' && Number.isFinite(m.bytes) && m.bytes > 0) {
+    sizeByRound.push({ round, piece: pieceName, bytes: m.bytes })
+  }
+}
+
 const AB_SCHEMA = {
   type: 'object',
   required: ['winner', 'why', 'gap', 'inspected', 'margin'],
@@ -274,7 +312,7 @@ const AB_SCHEMA = {
     why: { type: 'string', description: 'what separates them, concretely' },
     gap: {
       type: 'string',
-      description: 'THE SINGLE LARGEST thing standing between the loser and the winner, stated concretely enough to act on. Exactly one. If the winner is already the better artifact by a wide margin, this is still one gap — the biggest.',
+      description: 'THE SINGLE LARGEST thing standing between the loser and the winner, stated concretely enough to act on. Exactly one. A gap can be an EXCESS as readily as an absence — something present that should go, or material buried where it cannot be found — and is not required to be something missing. If the winner is already the better artifact by a wide margin, this is still one gap: the biggest.',
     },
     inspected: { type: 'string', description: 'what you actually opened, ran or rendered to reach this verdict' },
     margin: { type: 'string', enum: ['decisive', 'clear', 'narrow'], description: 'REQUIRED. How far apart they are. This does not gate the exit — a narrow win still ends a round — but a win with the separation unstated cannot be audited afterwards, and the first two live runs of this loop both produced exactly that.' },
@@ -630,6 +668,8 @@ async function runPiece(piece) {
     break
   }
 
+  await measureSize(round, TAG, piece.name, PC)
+
   // --- judge -------------------------------------------------------------
   // A FRESH critic every round, and k of them when the round could actually
   // end. Not continuations: a critic that has seen its own prior verdicts
@@ -791,6 +831,12 @@ the single largest thing standing between them:
     ${primary.gap}
 
 Fix that gap. Only that gap.
+
+Closing it does not have to mean ADDING something. Most gaps are phrased as an absence —
+"it never says X", "there is no Y" — and adding a section is the obvious answer, but often
+the worse one: the material may already be present and buried, or in the wrong order, or
+crowded out by something that should go. Removing, moving or rewriting what is already
+there is closing the gap too, and an artifact that grows every round is usually losing.
 
 Not the one you find more interesting, not three while you are in there, not a refactor you
 noticed on the way. The loop closes the biggest gap repeatedly, and a round that changes five
@@ -997,6 +1043,20 @@ return {
   // the goal was chosen to fit what the candidate already did. Counted here so
   // the verdict cannot report it as ordinary success.
   rounds_with_a_build: history.filter(h => h.built).length,
+
+  // Measured by the breaker, which is Bash-only and never speaks to a critic.
+  // A loop whose builder answers every absence by adding grows its artifact
+  // monotonically while every individual round is locally correct; nothing else
+  // in this run would notice.
+  size_by_round: sizeByRound,
+  size_note: (() => {
+    const b = sizeByRound.map(x => x.bytes)
+    if (b.length < 3) return null
+    const grew = b.every((x, i) => i === 0 || x >= b[i - 1])
+    const delta = b[b.length - 1] - b[0]
+    if (grew && delta > 0) return `THE ARTIFACT GREW EVERY ROUND — ${b[0]} to ${b[b.length - 1]} bytes, +${delta}. Each gap may have been real and each fix may have addressed it; an artifact that only ever gets bigger is usually losing anyway. Check whether the builder is answering absences by appending.`
+    return null
+  })(),
 
   goal_fitted: fitted
     ? { verdict: fitted.verdict, reasoning: fitted.reasoning }

@@ -1148,3 +1148,80 @@ console.log('loop: args.critics is validated OK')
   ok(cyc.logs.some(l => /dependency cycle/.test(l)), 'and the operator is told')
   console.log('loop: unknown edges dropped, cycles broken wholesale, never a deadlock OK')
 }
+
+// ---------------------------------------------------------------------------
+// #26 — a builder that answers every absence by appending grows the artifact
+// monotonically while every round is locally correct. One number per round
+// makes it visible; nothing else in a run would.
+// ---------------------------------------------------------------------------
+{
+  const grew = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 4,
+    sizes: round => 1000 + round * 250,
+    rounds: [],
+  })
+  eq(grew.result.size_by_round.map(x => x.bytes), [1250, 1500, 1750, 2000], 'a size is recorded for every round')
+  ok(/GREW EVERY ROUND/.test(grew.result.size_note || ''), 'monotonic growth is called out')
+  ok(/\+750/.test(grew.result.size_note), 'with the total delta, so the reader need not do arithmetic')
+
+  const shrank = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 4,
+    sizes: round => 2000 - round * 100,
+    rounds: [],
+  })
+  eq(shrank.result.size_note, null, 'an artifact that shrinks draws no note')
+
+  const mixed = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 4,
+    sizes: round => (round === 3 ? 900 : 1000 + round * 100),
+    rounds: [],
+  })
+  eq(mixed.result.size_note, null, 'and one that goes down at any point is not monotonic growth')
+
+  const unmeasured = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 4,
+    rounds: [],
+  })
+  eq(unmeasured.result.size_by_round, [], 'a probe that returns nothing records nothing rather than guessing')
+  eq(unmeasured.result.size_note, null, 'and draws no conclusion from measurements it does not have')
+  console.log('loop: artifact size is measured per round and monotonic growth is called out OK')
+}
+
+// The size probe and the breaker each know ONE narrow fact. Widening either is
+// what the split exists to prevent.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: n => n <= 1,
+    sizes: 1234,
+    rounds: [],
+  })
+  const size = r.prompts.find(p => p.label === 'round-1:size')
+  const breaker = r.prompts.find(p => p.label === 'round-1:breaker')
+  ok(size.prompt.includes(CANDIDATE), 'the size probe is given the candidate path')
+  ok(!size.prompt.includes(TOKEN), 'and never the run token — it cannot cancel anything')
+  ok(breaker.prompt.includes(TOKEN), 'the breaker is given the token')
+  ok(!breaker.prompt.includes(CANDIDATE), 'and never a path to either artifact')
+  ok(!size.prompt.includes(REFERENCE), 'neither probe learns the reference')
+  console.log('loop: the size probe knows the path, the breaker knows the token, neither knows both OK')
+}
+
+// The builder is told that closing a gap need not mean adding, and the critic
+// that a gap may be an excess.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: n => n <= 1,
+    rounds: [{ candidateWins: false, gap: 'g', margin: 'clear' }],
+  })
+  const build = r.prompts.find(p => p.label === 'round-1:build')
+  ok(/does not have to mean ADDING/.test(build.prompt), 'the builder is told adding is one option, not the option')
+  ok(/grows every round is usually losing/.test(build.prompt), 'and why')
+  const critic = r.prompts.find(p => p.label === 'round-1:ab')
+  ok(/EXCESS as readily as an absence/.test(critic.schema.properties.gap.description), 'the gap field admits an excess, not only a lack')
+  console.log('loop: adding is framed as one way to close a gap, and a gap may be an excess OK')
+}

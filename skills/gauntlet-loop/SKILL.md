@@ -166,6 +166,11 @@ did **not** guarantee. If the two artifact paths were not comparable, the
 blindness claim is withheld and replaced by a disclosure that the A/B was not
 blind at all.
 
+**The artifact's size is measured every round**, by a probe that knows the path
+and nothing else. If it grows every round the verdict says so: a builder that
+answers every absence by appending can grow an artifact indefinitely while each
+individual round is locally correct, and nothing else here would notice.
+
 **A win where nothing was ever built is flagged.** If every piece wins its first
 round, the builder never ran and the loop never looped — usually a sign the bar
 was weak or the goal was fitted to the candidate. The verdict says

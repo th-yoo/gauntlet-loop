@@ -125,6 +125,15 @@ export async function runLoop(opts) {
 
     if (label === 'decompose') return opts.lead || null
 
+    // opts.sizes -> function(round) -> bytes, or a fixed number. Default: no
+    // measurement, so a test that says nothing about size records none.
+    if (label.endsWith(':size')) {
+      const round = roundOf(label)
+      if (opts.sizes === undefined) return null
+      const b = typeof opts.sizes === 'function' ? opts.sizes(round) : opts.sizes
+      return b == null ? null : { bytes: b, evidence: 'stub size probe' }
+    }
+
     if (label.endsWith(':breaker')) {
       const round = roundOf(label)
       if (typeof opts.breaker !== 'function') return { token: 'PRESENT', evidence: 'stub: token present' }
