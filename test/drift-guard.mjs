@@ -163,30 +163,27 @@ for (const needle of LOOP_DISCLOSURES) {
 // CROSS-LANE CONTRACT — the first check in this file whose subject is the
 // RELATION between lanes rather than any one file.
 //
-// Everything above is pinned pairwise INSIDE a lane: critic-prompt.md against
-// gauntlet.js, loop.js against its own agent definitions. Measured consequence
-// (issue #20): plant the same defect — a blind comparer losing its instruction
-// not to reason about provenance — in each lane, and placement alone decides
-// whether anything catches it. The gauntlet.js arm fails this suite; the
-// loop.js arm passed it, exit 0. gauntlet.js is protected only because it
-// happens to have a paired prompt-authority file. A defect whose home is the
-// relation between lanes had nothing to fail.
+// Everything above pins loop.js against its own agent definitions — one lane,
+// checked against itself. This check is the other kind: it asks what the
+// DIRECTORY contains and holds every comparer lane it finds to the same
+// contract, including lanes that do not exist yet.
 //
-// So this does not add loop.js to a list — that would be one entry per
-// incident, and a third lane would reproduce the hole (#3). Lanes are
-// DISCOVERED from the directory, and the contract is required of whichever of
-// them runs a blind two-sided comparison:
+// That distinction was learned the expensive way. When this repo had two lanes,
+// the same defect — a blind comparer losing its instruction not to reason about
+// provenance — was caught in one lane and invisible in the other, because only
+// one of them happened to have a paired prompt-authority file. Placement, not
+// importance, decided whether anything noticed. A check that lists the lanes it
+// guards reproduces that hole the moment a lane is added; a check that discovers
+// them does not.
 //
 //   a LANE            = a .js in the skill dir that spawns agents
 //   a BLIND COMPARER  = a lane declaring a side-naming field whose domain is a
-//                       closed two-option enum. That is the structural
-//                       signature of a forced binary choice, and it does not
-//                       depend on the two side-naming conventions in use today
-//                       ('A'/'B' in loop.js, 'LEFT'/'RIGHT' in gauntlet.js).
+//                       closed two-option enum. That is the structural signature
+//                       of a forced binary choice and does not depend on the
+//                       naming convention any particular lane uses.
 //
 // Checked against COMMENT-STRIPPED source, same rule as LOOP_PINNED: a clause
 // surviving only in a comment reaches no agent.
-// ---------------------------------------------------------------------------
 const LANE_IS_COMPARER = /(winner|ours_side|side)\s*:\s*\{[^}]*enum:\s*\[\s*'[^']+'\s*,\s*'[^']+'\s*\]/
 
 const COMPARER_CONTRACT = [
