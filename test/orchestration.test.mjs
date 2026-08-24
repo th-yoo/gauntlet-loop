@@ -77,7 +77,6 @@ const BASE = {
     { key: 'alpha', lane: 'lane A' },
     { key: 'beta', lane: 'lane B' },
   ],
-  calibratedLens: 'alpha',
 }
 
 const seed = n => ({
