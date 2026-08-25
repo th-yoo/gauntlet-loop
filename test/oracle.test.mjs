@@ -584,3 +584,61 @@ function run(script, args, extraEnv) {
   ok(!/BROKEN/.test(r.out), 'and none of its cases passed because the report failed to run')
   console.log('oracle: grounding, verdict and dispute are re-derived at read time, not read back from what was written OK')
 }
+
+// AN OBSERVATION AND THE RESPONSE IT CLAIMS TO COME FROM HAVE TO BE THE SAME OBSERVATION.
+//
+// Everything else oracle-record enforces is about the INSTRUMENT — that the prompt and
+// schema an observation names are the ones on disk today. Nothing was about the
+// OBSERVATION: the verdict was checked against an enum and the reasoning was whatever the
+// caller passed, so a wholly fabricated one was typed at this interface during a
+// root-cause pass and accepted, scored, and would have counted.
+//
+// --raw does not fix that and cannot: at one keyboard the forger and the checker are the
+// same party. It stops the interface TRUSTING what it is told. Fabricating now means
+// writing a whole plausible response and keeping the flags consistent with it.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'oracle-raw-'))
+  writeFileSync(join(dir, 'corpus.jsonl'), readFileSync(join(ROOT, 'oracle', 'corpus.jsonl')))
+  const env = { ...process.env, ORACLE_CORPUS: join(dir, 'corpus.jsonl'), ORACLE_RESULTS: join(dir, 'results.jsonl') }
+  const row = JSON.parse(readFileSync(join(ROOT, 'oracle', 'corpus.jsonl'), 'utf8').split('\n')[0])
+
+  const ex = run(EXTRACT, ['--artifact', row.artifact, '--goal', row.goal, '--json'], env)
+  eq(ex.code, 0, `extraction for the raw-check cases succeeds — ${ex.out.slice(0, 200)}`)
+  const live = JSON.parse(ex.out)
+  const hashes = ['--prompt-hash', live.prompt_hash, '--schema-fingerprint', live.schema_fingerprint]
+
+  const resp = join(dir, 'resp.json')
+  writeFileSync(resp, JSON.stringify({ verdict: 'does-the-work', reasoning: 'ran make; it produced the binary' }))
+
+  const wrongReason = run(RECORD, ['--row', row.id, '--predicted', 'does-the-work',
+    '--reasoning', 'I decided this myself', ...hashes, '--raw', resp], env)
+  eq(wrongReason.code, 1, 'a reasoning the response does not contain is refused')
+  ok(/--reasoning is not the reasoning in the response/.test(wrongReason.out), 'and says which field disagreed')
+
+  const wrongVerdict = run(RECORD, ['--row', row.id, '--predicted', 'produces-an-instruction',
+    '--reasoning', 'ran make; it produced the binary', ...hashes, '--raw', resp], env)
+  eq(wrongVerdict.code, 1, 'a verdict the response does not carry is refused')
+
+  const missing = run(RECORD, ['--row', row.id, '--predicted', 'does-the-work',
+    '--reasoning', 'x', ...hashes, '--raw', join(dir, 'nope.json')], env)
+  eq(missing.code, 2, 'a corroboration that is not on disk is refused rather than ignored')
+
+  const good = run(RECORD, ['--row', row.id, '--predicted', 'does-the-work',
+    '--reasoning', 'ran make; it produced the binary', ...hashes, '--raw', resp], env)
+  eq(good.code, 0, `fields that agree with the response are recorded — ${good.out.slice(0, 200)}`)
+  const rec = JSON.parse(readFileSync(join(dir, 'results.jsonl'), 'utf8').trim())
+  ok(rec.corroboration && rec.corroboration.raw_hash.startsWith('sha256:'),
+     'and the observation carries the response it came from, hashed — writing the file without linking it leaves corroboration nothing joins to the ledger')
+
+  // OPTIONAL, DELIBERATELY. A person who ran the probe in a chat window has no file to
+  // point at, and refusing them would push the same attestation through an empty gesture.
+  // What the corpus gains is the distinction, which oracle-report prints.
+  const attested = run(RECORD, ['--row', row.id, '--predicted', 'does-the-work',
+    '--reasoning', 'transcribed by hand', ...hashes, '--observer', 'a-person'], env)
+  eq(attested.code, 0, 'an observation with no raw response is still accepted')
+  const both = readFileSync(join(dir, 'results.jsonl'), 'utf8').trim().split('\n').map(l => JSON.parse(l))
+  eq(both.filter(o => o.corroboration).length, 1, 'and only the corroborated one carries corroboration')
+
+  rmSync(dir, { recursive: true, force: true })
+  console.log('oracle: an observation must agree with the response it names, and attested ones are marked as such OK')
+}

@@ -32,7 +32,7 @@ const RESULTS = process.env.ORACLE_RESULTS || join(ROOT, 'oracle', 'results.json
 const ROLES = ['does-the-work', 'produces-an-instruction', 'could-not-open']
 
 const argv = process.argv.slice(2)
-const FLAGS = ['--row', '--predicted', '--reasoning', '--prompt-hash', '--schema-fingerprint', '--observer', '--what-it-is']
+const FLAGS = ['--row', '--predicted', '--reasoning', '--prompt-hash', '--schema-fingerprint', '--observer', '--what-it-is', '--raw']
 const arg = n => {
   const i = argv.indexOf(n)
   if (i === -1) return null
@@ -47,14 +47,63 @@ const promptHash = arg('--prompt-hash')
 const schemaFp = arg('--schema-fingerprint')
 const observer = arg('--observer') || 'unnamed'
 const whatItIs = arg('--what-it-is')
+const rawPath = arg('--raw')
 
 if (!rowId || !predicted || !promptHash || !schemaFp) {
-  console.error('usage: node scripts/oracle-record.mjs --row <id> --predicted <role> --reasoning "<text>" --prompt-hash <hash> --schema-fingerprint <hash> [--observer <name>] [--what-it-is "<text>"]')
+  console.error('usage: node scripts/oracle-record.mjs --row <id> --predicted <role> --reasoning "<text>" --prompt-hash <hash> --schema-fingerprint <hash> [--observer <name>] [--what-it-is "<text>"] [--raw <response file>]')
   process.exit(2)
 }
 if (!ROLES.includes(predicted)) {
   console.error(`record: "${predicted}" is not one of the three roles the schema allows (${ROLES.join(', ')}). An observation outside the schema is not an observation of this instrument.`)
   process.exit(2)
+}
+
+// --raw: THE FIELDS MUST AGREE WITH A RESPONSE ON DISK, or they are just typing.
+//
+// Everything above this line validates the INSTRUMENT — that the prompt and schema an
+// observation claims are the ones on disk today. Nothing validated the OBSERVATION: the
+// verdict is checked against an enum, and the reasoning and observer are whatever the
+// caller passed. During a root-cause pass a wholly fabricated observation was typed at
+// this interface and accepted, scored, and would have counted.
+//
+// This cannot fix that — the party who would forge a response is the party running the
+// check, and no local mechanism separates them. What it can do is stop the interface
+// TRUSTING what it is told: when a raw response is supplied, the verdict and reasoning
+// must be the ones it actually contains. Fabricating then means writing a whole plausible
+// response and keeping the flags consistent with it, rather than typing three flags.
+//
+// Optional on purpose. A human who ran the probe in a chat window and is transcribing
+// honestly has no raw file to point at, and refusing them would not make the corpus more
+// truthful — it would push the same attestation through a mandatory empty gesture. What
+// the corpus gains instead is the DISTINCTION: oracle-report counts corroborated
+// observations separately, so how much of a rate rests on typing is visible rather than
+// assumed.
+let corroboration = null
+if (rawPath) {
+  const abs = existsSync(resolve(ROOT, rawPath)) ? resolve(ROOT, rawPath) : rawPath
+  if (!existsSync(abs)) {
+    console.error(`record: --raw ${rawPath} does not exist. A corroboration that is not on disk corroborates nothing.`)
+    process.exit(2)
+  }
+  const rawText = readFileSync(abs, 'utf8')
+  let body
+  try { body = JSON.parse(rawText.slice(rawText.indexOf('{'), rawText.lastIndexOf('}') + 1)) } catch {
+    console.error(`record: --raw ${rawPath} holds no JSON object, so there is nothing in it to compare these fields against.`)
+    process.exit(2)
+  }
+  // Compared against the PARSED response, not against the file's text: a reasoning string
+  // containing a quote or a newline is escaped on disk, so a substring test would refuse a
+  // faithful transcription and pass a lucky one.
+  const mismatch = []
+  if (body.verdict !== predicted) mismatch.push(`--predicted ${JSON.stringify(predicted)} but the response says ${JSON.stringify(body.verdict)}`)
+  if (reasoning !== null && String(body.reasoning || '') !== reasoning) mismatch.push('--reasoning is not the reasoning in the response')
+  if (mismatch.length) {
+    console.error(`record: the fields do not agree with ${rawPath}:`)
+    for (const m of mismatch) console.error(`  ${m}`)
+    console.error('An observation and the response it claims to come from have to be the same observation.')
+    process.exit(1)
+  }
+  corroboration = { raw: rawPath, raw_hash: 'sha256:' + createHash('sha256').update(rawText).digest('hex') }
 }
 if (!existsSync(CORPUS)) { console.error('record: oracle/corpus.jsonl does not exist — add a row first.'); process.exit(2) }
 
@@ -125,6 +174,9 @@ const rec = {
   template_hash: live.template_hash,
   schema_fingerprint: schemaFp,
   observer,
+  // Present only when a response on disk was checked against these fields. Its absence
+  // means attested, and oracle-report says so rather than letting the two look alike.
+  ...(corroboration ? { corroboration } : {}),
 }
 appendFileSync(RESULTS, JSON.stringify(rec) + '\n')
 console.log(`recorded ${rowId}: expected ${row.expected_role}, got ${predicted} — ${rec.correct ? 'CORRECT' : 'WRONG'}`)

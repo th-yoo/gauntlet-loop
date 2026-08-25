@@ -275,6 +275,15 @@ for (const [k, rs] of cohorts) {
     // artifact measured twice masquerade as two.
     console.log(`     distinct artifacts ${distinct}${distinct < n ? '   <- the number that bears on any statistical claim' : ''}`)
     console.log(`     misclassified     ${wrong.length}`)
+    // CORROBORATED vs ATTESTED. Every field of an observation except the verdict's
+    // membership in the schema used to be whatever the caller passed, and a fabricated one
+    // was typed at that interface and accepted during a root-cause pass. Nothing local can
+    // separate a forger from a checker at one keyboard, so this does not claim to. It
+    // reports how much of the rate rests on a response that exists on disk and was checked
+    // against the fields, and how much rests on someone's word — which is the difference
+    // between a stated limit and a hidden one.
+    const corrob = a.filter(o => o.corroboration).length
+    console.log(`     corroborated      ${corrob}/${n}${corrob === 0 ? ' — every observation here is attested: the fields were accepted as given' : corrob < n ? ' — the rest are attested' : ''}`)
 
     // ANSWER STABILITY, which this report has been listing as unestablished since it
     // was written. Accuracy and stability are different questions and the same rows

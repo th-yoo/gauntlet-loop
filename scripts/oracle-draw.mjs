@@ -168,7 +168,12 @@ for (const row of targets) {
       '--row', row.id, '--predicted', parsed.verdict,
       '--reasoning', String(parsed.reasoning || ''), '--what-it-is', String(parsed.what_it_is || ''),
       '--prompt-hash', live.prompt_hash, '--schema-fingerprint', live.schema_fingerprint,
-      '--observer', `${observer}:${d}`], { encoding: 'utf8', cwd: ROOT, timeout: 60_000 })
+      '--observer', `${observer}:${d}`,
+      // The response this observation came from, checked by oracle-record against these
+      // very fields. Writing the file and not referencing it — which is what this did at
+      // first — leaves corroboration sitting beside the ledger with nothing joining them,
+      // and an observation you cannot trace back to a response is an attested one.
+      '--raw', rawPath.replace(ROOT + '/', '')], { encoding: 'utf8', cwd: ROOT, timeout: 60_000 })
     console.log(`${row.id} draw ${d}/${draws}  ${parsed.verdict}  ${ms} ms  raw ${rawPath.replace(ROOT + '/', '')}  ${rec.status === 0 ? String(rec.stdout).trim() : 'RECORD REFUSED: ' + String(rec.stderr || '').trim().split('\n')[0]}`)
     produced.push({ row: row.id, verdict: parsed.verdict, recorded: rec.status === 0 })
   }
