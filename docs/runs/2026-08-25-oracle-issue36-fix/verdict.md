@@ -129,3 +129,24 @@ imperfect attempt at the goal is not a handoff.
 **What this still does not support.** Six rows in one arm and five in the other, both
 intervals past 30%, and five of eleven rows have any stability evidence at all. The
 report continues to say so.
+
+---
+
+## Stability across the whole corpus
+
+All eleven rows now have at least two draws under the current instrument.
+
+```
+   does-the-work   12 obs / 6 distinct / 0 wrong   0/12, 95% CI [0%, 24%]
+                   0/6 redrawn rows flipped
+                   derived false refusal 0%–37%
+   generator       11 obs / 5 distinct / 0 wrong   0/11, 95% CI [0%, 26%]
+                   0/5 redrawn rows flipped
+```
+
+Twenty-three observations since the #36 fix, no flips. Before the fix there was one,
+on `partial-handoff`, which is what the fix was for.
+
+**The distinct-artifact count is still 6 and 5.** Repeat draws bound instability; they
+do not add coverage, and the report reports them separately for exactly that reason.
+The intervals narrowed because observations grew, not because the corpus did.
