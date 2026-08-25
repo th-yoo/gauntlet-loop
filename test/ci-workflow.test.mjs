@@ -32,10 +32,16 @@
 //   The required set is DERIVED from the corpus below, not hardcoded, so a row
 //   added later that needs a new binary fails this check instead of failing CI.
 //
-// RC3 — `oracle-draw` spawns a live model and must never run on a runner.
-//   `run-all` sets GAUNTLET_SUITE=1 on every descendant and
+// RC3 — one script in `scripts/` spawns a live model and must never run on a
+//   runner. `run-all` sets GAUNTLET_SUITE=1 on every descendant and
 //   `test/containment.test.mjs` asserts the refusal, so this is already mechanical.
 //   What this checks is that the workflow does not weaken it.
+//
+//   The spawner is DISCOVERED here, never named. test/containment.test.mjs forbids
+//   any file under test/ from containing its stem at all — even in a comment —
+//   because a mutation sweep runs these files and this repo once reached spawn
+//   depth 13. Deriving it also means a second spawner added later is covered
+//   without this file being edited.
 
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -97,8 +103,26 @@ if (!existsSync(WF_DIR)) {
   }
 }
 
+// COMMENTS ARE STRIPPED BEFORE ANY ASSERTION READS THE FILE.
+//
+// Without this, prose satisfies every check below: a workflow explaining that a
+// model-spawner must never run would be flagged AS running it, and a comment merely
+// naming sqlite3 would satisfy the toolchain requirement. Both directions are wrong
+// and the second is the dangerous one — it passes.
+//
+// This is the third time this defect has appeared here. 65fc73f fixed it in
+// containment; the same scan in drift-guard was counting an `eq(` written inside a
+// comment as an assertion until it was fixed today. A rule that keeps recurring in
+// new scans is a rule the next scan will need too.
+//
+// A `#` inside a quoted YAML scalar would be over-stripped. No value in this file
+// contains one, and the failure mode is a false FAIL — loud, not silent.
+function stripYamlComments(src) {
+  return src.split('\n').map(l => l.replace(/(^|\s)#.*$/, '$1')).join('\n')
+}
+
 if (wf) {
-  const text = wf.text
+  const text = stripYamlComments(wf.text)
 
   console.log('ci-workflow: it triggers without anyone remembering')
   ok(/^\s*(on:|"on":)/m.test(text), `${wf.f} has no trigger block`)
@@ -111,18 +135,44 @@ if (wf) {
 
   console.log('ci-workflow: every binary the corpus needs is guaranteed')
   console.log(`          derived from oracle/corpus.jsonl: ${NEEDED.join(', ') || '(none)'}`)
+  // MATCHED AGAINST THE REQUIRED LIST, not against the file. Scanning the whole
+  // workflow passed on the step's own success message: removing sqlite3 from the
+  // verification loop left `echo "toolchain present: ... sqlite3"` behind, and the
+  // check went green against a string that verifies nothing. Caught by mutation,
+  // not by reading — a guard satisfied by a message is the same defect as one
+  // satisfied by a comment.
+  const required = (text.match(/REQUIRED="([^"]*)"/) || [, ''])[1].split(/\s+/).filter(Boolean)
+  console.log(`          workflow verifies: ${required.join(', ') || '(nothing)'}`)
+  if (!required.length) {
+    fail(`${wf.f} has no REQUIRED="..." toolchain list — nothing in it checks that the runner can execute the corpus acceptance commands`)
+  }
   for (const bin of NEEDED) {
-    // Either the workflow installs it, or it names it as assumed-present with the
-    // runner image that provides it. Silence is what fails.
-    if (!new RegExp(`(^|[^A-Za-z0-9_-])${bin}([^A-Za-z0-9_-]|$)`, 'm').test(text)) {
-      fail(`${wf.f} never mentions "${bin}", which oracle-report runs when it re-checks a corpus acceptance command — a workflow missing it goes red for something that is not a defect, and a CI that cries wolf gets switched off`)
+    if (!required.includes(bin)) {
+      fail(`${wf.f} does not verify "${bin}", which oracle-report runs when it re-checks a corpus acceptance command — a workflow missing it goes red for something that is not a defect, and a CI that cries wolf gets switched off`)
     }
   }
 
   console.log('ci-workflow: it does not weaken the model-spawn containment')
   ok(!/GAUNTLET_SUITE\s*:\s*['"]?0/.test(text), `${wf.f} sets GAUNTLET_SUITE=0 — that is the flag test/containment.test.mjs relies on to keep a live model from being spawned on a runner`)
-  ok(!/oracle-draw/.test(text), `${wf.f} references oracle-draw, which spawns a live model. It must never run on a runner.`)
-  ok(!/\bclaude\b/.test(text), `${wf.f} references the claude binary — no workflow here should invoke a model`)
+  // The stems are read off disk, so this file never contains one. Same discovery
+  // rule as containment: a spawn-family call whose binary literal is model-shaped.
+  const SPAWN_CALL = /\b(spawnSync|spawn|execFileSync|execFile|execSync|exec)\s*\(\s*['"`]([^'"`\n]+)['"`]/g
+  const MODEL_SHAPED = /(^|[^a-z])claude([^a-z]|$)/i
+  const spawnerStems = readdirSync(join(ROOT, 'scripts'))
+    .filter(f => f.endsWith('.mjs'))
+    .filter(f => [...readFileSync(join(ROOT, 'scripts', f), 'utf8').matchAll(SPAWN_CALL)]
+                   .some(m => MODEL_SHAPED.test(m[2])))
+    .map(f => f.replace(/\.mjs$/, ''))
+  console.log(`          model-spawners discovered in scripts/: ${spawnerStems.length}`)
+  if (!spawnerStems.length) {
+    // A scan matching nothing cannot fail informatively — containment's own lesson.
+    console.log('          (none found: either there are none, or the discovery pattern has gone blind)')
+  }
+  for (const stem of spawnerStems) {
+    ok(!new RegExp(`(^|[^A-Za-z0-9_-])${stem}([^A-Za-z0-9_-]|$)`).test(text),
+       `${wf.f} references the model-spawner "${stem}" — it must never run on a runner`)
+  }
+  ok(!MODEL_SHAPED.test(text), `${wf.f} names a model binary — no workflow here should invoke one`)
 }
 
 // ---------------------------------------------------------------------------

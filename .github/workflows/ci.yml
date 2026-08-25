@@ -1,0 +1,95 @@
+# Run the suite on a machine that did not write the code.
+#
+# This exists for one failure class, and it is not "tests are good". #43's
+# pre-push gate already runs the suite before every push — on the machine that
+# wrote it. What no local gate can catch, at any level of diligence, is a defect
+# whose whole nature is "works here, nowhere else". This repo shipped one:
+# ebb630a, where all 14 oracle/corpus.jsonl rows stored an absolute path from the
+# authoring machine. Every local check was green there. On a second machine the
+# suite was red and oracle-report exited 1 with two rows ungrounded.
+#
+# So the point of this file is the WORD "foreign" — a different filesystem
+# layout, a different OS, a different home directory, and a checkout that was
+# never the one anything was authored against.
+#
+# WHY THE TOOLCHAIN IS EXPLICIT. scripts/oracle-report.mjs re-runs every corpus
+# acceptance command rather than trusting the exit code stored when the row was
+# added, so this runner really compiles C, runs make, python3 and sqlite3.
+# test/ci-workflow.test.mjs derives that list from the corpus itself and fails if
+# this file stops accounting for one — because a CI that goes red for a missing
+# interpreter is a CI that gets switched off, which lands the repo back where #44
+# found it.
+#
+# WHAT MUST NEVER RUN HERE. scripts/oracle-draw.mjs spawns a live model.
+# test/run-all.mjs sets GAUNTLET_SUITE=1 on every descendant and
+# test/containment.test.mjs asserts the refusal, so containment is mechanical
+# rather than remembered — this file simply must not weaken it. Nothing below
+# sets GAUNTLET_SUITE, and no step invokes a model.
+
+name: suite
+
+on:
+  push:
+  pull_request:
+  # Weekly, because a repo that goes quiet still rots: an upstream image change
+  # or a dependency of an acceptance command can break a corpus row with no
+  # commit here at all. A red Monday on an untouched tree is a finding.
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Pinned. A floating runtime turns an upstream release into a red suite,
+          # which reads as a defect here and is not one.
+          node-version: '22'
+
+      # cc, make, python3 and sqlite3 are what the corpus acceptance commands
+      # invoke. ubuntu-latest ships all four, and this step asserts that rather
+      # than assuming it: if an image change removes one, the failure says which
+      # binary is missing instead of surfacing as a corpus row that "no longer
+      # grounds", which is the same message a real defect produces.
+      - name: Verify the toolchain the corpus needs
+        run: |
+          set -e
+          # ONE list, named once. It used to be restated in the success echo below,
+          # and test/ci-workflow.test.mjs was satisfied by that echo rather than by
+          # this loop — so removing a binary from the check still passed. A guard
+          # matching a message instead of the executable text is the same defect as
+          # a scan reading comments, which this repo has now fixed three times.
+          REQUIRED="cc make node python3 sqlite3"
+          missing=""
+          for bin in $REQUIRED; do
+            command -v "$bin" >/dev/null 2>&1 || missing="$missing $bin"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::runner image is missing:$missing — oracle-report re-runs corpus acceptance commands and needs these. This is an environment failure, not a defect in the tree." >&2
+            exit 1
+          fi
+          echo "toolchain present: $REQUIRED"
+
+      # No `npm ci`: this repo has no dependencies and no lockfile. Every suite is
+      # plain node with node: imports only.
+      - name: Run the suite
+        run: node test/run-all.mjs
+
+      # The checkout path here is not the one anything was authored against, which
+      # is the property that makes this run worth more than the local gate. Printed
+      # so a green run says WHERE it was green rather than only that it was.
+      - name: Report where this ran
+        if: always()
+        run: |
+          echo "checkout: $GITHUB_WORKSPACE"
+          echo "runner:   $RUNNER_OS"
+          echo "node:     $(node --version)"
