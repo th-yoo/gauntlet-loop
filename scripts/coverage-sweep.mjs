@@ -149,6 +149,7 @@ const PROPERTIES = [
   ['an observation against a changed artifact is refused', OR, 'if (nowHash !== row.artifact_hash) {', 'if (false) {'],
 
   ['the cohort key blanks the goal out of the prompt', OE, "  .split(goal).join('{{GOAL}}')", "  .split('\\u0000never').join('{{GOAL}}')"],
+  ['the cohort key blanks the inspect text out', OE, "  .split(inspect || '\\u0000never').join('{{INSPECT}}')", "  .split('\\u0000never').join('{{INSPECT}}')"],
   ['the cohort key blanks the artifact path out', OE, "  .split(artifact).join('{{ARTIFACT}}')", "  .split('\\u0000never').join('{{ARTIFACT}}')"],
   ['the report groups by template, not by filled-in prompt', OP, "r.template_hash || 'template-unknown:'", "r.prompt_hash || 'template-unknown:'"],
 

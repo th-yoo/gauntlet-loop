@@ -90,6 +90,18 @@ function run(script, args, extraEnv) {
      'but the same template, so they belong to ONE cohort and a rate can be computed across them')
   ok(one.template_hash.startsWith('sha256:'), 'the template hash is recorded')
 
+  // AND --inspect, the third interpolated value. It is a real parameter that loop.js
+  // renders into the prompt, so if it is not blanked out of the template then two rows
+  // differing only in how they say to inspect the artifact land in different cohorts —
+  // the same defect already fixed for the goal and the artifact path, in the one place
+  // it had not been checked.
+  const withA = JSON.parse(run(EXTRACT, ['--artifact', A, '--goal', 'goal one here', '--inspect', 'open it in a hex editor', '--json']).out)
+  const withB = JSON.parse(run(EXTRACT, ['--artifact', A, '--goal', 'goal one here', '--inspect', 'run make -n and read the output', '--json']).out)
+  ok(withA.prompt.includes('hex editor'), 'the inspect text reaches the prompt loop.js would send')
+  ok(withA.prompt_hash !== withB.prompt_hash, 'two different inspect strings are different filled-in prompts')
+  eq(withA.template_hash, withB.template_hash,
+     'but the SAME template, so a row is not split into its own cohort by how it says to look at the artifact')
+
   // And the template must still be sensitive to the thing it exists to detect.
   const loop = readFileSync(join(ROOT, 'skills', 'gauntlet-loop', 'loop.js'), 'utf8')
   ok(loop.includes('Being short, incomplete, badly written, or bad at the goal does not change the answer'),
