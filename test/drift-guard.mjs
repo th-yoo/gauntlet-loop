@@ -531,6 +531,45 @@ console.log('drift-guard: every agent type the silence check asks about is one t
   }
 }
 
+// THE ORACLE REPORT'S DISCLOSURES, pinned the same way loop.js's are.
+//
+// These sentences are what stops a number being read as more than it is: that the
+// corpus is whoever built it chose, that one draw per row is not stability, that the
+// classification rule is one rule but the coverage is only the corpus. They are cheap
+// to delete and they get cheaper to delete exactly as the numbers start looking good,
+// which is when they matter most.
+//
+// Checked against RAW SOURCE, so commenting one out fails too — the same rule the
+// loop.js disclosure scan learned. Matched on a distinctive phrase rather than a
+// name-shaped needle, because these are long sentences and collision is implausible.
+console.log('drift-guard: the oracle report still discloses what it cannot establish')
+{
+  const ORACLE_DISCLOSURES = [
+    // Deleting this makes a corpus of six rows read as a sample of the world.
+    'Selection bias is not corrected',
+    // Deleting this makes one observation per row read as a measured accuracy.
+    'Answer stability',
+    // Deleting this lets "one rule" be heard as "covers everything".
+    'which artifacts were put in',
+    // The refusal itself. Without it the tool prints a rate at any n.
+    'CANNOT BE POSED',
+    // The independence assumption behind the derived per-run figure, which is not
+    // measured anywhere and is probably false — same model, same run.
+    'ASSUMING the two sides fail independently',
+    // The distinct-artifact count. Without it, one artifact measured twice reads as n=2 —
+    // the error the #33 investigation made in its own write-up.
+    'distinct artifacts',
+  ]
+  const reportPath = join(ROOT, 'scripts', 'oracle-report.mjs')
+  let report = ''
+  try { report = readFileSync(reportPath, 'utf8') } catch { fail('scripts/oracle-report.mjs could not be read, and it is the file that states what the oracle cannot establish') }
+  for (const d of ORACLE_DISCLOSURES) {
+    if (report && !report.includes(d)) {
+      fail(`scripts/oracle-report.mjs no longer says "${d}". That sentence is what keeps a small-sample number from being read as a measurement, and it is easiest to drop exactly when the numbers look good.`)
+    }
+  }
+}
+
 console.log('drift-guard: every repo-relative path cited in a live file still exists')
 for (const rel of LIVE_SURFACES) {
   let text

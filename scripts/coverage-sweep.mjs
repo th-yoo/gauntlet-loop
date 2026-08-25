@@ -163,6 +163,10 @@ const PROPERTIES = [
   ['a row whose artifact was deleted takes no observation', OR, 'if (!existsSync(abs)) {', 'if (false) {'],
   ['an all-disputed arm reports the disagreement', OP, '    if (!a.length) {', '    if (false) {'],
 
+  ['the report keeps its selection-bias disclosure', OP, 'Selection bias is not corrected', 'REMOVED'],
+  ['the report keeps its small-sample refusal', OP, 'CANNOT BE POSED', 'REMOVED'],
+  ['the report keeps the independence caveat', OP, 'ASSUMING the two sides fail independently', 'REMOVED'],
+
   // --- the shipped tools refuse a wrong invocation (#98) --------------------
   // NOT listed: needleFrom's `!lines.length` guard. It sweeps NOT CAUGHT and that
   // is correct — removing it yields [].sort()[0] === undefined, which the !needle
