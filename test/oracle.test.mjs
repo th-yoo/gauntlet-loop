@@ -585,17 +585,18 @@ function run(script, args, extraEnv) {
   console.log('oracle: grounding, verdict and dispute are re-derived at read time, not read back from what was written OK')
 }
 
-// AN OBSERVATION AND THE RESPONSE IT CLAIMS TO COME FROM HAVE TO BE THE SAME OBSERVATION.
+// AN OBSERVATION AND THE RESPONSE IT NAMES HAVE TO BE THE SAME OBSERVATION.
 //
-// Everything else oracle-record enforces is about the INSTRUMENT — that the prompt and
-// schema an observation names are the ones on disk today. Nothing was about the
-// OBSERVATION: the verdict was checked against an enum and the reasoning was whatever the
-// caller passed, so a wholly fabricated one was typed at this interface during a
-// root-cause pass and accepted, scored, and would have counted.
+// oracle-record validates the INSTRUMENT — that the prompt and schema an observation
+// names are the ones on disk today. It did not validate the observation: the verdict was
+// checked against an enum and the reasoning was whatever the caller passed, so an entry
+// transcribed from the wrong draw or paraphrased from memory recorded as cleanly as an
+// accurate one.
 //
-// --raw does not fix that and cannot: at one keyboard the forger and the checker are the
-// same party. It stops the interface TRUSTING what it is told. Fabricating now means
-// writing a whole plausible response and keeping the flags consistent with it.
+// --raw is a precaution with no incident behind it. No mis-recorded observation appears
+// anywhere in this corpus's history, and it could not now be found if one existed, since
+// no responses were kept before this. It is not a defence against anyone: a person can
+// write the file too. It checks that what was typed matches what the response says.
 {
   const dir = mkdtempSync(join(tmpdir(), 'oracle-raw-'))
   writeFileSync(join(dir, 'corpus.jsonl'), readFileSync(join(ROOT, 'oracle', 'corpus.jsonl')))

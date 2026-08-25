@@ -13,12 +13,12 @@
 // observation belongs to, never that anybody ran it. And re-collection after a prompt
 // change costs one hand invocation per draw, which is why evidence lags the prompt.
 //
-// WHAT IT CAN AND CANNOT ESTABLISH, said plainly because #39 asks for more than is
-// achievable. It cannot PROVE an observation came from an agent: anything this tool passes
-// to oracle-record, a person at the same keyboard can pass too. What it can do is record
-// corroboration a typist would have to fabricate wholesale — the raw response as returned,
-// its hash, the exact prompt hash sent, the invocation, and the wall-clock duration. That
-// is over-determination, not proof, and the report should describe it that way.
+// WHAT IT RECORDS, AND WHAT THAT IS WORTH. Each draw's response is written to disk and
+// named by the observation, so an observation can be traced back to the text it came
+// from. That is not a proof of origin and is not offered as one — a person recording by
+// hand could write the same file, and nothing here would know. Nothing in this corpus's
+// history shows that happening. What it makes checkable is narrower: that an
+// observation's fields are the ones its response actually contains.
 //
 // ── CONTAINMENT ─────────────────────────────────────────────────────────────────────
 // This repository has already produced a fork bomb: a live `claude -p` sat in a test
@@ -158,9 +158,8 @@ for (const row of targets) {
       console.error(`oracle-draw: ${row.id} draw ${d} answered "${parsed.verdict}", outside the schema. Not recorded.`)
       continue
     }
-    // The corroboration. Not proof — a person could write this file too — but a typist
-    // would have to fabricate the whole response, and the prompt hash it names is
-    // re-derived by oracle-record against the live script.
+    // The response, kept so the observation can be traced back to it. oracle-record
+    // refuses unless the fields it is handed are the ones this file contains.
     mkdirSync(RAW, { recursive: true })
     const rawPath = join(RAW, `${row.id}-${live.prompt_hash.slice(7, 19)}-${sha(raw).slice(7, 15)}.txt`)
     writeFileSync(rawPath, raw)
@@ -181,5 +180,5 @@ for (const row of targets) {
 
 if (dryRun) { console.log(`\n[dry-run] ${targets.length} row(s) x ${draws} draw(s) = ${targets.length * draws} spawns, ceiling ${MAX_SPAWNS_PER_RUN}. Nothing was spawned and nothing was recorded.`); process.exit(0) }
 console.log(`\n${spawned} spawn(s), ${produced.filter(p => p.recorded).length} recorded.`)
-console.log('Provenance is corroborated, not proven: the raw responses are on disk and the prompt hashes were')
-console.log('re-derived by oracle-record, but nothing here distinguishes this tool from a person at the same keyboard.')
+console.log('Each observation names the response it came from, and oracle-record checked its fields')
+console.log('against that response. That records where an observation came from; it does not establish it.')

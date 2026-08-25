@@ -58,26 +58,28 @@ if (!ROLES.includes(predicted)) {
   process.exit(2)
 }
 
-// --raw: THE FIELDS MUST AGREE WITH A RESPONSE ON DISK, or they are just typing.
+// --raw: THE FIELDS MUST AGREE WITH A RESPONSE ON DISK.
 //
 // Everything above this line validates the INSTRUMENT — that the prompt and schema an
 // observation claims are the ones on disk today. Nothing validated the OBSERVATION: the
-// verdict is checked against an enum, and the reasoning and observer are whatever the
-// caller passed. During a root-cause pass a wholly fabricated observation was typed at
-// this interface and accepted, scored, and would have counted.
+// verdict is checked against an enum, and the reasoning is whatever the caller passed. So
+// an observation transcribed from the wrong draw, or paraphrased from memory rather than
+// copied, records as cleanly as an accurate one.
 //
-// This cannot fix that — the party who would forge a response is the party running the
-// check, and no local mechanism separates them. What it can do is stop the interface
-// TRUSTING what it is told: when a raw response is supplied, the verdict and reasoning
-// must be the ones it actually contains. Fabricating then means writing a whole plausible
-// response and keeping the flags consistent with it, rather than typing three flags.
+// WHAT THIS IS NOT FOR. It is not a defence against anyone. A person recording by hand
+// can write this file too, and no check that runs here could tell. Nothing in this
+// corpus's history shows that happening, deliberately or otherwise: results.jsonl is
+// insertions-only apart from one schema migration, and no record anywhere describes a
+// corrected observation. This catches a MISMATCH between what was typed and what a
+// response says — a slip, not an attack — and that failure has never been observed here
+// either. It is a precaution with no incident behind it, which is worth saying out loud
+// rather than dressing up.
 //
-// Optional on purpose. A human who ran the probe in a chat window and is transcribing
-// honestly has no raw file to point at, and refusing them would not make the corpus more
-// truthful — it would push the same attestation through a mandatory empty gesture. What
-// the corpus gains instead is the DISTINCTION: oracle-report counts corroborated
-// observations separately, so how much of a rate rests on typing is visible rather than
-// assumed.
+// Optional on purpose. A person who ran the probe in a chat window has no file to point
+// at, and refusing them would push the same hand-recording through an empty gesture. What
+// the corpus gains is the DISTINCTION: oracle-report counts corroborated observations
+// separately, so how many rest on a response that exists is visible rather than assumed.
+
 let corroboration = null
 if (rawPath) {
   const abs = existsSync(resolve(ROOT, rawPath)) ? resolve(ROOT, rawPath) : rawPath
