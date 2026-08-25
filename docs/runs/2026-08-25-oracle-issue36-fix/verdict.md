@@ -98,3 +98,34 @@ deleted nor blended in.
 Both intervals reach past 35%. Eleven correct across eleven shapes — including three
 built specifically to be hard — rules out a classifier badly wrong on obvious cases. It
 does not establish accuracy, and stability is measured on exactly one row.
+
+---
+
+## Stability, measured on five rows instead of one
+
+`answer stability` had been the report's own standing complaint, and after the #36 fix
+it was satisfied on exactly one row — `partial-handoff`, the row the fix was about.
+Every other row had a single draw, so "no flips" meant "not looked at".
+
+Four more second draws, chosen where a flip was most plausible: the two does-the-work
+rows nearest the boundary, the one declarative artifact, and one generator.
+
+```
+   does-the-work    9 obs / 6 distinct / 0 wrong    0/9, 95% CI [0%, 30%]
+                    0/3 redrawn rows flipped
+   generator        8 obs / 5 distinct / 0 wrong    0/8, 95% CI [0%, 32%]
+                    0/2 redrawn rows flipped
+```
+
+Five rows now drawn twice, none flipped — plus `partial-handoff` drawn three times.
+Before the #36 fix, the one flip in the record was on that row.
+
+One draw is worth quoting, because it shows the rule being applied rather than
+pattern-matched. On `sql-schema`, the second drawer noticed the schema's primary key is
+a surrogate `id` rather than `email` itself, called the fit to *"keyed by email"*
+imperfect — and still answered `does-the-work`, citing the clause: a partial or
+imperfect attempt at the goal is not a handoff.
+
+**What this still does not support.** Six rows in one arm and five in the other, both
+intervals past 30%, and five of eleven rows have any stability evidence at all. The
+report continues to say so.
