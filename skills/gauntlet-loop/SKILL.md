@@ -189,7 +189,7 @@ Beyond `outcome` and `history`, the fields worth knowing before you read one:
 | field | what it tells you |
 |---|---|
 | `rounds` | how many rounds ran in total. In a split run this is the sum across pieces, not the round any one piece won at |
-| `decomposition` | what the lead decided: the criterion it split on and the pieces it kept, or `refused` and why. Also how many proposed pieces were dropped for naming no observable |
+| `decomposition` | what the lead decided: the criterion it split on and the pieces it kept, or `refused` and why. Also how many proposed pieces were dropped for naming no observable. `refused` is set only when the lead ANSWERED and declined to split; a lead that returned nothing sets `no_plan_returned` instead, because running the artifact whole is also what a genuine refusal produces and the two must not read alike |
 | `gaps_in_order` | every gap in the order it came back, each naming its piece. **Read this first.** Gaps getting smaller and more specific mean the loop is working; round 5 restating round 1 means it is not |
 | `enforced` | properties this run could not lose — each one a tool restriction or a structural fact, not a promise someone remembered to keep |
 | `not_enforced` | what it did **not** check, and what a clean result there does and does not mean. The most important field in the verdict |

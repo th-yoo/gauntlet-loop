@@ -1109,6 +1109,8 @@ const decomposition_ = pendingProbe ? await decompose() : null
 decomposition = decomposition_
 if (decomposition && decomposition.refused) {
   log(`NOTE: not decomposed — ${decomposition.why}. Running the artifact whole, which is this loop's behaviour when nothing splits.`)
+} else if (!decomposition) {
+  log(`WARNING: the lead returned nothing, so nothing decided whether this artifact should be split. Running it whole — which is also what a lead that REFUSED to split produces, so do not read this run as a decomposition judgement.${silenceNote('gauntlet-loop:gauntlet-lead')}`)
 } else if (decomposition) {
   log(`decomposed into ${decomposition.pieces.length} piece(s): ${decomposition.pieces.map(p => p.name).join(', ')}${decomposition.dropped ? ` (${decomposition.dropped} dropped for naming no observable)` : ''}`)
 }
@@ -1380,7 +1382,7 @@ know, and a fresh critic decides next round. Report what you changed, factually.
   )
 
   if (!built) {
-    pieceOutcome = { status: 'ERROR', why: `builder returned nothing at round ${round}${piece.name ? ` of piece "${piece.name}"` : ''}` }
+    pieceOutcome = { status: 'ERROR', why: `builder returned nothing at round ${round}${piece.name ? ` of piece "${piece.name}"` : ''}` + silenceNote('gauntlet-loop:gauntlet-builder') }
     break
   }
 
@@ -1634,7 +1636,7 @@ if (DECOMPOSED && outcome.status === 'WON' && PIECES_EDIT_THE_WHOLE) {
   if (threw) {
     split_check = { ran: false, why_not: `the whole-artifact critic threw (${threw}), so the split stands unchecked — read this run as if this check did not exist` }
   } else if (!w) {
-    split_check = { ran: false, why_not: 'the whole-artifact critic returned nothing, so the split stands unchecked — read this run as if this check did not exist' }
+    split_check = { ran: false, why_not: 'the whole-artifact critic returned nothing, so the split stands unchecked — read this run as if this check did not exist' + silenceNote('gauntlet-loop:gauntlet-ab-critic') }
   } else {
     const candidateSide = s.A === CANDIDATE ? 'A' : 'B'
     const candidateWon = w.winner === candidateSide
@@ -1808,7 +1810,15 @@ return {
 
   decomposition: decomposition && decomposition.pieces
     ? { split_criterion: decomposition.split_criterion, pieces: decomposition.pieces.map(p => ({ name: p.name, observable: p.observable })), dropped_for_no_observable: decomposition.dropped || 0, lead_spawns: leadSpawns }
-    : { split_criterion: null, pieces: [], refused: decomposition ? decomposition.why : 'no lead returned a plan', lead_spawns: leadSpawns },
+    : {
+        split_criterion: null,
+        pieces: [],
+        // Only a lead that ANSWERED can refuse. Silence goes in its own field so a
+        // reader cannot mistake it for a judgement the lead never made.
+        refused: decomposition ? decomposition.why : null,
+        no_plan_returned: decomposition ? null : 'the lead returned nothing, so no decomposition judgement was made at all — this run was NOT decomposed, and that is not the same as a lead deciding it should not be' + silenceNote('gauntlet-loop:gauntlet-lead'),
+        lead_spawns: leadSpawns,
+      },
 
   enforced: [
     ...(SIDES_LOOK_ALIKE && !CONTENT_LEAKS ? [

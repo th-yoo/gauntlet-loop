@@ -134,6 +134,10 @@ const PROPERTIES = [
   ['a typo in a silence-check type name is caught', L, "typeProven('gauntlet-loop:gauntlet-breaker')", "typeProven('gauntlet-loop:gauntlet-breakr')"],
   ['a typo in a critic silence-check name is caught', L, "silenceNote('gauntlet-loop:gauntlet-ab-critic')", "silenceNote('gauntlet-loop:gauntlet-critic')"],
 
+  ['a silent lead is not reported as a refusal', L, 'refused: decomposition ? decomposition.why : null,', "refused: decomposition ? decomposition.why : 'no lead returned a plan',"],
+  ['a dead builder says which of the two events it was', L, "+ silenceNote('gauntlet-loop:gauntlet-builder') }", ' }'],
+  ['a silent split check says which it was', L, "read this run as if this check did not exist' + silenceNote('gauntlet-loop:gauntlet-ab-critic') }", "read this run as if this check did not exist' }"],
+
   // --- the shipped tools refuse a wrong invocation (#98) --------------------
   // NOT listed: needleFrom's `!lines.length` guard. It sweeps NOT CAUGHT and that
   // is correct — removing it yields [].sort()[0] === undefined, which the !needle

@@ -755,6 +755,12 @@ console.log('loop: required args throw, and the reference error explains why a b
   const claimed = Number(/(\d+) separate critic spawn/.exec(bullet)[1])
   const verdicts = Number(/(\d+) produced a recorded verdict/.exec(bullet)[1])
   eq(claimed, verdicts + 1, 'the silent critic is counted as a spawn but NOT as a verdict — that gap is the only trace it left')
+  // By the time the whole-artifact check runs, every piece has already won a round,
+  // so the ab-critic type is proven live and this silence is an agent that answered
+  // with nothing. Derived rather than assumed: if that stops being true, the
+  // sentence changes with it instead of asserting something the run cannot support.
+  ok(/registered and working this run/.test(r.result.split_check.why_not || ''),
+     `the silent split check says WHICH of #14's two events it was — got: ${r.result.split_check.why_not}`)
   console.log('loop: a spawned-but-silent split check is distinguished from one that never ran OK')
 }
 
@@ -1007,8 +1013,18 @@ console.log('loop: required args throw, and the reference error explains why a b
   })
   ok(r.result && r.result.outcome, 'a throwing lead still yields a verdict')
   eq(r.result.outcome.status, 'WON', 'the run continues undecomposed rather than dying')
-  ok(/no lead|did not|failed/i.test((r.result.decomposition || {}).refused || ''),
-     'and the verdict says the split never happened, instead of implying the artifact was judged whole by choice')
+  // `refused` is the field that says the lead LOOKED and declined to split. A lead
+  // that never answered made no such judgement, and writing "no lead returned a plan"
+  // into that field reported a silence as a decision — indistinguishable in the
+  // verdict from a working lead correctly deciding not to split.
+  eq((r.result.decomposition || {}).refused, null,
+     'a lead that never answered did not REFUSE anything — only a lead that answered can refuse')
+  ok(/returned nothing/.test((r.result.decomposition || {}).no_plan_returned || ''),
+     `the silence is reported in its own field — got: ${JSON.stringify((r.result.decomposition || {}).no_plan_returned)}`)
+  ok(/not the same as a lead deciding it should not be/.test((r.result.decomposition || {}).no_plan_returned || ''),
+     'and says so explicitly, because running whole is ALSO what a genuine refusal produces')
+  ok(/indistinguishable from the type not being registered/.test((r.result.decomposition || {}).no_plan_returned || ''),
+     'and carries the #14 note — the lead is spawned once per run, so nothing can have proven its type')
   console.log('loop: a lead that throws degrades to running the artifact whole OK')
 }
 
@@ -1724,6 +1740,11 @@ console.log('loop: required args throw, and the reference error explains why a b
     builder: () => null,
   })
   eq(r.result.outcome.status, 'ERROR', 'a builder that returns nothing ends the run rather than looping on an unchanged artifact')
+  // The builder is spawned from ONE site, so a silence in the first round it builds
+  // has nothing to prove its type. The verdict must report that rather than assert
+  // an agent answered — #14 applies to every type, not only the ones with siblings.
+  ok(/indistinguishable from the type not being registered/.test(r.result.outcome.why || ''),
+     `a builder silence before its type is proven reports the #14 ambiguity — got: ${r.result.outcome.why}`)
   ok(/builder returned nothing/.test(r.result.outcome.why || ''),
      `and the verdict says which agent failed — got: ${r.result.outcome.why}`)
   eq(r.result.history.length, 1, 'it stops at that round instead of spending another')
