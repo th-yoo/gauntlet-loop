@@ -114,7 +114,10 @@ const sha = s => 'sha256:' + createHash('sha256').update(s).digest('hex')
 const RAW = join(ROOT, 'oracle', 'raw')
 
 function livePrompt(row) {
-  const r = spawnSync(process.execPath, [EXTRACT, '--artifact', row.artifact, '--goal', row.goal, '--json'],
+  const r = spawnSync(process.execPath, [EXTRACT, '--artifact', row.artifact, '--goal', row.goal,
+    // The absence arm's artifact is not there on purpose; extract refuses a missing path
+    // unless told the absence is the measurement.
+    ...(row.arm === 'could-not-open' ? ['--absent'] : []), '--json'],
     { encoding: 'utf8', cwd: ROOT, timeout: 60_000 })
   if (r.status !== 0) throw new Error(`extraction failed for ${row.id}: ${String(r.stderr || '').trim().split('\n').slice(-2).join(' | ')}`)
   return JSON.parse(r.stdout)

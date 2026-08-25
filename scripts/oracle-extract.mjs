@@ -38,6 +38,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 const argv = process.argv.slice(2)
 const FLAGS = ['--artifact', '--goal', '--inspect']
+// The absence arm. Declared, never inferred — see the refusal below.
+const absent = process.argv.includes('--absent')
 // A value that is itself an option is a MISSING value, not a value. Same rule as
 // scripts/seed-loop-trial.mjs, and it is there because the other spelling produced a
 // tool that reported success against a filename nobody supplied.
@@ -62,8 +64,25 @@ if (!artifact || !goal) {
 // the path into a prompt. But a path that does not exist cannot be an oracle row, and
 // a hash taken against a missing file would pin nothing. Refuse now rather than
 // record a row whose ground truth was never establishable.
-if (!existsSync(resolve(ROOT, artifact)) && !existsSync(artifact)) {
+// EXISTENCE, EXCEPT WHERE THE ABSENCE IS THE MEASUREMENT.
+//
+// "A prompt naming a path that is not there measures nothing, and the hash would pin an
+// absence" is right for the two arms that execute an artifact, and exactly backwards for
+// the third. `could-not-open` is a verdict the probe can return and a way a run gets
+// refused, and the only artifact that produces it is one that is not there — so for that
+// row, pinning an absence IS the measurement.
+//
+// --absent is required rather than inferred. Inferring it would turn every typo'd path
+// into a could-not-open measurement, which is how a corpus fills up with rows nobody
+// meant. The caller states the intent; this refuses to guess it.
+const present = existsSync(resolve(ROOT, artifact)) || existsSync(artifact)
+if (!present && !absent) {
   console.error(`extract: ${artifact} does not exist. A prompt naming a path that is not there measures nothing, and the hash would pin an absence.`)
+  console.error('If the absence IS what this row measures — the could-not-open verdict — pass --absent to say so.')
+  process.exit(2)
+}
+if (present && absent) {
+  console.error(`extract: --absent was given but ${artifact} is there. The probe can open it, so whatever it answers is not could-not-open.`)
   process.exit(2)
 }
 

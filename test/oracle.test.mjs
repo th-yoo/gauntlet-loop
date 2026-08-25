@@ -550,9 +550,13 @@ function run(script, args, extraEnv) {
 {
   const dir = mkdtempSync(join(tmpdir(), 'oracle-arm-'))
   const results = join(dir, 'results.jsonl')
+  // NOT could-not-open any more. This case used that arm when the corpus had no way to
+  // express an absence, so nothing scored it; the corpus gained the arm and the example
+  // stopped being one. The claim is unchanged — an arm the report cannot score must fail
+  // the run rather than vanish — so the example is an arm that is not one.
   writeFileSync(results, JSON.stringify({
-    row: 'cno', arm: 'could-not-open', artifact: '/no/such', expected_role: 'could-not-open',
-    predicted_role: 'could-not-open', correct: true, prompt_hash: 'sha256:P',
+    row: 'x', arm: 'not-an-arm', artifact: '/no/such', expected_role: 'does-the-work',
+    predicted_role: 'does-the-work', correct: true, prompt_hash: 'sha256:P',
     template_hash: 'sha256:T', schema_fingerprint: 'sha256:fp', observer: 't',
   }) + '\n')
 
@@ -563,7 +567,7 @@ function run(script, args, extraEnv) {
 
   eq(code, 1, `an unscored arm fails the run rather than vanishing — got exit ${code}\n${out}`)
   ok(/REFUSING: 1 observation\(s\) carry an arm this report does not score/.test(out), 'and it says how many')
-  ok(/arm "could-not-open"/.test(out), 'and names the arm, so the reader knows what to add')
+  ok(/arm "not-an-arm"/.test(out), 'and names the arm, so the reader knows what to add')
   ok(!/per-side error/.test(out), 'and prints no rate computed without it')
   rmSync(dir, { recursive: true, force: true })
   console.log('oracle: an observation whose arm the report cannot score is refused, not silently dropped OK')

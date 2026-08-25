@@ -54,7 +54,20 @@ const note = arg('--note')
 const inspect = arg('--inspect')
 const force = argv.includes('--force')
 
-if (arm !== 'does-the-work' && arm !== 'generator') {
+// THE ABSENCE ARM. `could-not-open` is the third thing the probe can answer and the third
+// way a run gets refused, and it had zero observations of thirty-eight — not because nobody
+// added the row but because the row could not be added. Two refusals stood in front of it,
+// both correct for the arms that existed: the arm list was closed, and a missing artifact
+// was rejected in a message that named this very verdict.
+//
+// What made it unaddable is that `arm` meant three things at once — which answer the row
+// expects, how it was grounded, and what evidence it carries — so a third answer needed a
+// third grounding even though this one's is the cheapest in the corpus. The deliverable of
+// a could-not-open row is an ABSENCE, and `test ! -e` settles an absence with no judgement
+// in it at all. So the grounding is inverted rather than new: the acceptance command must
+// still exit 0, and what it must establish is that the path is not there.
+const ARMS = ['does-the-work', 'generator', 'could-not-open']
+if (!ARMS.includes(arm)) {
   console.error('usage: node scripts/oracle-add.mjs --arm does-the-work --artifact <path> --goal "<text>" --acceptance "<shell command>" [--id <id>] [--note "<why>"] [--force]')
   console.error('')
   console.error('Only --arm does-the-work is implemented. The generator arm has no mechanical acceptance test —')
@@ -62,6 +75,9 @@ if (arm !== 'does-the-work' && arm !== 'generator') {
   console.error('execute-and-observe procedure in oracle/generator-procedure.md, not from this tool. Adding a')
   console.error('--arm generator path here that took the caller\'s word for the label would rebuild the exact')
   console.error('authored answer key this corpus exists to replace.')
+  console.error('')
+  console.error('--arm could-not-open takes an artifact path that must NOT exist, and an --acceptance that')
+  console.error('establishes the absence (test ! -e <path>). Its ground truth is that there is nothing there.')
   process.exit(2)
 }
 if (!artifact || !goal || (arm === 'does-the-work' && !acceptance)) {
@@ -95,11 +111,19 @@ if (arm === 'generator') {
 }
 
 const abs = existsSync(resolve(ROOT, artifact)) ? resolve(ROOT, artifact) : artifact
-if (!existsSync(abs)) {
-  console.error(`add: ${artifact} does not exist. A row whose artifact cannot be opened measures nothing — this is the same refusal the pairing check makes as "could-not-open".`)
+if (arm === 'could-not-open' && existsSync(abs)) {
+  console.error(`add: ${artifact} EXISTS, and this arm's ground truth is that it does not.`)
+  console.error('A could-not-open row records an absence. If the file is there, the probe can open it, and')
+  console.error('whatever it answers is not this verdict. Point the row at a path that is genuinely not there.')
   process.exit(2)
 }
-if (statSync(abs).isDirectory()) {
+if (arm !== 'could-not-open' && !existsSync(abs)) {
+  console.error(`add: ${artifact} does not exist. A row whose artifact cannot be opened measures nothing — this is the same refusal the pairing check makes as "could-not-open".`)
+  console.error('If an absent path is the POINT of the row, that is --arm could-not-open, whose ground truth is the absence.')
+  process.exit(2)
+}
+// Skipped for the absence arm: there is nothing to stat, which is the row's whole claim.
+if (arm !== 'could-not-open' && statSync(abs).isDirectory()) {
   console.error(`add: ${artifact} is a directory. The pairing check reads one file per side; a directory row would test something the probe never sees.`)
   process.exit(2)
 }
@@ -151,7 +175,10 @@ if (res.error || res.status !== 0) {
 }
 
 const sha = s => 'sha256:' + createHash('sha256').update(s).digest('hex')
-const artifactHash = sha(readFileSync(abs))
+// No hash for an absence. artifact_hash exists so oracle-record can refuse an observation
+// made against different content; for this arm the content IS that there is none, and
+// oracle-record re-checks that the path is still missing instead.
+const artifactHash = arm === 'could-not-open' ? null : sha(readFileSync(abs))
 const id = arg('--id') || artifact.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase()
 
 mkdirSync(join(ROOT, 'oracle'), { recursive: true })
@@ -179,12 +206,14 @@ const row = {
   artifact_hash: artifactHash,
   goal,
   inspect: inspect || null,
-  expected_role: arm === 'generator' ? 'produces-an-instruction' : 'does-the-work',
+  expected_role: arm === 'generator' ? 'produces-an-instruction' : arm === 'could-not-open' ? 'could-not-open' : 'does-the-work',
   // DISPUTED is recorded, not resolved. When the executing agent and the classifying
   // agent disagree about what the emission was, that disagreement IS the finding — a
   // row silently resolved toward the expected label is the answer key again.
   disputed: arm === 'generator' ? disputed : false,
-  evidence: arm === 'generator'
+  evidence: arm === 'could-not-open'
+    ? { method: 'mechanical-absence', acceptance_command: acceptance, exit_code: res.status, stdout_head: null }
+    : arm === 'generator'
     // THE EMISSION IS HASHED, like the artifact. It used to be a bare path, and a bare
     // path is a promise rather than evidence: deleting the file outright changed nothing
     // any tool could see. oracle-report re-checks both existence and this hash on every
@@ -201,7 +230,13 @@ const row = {
 appendFileSync(CORPUS, JSON.stringify(row) + '\n')
 // The generator arm runs no acceptance command, so saying one exited 0 would claim
 // evidence that does not exist — the exact overstatement this corpus is built against.
-console.log(`added ${id} (${arm}) — ${arm === 'generator' ? `grounded on the emission at ${emission}` : 'acceptance exited 0'}, artifact ${artifactHash.slice(0, 23)}…`)
+// Each arm says what actually grounded it. The generator arm runs no acceptance command,
+// so claiming one exited 0 would assert evidence that does not exist; the absence arm has
+// no artifact to hash, because its claim is that there is no artifact.
+console.log(`added ${id} (${arm}) — ${
+  arm === 'generator' ? `grounded on the emission at ${emission}`
+  : arm === 'could-not-open' ? `acceptance exited 0, and ${artifact} is not there — which is the row`
+  : `acceptance exited 0, artifact ${artifactHash.slice(0, 23)}…`}`)
 if (!note) {
   console.error('note: no --note given. Why this row is in the corpus is the part a later reader cannot reconstruct, and')
   console.error('      selection is the bias this corpus does NOT solve. Consider re-adding with --note and --force.')

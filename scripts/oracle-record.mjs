@@ -116,30 +116,46 @@ if (!row) {
   process.exit(2)
 }
 
-// The artifact must still be the one the row was grounded against.
+// The artifact must still be the one the row was grounded against — or, for the absence
+// arm, must still be absent. Same claim either way: the thing an observation was made
+// about has not changed underneath it. A row whose ground truth is "there is nothing
+// there" is invalidated by a file appearing, exactly as a hashed row is by an edit.
 const abs = existsSync(resolve(ROOT, row.artifact)) ? resolve(ROOT, row.artifact) : row.artifact
-if (!existsSync(abs)) {
-  console.error(`record: row "${rowId}" points at ${row.artifact}, which no longer exists. Its ground truth cannot be re-established, so an observation against it means nothing.`)
-  process.exit(1)
-}
-const nowHash = 'sha256:' + createHash('sha256').update(readFileSync(abs)).digest('hex')
-if (nowHash !== row.artifact_hash) {
-  console.error(`record: ${row.artifact} has changed since row "${rowId}" was added.`)
-  console.error(`    grounded against ${row.artifact_hash}`)
-  console.error(`    on disk now      ${nowHash}`)
-  console.error('The row\'s expected role was established for the old content. Re-add the row (--force) before recording.')
-  process.exit(1)
+const isAbsence = row.arm === 'could-not-open'
+if (isAbsence) {
+  if (existsSync(abs)) {
+    console.error(`record: row "${rowId}" is a could-not-open row, but ${row.artifact} now EXISTS.`)
+    console.error('Its ground truth was that there is nothing there. An observation against it now measures something else.')
+    process.exit(1)
+  }
+} else {
+  if (!existsSync(abs)) {
+    console.error(`record: row "${rowId}" points at ${row.artifact}, which no longer exists. Its ground truth cannot be re-established, so an observation against it means nothing.`)
+    process.exit(1)
+  }
+  const nowHash = 'sha256:' + createHash('sha256').update(readFileSync(abs)).digest('hex')
+  if (nowHash !== row.artifact_hash) {
+    console.error(`record: ${row.artifact} has changed since row "${rowId}" was added.`)
+    console.error(`    grounded against ${row.artifact_hash}`)
+    console.error(`    on disk now      ${nowHash}`)
+    console.error('The row\'s expected role was established for the old content. Re-add the row (--force) before recording.')
+    process.exit(1)
+  }
 }
 
-// THE INSTRUMENT CHECK. Re-extract, right now, from the loop.js on disk.
+// THE INSTRUMENT CHECK. Re-extract, right now, from the loop.js on disk. --absent is
+// passed through for the absence arm, because extract refuses a missing path unless the
+// caller states that the absence is what is being measured — and here the row states it.
 const ex = spawnSync(process.execPath, [join(ROOT, 'scripts', 'oracle-extract.mjs'),
-  '--artifact', row.artifact, '--goal', row.goal, ...(row.inspect ? ['--inspect', row.inspect] : []), '--json'],
+  '--artifact', row.artifact, '--goal', row.goal, ...(row.inspect ? ['--inspect', row.inspect] : []),
+  ...(isAbsence ? ['--absent'] : []), '--json'],
   { encoding: 'utf8', cwd: ROOT })
 if (ex.status !== 0) {
   console.error('record: could not re-extract the live prompt, so this observation cannot be tied to an instrument.')
   console.error(String(ex.stderr || '').trim().split('\n').slice(0, 4).map(l => '    ' + l).join('\n'))
   process.exit(1)
 }
+
 const live = JSON.parse(ex.stdout)
 if (live.prompt_hash !== promptHash || live.schema_fingerprint !== schemaFp) {
   console.error(`record: the observation was made against a DIFFERENT instrument than the one on disk.`)

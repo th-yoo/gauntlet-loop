@@ -112,7 +112,10 @@ if (!results.length) {
 //
 // SCORED_ARMS is the single source for both this refusal and the loop below. Two lists
 // would drift, and the drift would restore the silent drop with the guard still green.
-const SCORED_ARMS = ['does-the-work', 'generator']
+// could-not-open joined these when the corpus gained a way to express an absence. It is a
+// verdict the probe can return and a third way a run gets refused, and it sat at zero
+// observations because the row could not be added, not because nobody drew it.
+const SCORED_ARMS = ['does-the-work', 'generator', 'could-not-open']
 const unscored = results.filter(r => !SCORED_ARMS.includes(r.arm))
 if (unscored.length) {
   console.log('')
