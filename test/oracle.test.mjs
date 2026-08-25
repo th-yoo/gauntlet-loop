@@ -127,6 +127,38 @@ function run(script, args) {
   console.log('oracle: the report groups observations by template, so a wording change splits a cohort instead of averaging into it OK')
 }
 
+// A DISPUTED ROW IS EXCLUDED FROM THE RATE, AND SAID OUT LOUD.
+//
+// Disputed means the two independent classifiers disagreed about what the artifact
+// emitted, so its expected role is contested. Scoring an observation against it costs a
+// choice of side, and that choice is the authored answer key the corpus exists to
+// replace. Averaging it in would also make a disagreement — which is a finding —
+// disappear into a percentage.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'oracle-disputed-'))
+  const results = join(dir, 'results.jsonl')
+  const mk = (row, correct, disputed) => JSON.stringify({
+    row, arm: 'generator', artifact: '/x/' + row, expected_role: 'produces-an-instruction',
+    predicted_role: correct ? 'produces-an-instruction' : 'does-the-work', correct, disputed,
+    prompt_hash: 'sha256:P' + row, template_hash: 'sha256:TPL', schema_fingerprint: 'sha256:fp', observer: 't',
+  })
+  // Two clean and correct; one DISPUTED and scored wrong. If the disputed row counted,
+  // the arm would report 3 observations and 1 misclassified.
+  writeFileSync(results, [mk('a', true, false), mk('b', true, false), mk('c', false, true)].join('\n') + '\n')
+
+  const env = { ...process.env, ORACLE_CORPUS: join(dir, 'corpus.jsonl'), ORACLE_RESULTS: results }
+  let out = ''
+  try { out = execFileSync(process.execPath, [join(ROOT, 'scripts', 'oracle-report.mjs')], { encoding: 'utf8', cwd: ROOT, env }) }
+  catch (e) { out = String(e.stdout || '') + String(e.stderr || '') }
+
+  ok(/observations      2/.test(out), `the disputed observation is not counted in the arm's total — got:\n${out}`)
+  ok(/misclassified     0/.test(out), 'and its wrong answer does not become a misclassification, because its ground truth is contested')
+  ok(/DISPUTED          1/.test(out), 'but it is reported, not dropped silently')
+  ok(/contested ground truth is a finding/.test(out), 'and the report says why it is held apart')
+  rmSync(dir, { recursive: true, force: true })
+  console.log('oracle: a disputed observation is excluded from the rate and surfaced rather than averaged in OK')
+}
+
 // A path that does not exist cannot be an oracle row: the hash would pin an absence.
 {
   const r = run(EXTRACT, ['--artifact', '/oracle/definitely/not/here.md', '--goal', 'g', '--json'])
@@ -154,13 +186,26 @@ function run(script, args) {
   console.log('oracle: a row whose acceptance command fails is refused OK')
 }
 
-// THE GENERATOR ARM IS NOT AVAILABLE HERE, AND THE REFUSAL EXPLAINS WHY.
+// THE GENERATOR ARM CANNOT BE ADDED BY ASSERTION.
+//
+// It has no mechanical acceptance test — "this document's deliverable is a request
+// addressed to someone else" is not a shell exit code — so its label comes from
+// EXECUTION: hand the artifact to an agent, keep what it emits, have a second agent
+// classify that emission. The refusal here is the shortcut: a row offered without the
+// emission it was derived from is exactly the opinion this corpus exists to replace.
 {
-  const r = run(ADD, ['--arm', 'generator', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'), '--goal', 'g'])
-  eq(r.code, 2, 'the generator arm is refused by this tool')
-  ok(/authored answer key/.test(r.out),
-     'because taking the caller\'s word for the label rebuilds the thing the corpus exists to replace')
-  console.log('oracle: the generator arm cannot be added by assertion OK')
+  const r = run(ADD, ['--arm', 'generator', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
+                      '--goal', 'g', '--id', 'should-not-exist'])
+  eq(r.code, 2, `a generator row with no emission is refused — got ${r.code}`)
+  ok(/needs --emission/.test(r.out), 'naming what is missing')
+  ok(/not from anyone saying so/.test(r.out), 'and why an assertion is not enough')
+
+  // And an emission path that does not exist is not an emission.
+  const r2 = run(ADD, ['--arm', 'generator', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
+                       '--goal', 'g', '--emission', '/oracle/no/such/output.md', '--id', 'should-not-exist'])
+  eq(r2.code, 2, 'an emission file that is not there is refused')
+  ok(/does not exist/.test(r2.out), 'because nothing then shows what executing the artifact produced')
+  console.log('oracle: a generator row without the emission it was derived from is refused OK')
 }
 
 // THE STALENESS REFUSAL — the whole reason observations carry hashes.
@@ -208,7 +253,18 @@ function run(script, args) {
   const rows = readFileSync(join(ROOT, 'oracle', 'corpus.jsonl'), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l))
   ok(rows.length >= 1, 'the corpus has at least one row')
   for (const row of rows) {
-    ok(row.evidence && row.evidence.acceptance_command, `row ${row.id} carries the command that grounded it`)
+    // Each arm is grounded differently, and each must carry ITS OWN grounding: the
+    // does-the-work arm by a command that was run, the generator arm by the emission
+    // that executing the artifact produced. A row carrying neither is an assertion.
+    ok(row.evidence, `row ${row.id} carries evidence at all`)
+    if (row.arm === 'does-the-work') {
+      ok(row.evidence.acceptance_command, `row ${row.id} carries the command that grounded it`)
+      eq(row.evidence.method, 'mechanical-execution', `row ${row.id} says how it was grounded`)
+    } else {
+      ok(row.evidence.emission, `generator row ${row.id} names the emission it was derived from`)
+      eq(row.evidence.method, 'agentic-execution', `row ${row.id} says how it was grounded`)
+      eq(row.expected_role, 'produces-an-instruction', `generator row ${row.id} expects the generator role`)
+    }
     ok(row.expected_role, `row ${row.id} has an expected role`)
     ok(row.goal, `row ${row.id} carries its goal — role is goal-relative, so a row without one is undefined`)
     ok(row.artifact.startsWith('/'), `row ${row.id} uses an absolute path, the shape loop.js receives and the prompt hashes`)

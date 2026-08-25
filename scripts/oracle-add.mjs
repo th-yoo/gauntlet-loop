@@ -38,7 +38,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const CORPUS = process.env.ORACLE_CORPUS || join(ROOT, 'oracle', 'corpus.jsonl')
 
 const argv = process.argv.slice(2)
-const FLAGS = ['--arm', '--artifact', '--goal', '--acceptance', '--id', '--note', '--inspect']
+const FLAGS = ['--arm', '--artifact', '--goal', '--acceptance', '--id', '--note', '--inspect', '--emission']
 const arg = n => {
   const i = argv.indexOf(n)
   if (i === -1) return null
@@ -54,7 +54,7 @@ const note = arg('--note')
 const inspect = arg('--inspect')
 const force = argv.includes('--force')
 
-if (arm !== 'does-the-work') {
+if (arm !== 'does-the-work' && arm !== 'generator') {
   console.error('usage: node scripts/oracle-add.mjs --arm does-the-work --artifact <path> --goal "<text>" --acceptance "<shell command>" [--id <id>] [--note "<why>"] [--force]')
   console.error('')
   console.error('Only --arm does-the-work is implemented. The generator arm has no mechanical acceptance test —')
@@ -64,9 +64,34 @@ if (arm !== 'does-the-work') {
   console.error('authored answer key this corpus exists to replace.')
   process.exit(2)
 }
-if (!artifact || !goal || !acceptance) {
+if (!artifact || !goal || (arm === 'does-the-work' && !acceptance)) {
   console.error('usage: node scripts/oracle-add.mjs --arm does-the-work --artifact <path> --goal "<text>" --acceptance "<shell command>" [--id <id>] [--note "<why>"] [--force]')
   process.exit(2)
+}
+
+// THE GENERATOR ARM. Its ground truth cannot be a shell exit code — "this document's
+// deliverable is a request addressed to someone else" is not mechanically testable —
+// so it comes from EXECUTION: hand the artifact to an agent, keep what it emits, and
+// have a SECOND agent classify that emission with a different question than the one
+// under test. oracle/generator-procedure.md is the procedure.
+//
+// What this branch refuses is the shortcut: a row asserted without the emission it was
+// derived from. `--emission` must name a file that exists, because the whole claim of
+// this arm is that something OTHER than an opinion produced the label, and a caller who
+// cannot show the emission is offering exactly the opinion this corpus replaces.
+const emission = arg('--emission')
+const disputed = argv.includes('--disputed')
+if (arm === 'generator') {
+  if (!emission) {
+    console.error('add: --arm generator needs --emission <path>, the file the artifact PRODUCED when it was executed.')
+    console.error('Its label comes from what it emitted, not from anyone saying so — see oracle/generator-procedure.md.')
+    process.exit(2)
+  }
+  const eAbs = existsSync(resolve(ROOT, emission)) ? resolve(ROOT, emission) : emission
+  if (!existsSync(eAbs)) {
+    console.error(`add: the emission file ${emission} does not exist, so nothing shows what executing this artifact produced.`)
+    process.exit(2)
+  }
 }
 
 const abs = existsSync(resolve(ROOT, artifact)) ? resolve(ROOT, artifact) : artifact
@@ -84,7 +109,7 @@ if (statSync(abs).isDirectory()) {
 // passes it. Stated rather than papered over: it stops the careless case, not the
 // determined one, and the corpus's own note field is where a reader should look.
 const MODEL_SHAPED = /\b(claude|anthropic|openai|gpt|llm|ollama|gemini)\b/i
-if (MODEL_SHAPED.test(acceptance)) {
+if (arm === 'does-the-work' && MODEL_SHAPED.test(acceptance)) {
   console.error(`add: the acceptance command mentions a model ("${acceptance}").`)
   console.error('Ground truth for this arm has to be established WITHOUT the kind of judgement being tested — a')
   console.error('quantity derived downstream of the decision under test cannot audit that decision. Use a command')
@@ -102,7 +127,7 @@ if (MODEL_SHAPED.test(acceptance)) {
 // a live agent that re-entered this repo. Note what the timeout does NOT do: killing the
 // shell does not kill what the shell spawned, so this bounds the wait, not the blast.
 const ACCEPTANCE_TIMEOUT_MS = 120_000
-const res = spawnSync(acceptance, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: ACCEPTANCE_TIMEOUT_MS, killSignal: 'SIGKILL' })
+const res = arm === 'generator' ? { status: 0, stdout: '' } : spawnSync(acceptance, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: ACCEPTANCE_TIMEOUT_MS, killSignal: 'SIGKILL' })
 if (res.error?.code === 'ETIMEDOUT' || res.signal === 'SIGKILL') {
   console.error(`add: the acceptance command did not finish within ${ACCEPTANCE_TIMEOUT_MS / 1000}s and was killed.`)
   console.error(`    ${acceptance}`)
@@ -150,17 +175,25 @@ const row = {
   artifact_hash: artifactHash,
   goal,
   inspect: inspect || null,
-  expected_role: 'does-the-work',
-  evidence: {
-    method: 'mechanical-execution',
-    acceptance_command: acceptance,
-    exit_code: res.status,
-    stdout_head: String(res.stdout || '').trim().split('\n').slice(0, 3).join('\n') || null,
-  },
+  expected_role: arm === 'generator' ? 'produces-an-instruction' : 'does-the-work',
+  // DISPUTED is recorded, not resolved. When the executing agent and the classifying
+  // agent disagree about what the emission was, that disagreement IS the finding — a
+  // row silently resolved toward the expected label is the answer key again.
+  disputed: arm === 'generator' ? disputed : false,
+  evidence: arm === 'generator'
+    ? { method: 'agentic-execution', emission: emission, classified_by: 'a second agent, asked about the OUTPUT rather than the artifact — see oracle/generator-procedure.md' }
+    : {
+        method: 'mechanical-execution',
+        acceptance_command: acceptance,
+        exit_code: res.status,
+        stdout_head: String(res.stdout || '').trim().split('\n').slice(0, 3).join('\n') || null,
+      },
   selection_note: note || null,
 }
 appendFileSync(CORPUS, JSON.stringify(row) + '\n')
-console.log(`added ${id} (${arm}) — acceptance exited 0, artifact ${artifactHash.slice(0, 23)}…`)
+// The generator arm runs no acceptance command, so saying one exited 0 would claim
+// evidence that does not exist — the exact overstatement this corpus is built against.
+console.log(`added ${id} (${arm}) — ${arm === 'generator' ? `grounded on the emission at ${emission}` : 'acceptance exited 0'}, artifact ${artifactHash.slice(0, 23)}…`)
 if (!note) {
   console.error('note: no --note given. Why this row is in the corpus is the part a later reader cannot reconstruct, and')
   console.error('      selection is the bias this corpus does NOT solve. Consider re-adding with --note and --force.')

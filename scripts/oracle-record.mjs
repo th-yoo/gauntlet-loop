@@ -109,6 +109,11 @@ const rec = {
   arm: row.arm,
   artifact: row.artifact,
   expected_role: row.expected_role,
+  // Carried from the row. A DISPUTED row is one whose two independent classifiers
+  // disagreed about what the artifact emitted, so its expected_role is contested — an
+  // observation against it cannot be scored right or wrong without picking a side,
+  // which is the answer key again.
+  disputed: !!row.disputed,
   predicted_role: predicted,
   correct: predicted === row.expected_role,
   what_it_is: whatItIs || null,

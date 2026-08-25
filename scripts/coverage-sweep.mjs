@@ -143,7 +143,7 @@ const PROPERTIES = [
   ['a silent split check says which it was', L, "read this run as if this check did not exist' + silenceNote('gauntlet-loop:gauntlet-ab-critic') }", "read this run as if this check did not exist' }"],
 
   // --- oracle ground truth for the pairing check (#33) ----------------------
-  ['a model-backed acceptance command is refused', OA, 'if (MODEL_SHAPED.test(acceptance)) {', 'if (false) {'],
+  ['a model-backed acceptance command is refused', OA, "if (arm === 'does-the-work' && MODEL_SHAPED.test(acceptance)) {", "if (false) {"],
   ['an acceptance command that fails is not ground truth', OA, 'if (res.error || res.status !== 0) {', 'if (false) {'],
   ['an observation from a stale instrument is refused', OR, 'if (live.prompt_hash !== promptHash || live.schema_fingerprint !== schemaFp) {', 'if (false) {'],
   ['an observation against a changed artifact is refused', OR, 'if (nowHash !== row.artifact_hash) {', 'if (false) {'],
@@ -151,6 +151,9 @@ const PROPERTIES = [
   ['the cohort key blanks the goal out of the prompt', OE, "  .split(goal).join('{{GOAL}}')", "  .split('\\u0000never').join('{{GOAL}}')"],
   ['the cohort key blanks the artifact path out', OE, "  .split(artifact).join('{{ARTIFACT}}')", "  .split('\\u0000never').join('{{ARTIFACT}}')"],
   ['the report groups by template, not by filled-in prompt', OP, "r.template_hash || 'template-unknown:'", "r.prompt_hash || 'template-unknown:'"],
+
+  ['a generator row without its emission is refused', OA, '  if (!emission) {', '  if (false) {'],
+  ['a disputed row is excluded from any rate', OP, '    const a = all.filter(r => !r.disputed)', '    const a = all'],
 
   // --- the shipped tools refuse a wrong invocation (#98) --------------------
   // NOT listed: needleFrom's `!lines.length` guard. It sweeps NOT CAUGHT and that

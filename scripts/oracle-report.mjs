@@ -76,8 +76,22 @@ for (const [k, rs] of cohorts) {
   if (cohorts.size > 1) console.log('   (cohorts are reported separately: a different prompt is a different instrument)')
 
   for (const arm of ['does-the-work', 'generator']) {
-    const a = rs.filter(r => r.arm === arm)
-    if (!a.length) continue
+    const all = rs.filter(r => r.arm === arm)
+    if (!all.length) continue
+    // DISPUTED rows are excluded from the rate and reported on their own. Their ground
+    // truth is contested — two independent classifiers disagreed about what the
+    // artifact emitted — so scoring an observation against one costs a choice of side,
+    // and that choice is the authored answer key this corpus exists to replace. A
+    // disagreement is a finding, not a data point to be averaged in.
+    const contested = all.filter(r => r.disputed)
+    const a = all.filter(r => !r.disputed)
+    if (!a.length) {
+      console.log('')
+      console.log(`   ${arm} arm`)
+      console.log(`     observations      ${all.length}, ALL DISPUTED — no rate, and that is the finding`)
+      for (const c of contested) console.log(`       ${c.row}: classifiers disagreed on what it emitted`)
+      continue
+    }
     const n = a.length
     const distinct = new Set(a.map(r => r.artifact)).size
     const wrong = a.filter(r => !r.correct)
@@ -91,6 +105,10 @@ for (const [k, rs] of cohorts) {
     // artifact measured twice masquerade as two.
     console.log(`     distinct artifacts ${distinct}${distinct < n ? '   <- the number that bears on any statistical claim' : ''}`)
     console.log(`     misclassified     ${wrong.length}`)
+    if (contested.length) {
+      console.log(`     DISPUTED          ${contested.length}, excluded from the rate above — contested ground truth is a finding, not a data point`)
+      for (const c of contested) console.log(`       ${c.row}`)
+    }
     for (const w of wrong) console.log(`       ${w.row}: expected ${w.expected_role}, got ${w.predicted_role}`)
 
     if (distinct < 5) {

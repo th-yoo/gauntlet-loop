@@ -145,3 +145,49 @@ row. Dropped, and the report now honours `ORACLE_RESULTS` so a test can never re
 real ledger again. Same class as the corpus pollution recorded in
 `../2026-08-25-oracle-fork-bomb/incident.md`, found the same way: by reading a number
 rather than trusting a restore.
+
+---
+
+## Generator arm, same day — and it tests finding 4
+
+Finding 4 of the #33 investigation hypothesised that the `produces-an-instruction`
+class is *genuinely narrow* — mostly meta-prompts — rather than under-sampled. The cheap
+failure mode is to add two prompt-shaped rows, watch them classify correctly, and call
+the hypothesis confirmed by not looking.
+
+So both generator rows are deliberately **not prompts**:
+
+| row | artifact | its stated deliverable |
+|---|---|---|
+| `brief-writer` | a creative-brief template for an external design studio | a brief the studio designs from |
+| `spec-generator` | an internal spec-request form | a specification an engineering team builds from |
+
+Ground truth came from execution, per `oracle/generator-procedure.md`:
+
+1. **Executed.** A builder agent given the artifact and the goal produced a filled brief
+   and a filled spec form respectively. Both reported the goal **still outstanding** —
+   *"The document I produced is a brief for the studio to design from, not the landing
+   page itself"*; *"Nothing is built by completing this form."*
+2. **Classified independently.** A second agent, shown only the two emissions and never
+   the artifacts, asked a *different* question — is this content a completed answer, or
+   addressed onward? Both: `addressed-onward`.
+
+No disagreement, so neither row is `DISPUTED`.
+
+Then the probe, given the captured prompt and told nothing: both
+`produces-an-instruction`. Correct.
+
+```
+   generator arm
+     observations      2
+     distinct artifacts 2
+     misclassified     0
+     rate              CANNOT BE POSED — 2 distinct artifacts supports no rate.
+```
+
+**What this adds.** The class is not only prompt-shaped — a brief template and an intake
+form are both plainly in it, and the probe caught both. Finding 4's hypothesis is
+*weakened*, which is the useful direction: the arm is not stuck at single digits for
+lack of candidate shapes, and the falsification hunt should continue rather than stop.
+
+**What it does not add.** Two artifacts, one draw each. No rate, and no claim of one.
