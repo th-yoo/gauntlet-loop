@@ -37,17 +37,56 @@ one entry per shape, and every refusal it produced echoed the list back.
 
 ```
 node scripts/oracle-add.mjs --arm does-the-work \
-  --artifact <absolute path> \
+  --artifact <path inside the repository> \
   --goal "<what someone is pursuing>" \
   --acceptance "<shell command that exits 0 iff the deliverable exists>" \
   --id <id> --note "<why this row is here>"
 ```
 
-Use an **absolute** path: that is the shape `loop.js` receives, and the path is part
-of the prompt, so it is part of the instrument's hash.
+**The path must be inside the repository, and it is stored repo-relative.** Pass it
+either way — absolute or relative — and `oracle-add` normalises it. A row in the tracked
+corpus is ground truth only if any checkout can re-establish it, and a path that leaves
+the tree cannot be re-established anywhere else; this is refused rather than stored. (A
+throwaway corpus, with `ORACLE_CORPUS` set, may point outside the tree: nothing commits
+it and nothing re-reads it, which is what lets a trial build a fixture in a sandbox.)
+
+This used to say the opposite — use an absolute path, because that is the shape `loop.js`
+receives. The reasoning was about the prompt and missed what the corpus is for. Absolute
+paths went in, CI ran the suite on a machine that had not written them, and the suite went
+red; `ebb630a` fixed it.
 
 Write the `--note`. Why a row is in the corpus is the part a later reader cannot
 reconstruct, and selection is the bias this corpus does **not** solve.
+
+### The other two arms
+
+`--arm generator` takes `--emission <file>`: the thing executing the artifact produced.
+Its label comes from what it emitted, not from anyone saying so — see
+`generator-procedure.md`.
+
+`--arm could-not-open` takes a path that must **not** exist, and an `--acceptance` that
+establishes the absence (`test ! -e <path>`). Its grounding is inverted rather than new:
+the command still has to exit 0, and what it settles is that there is nothing there. This
+is the third verdict the probe can return and the third way a run gets refused, and it had
+no observations for a long time — not because nobody drew it, but because the row could
+not be added.
+
+## Declaring a pairing
+
+```
+node scripts/oracle-pair.mjs --sides <rowA>,<rowB> --note "<why this pairing>"
+```
+
+A refusal fires when exactly **one side** of a pair is an instruction-writer, so the thing
+that refuses a run is a property of two artifacts under **one goal** — not of one artifact.
+Every per-side observation in this corpus measures `roleOf`; none measures the verdict.
+
+A pairing is two existing rows that share a goal. It needs no new kind of row: both sides
+are already grounded, and role is goal-relative, so `oracle-pair` refuses sides whose goals
+differ. Nothing derived is stored — the expected verdict is recomputed on every read by
+**running** `loop.js` with the two rows' expected roles (`oracle-derive.mjs`), because a
+copy of a rule that is already written down once is the drift this directory exists to
+avoid.
 
 ## Making an observation
 
