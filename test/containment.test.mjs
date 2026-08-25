@@ -35,6 +35,19 @@ function ok(cond, msg) { if (!cond) throw new Error(`ASSERT FAILED: ${msg}`) }
 const MODEL_SHAPED = /\b(claude|anthropic|openai|gpt|llm|ollama|gemini)\b/i
 const SPAWN_CALL = /\b(spawnSync|spawn|execFileSync|execFile|execSync|exec)\s*\(\s*['"`]([^'"`\n]+)['"`]/g
 
+// COMMENT-STRIPPED, and this file learned it the same way loop.js's guard did. The header
+// of the spawner names `spawnSync('claude', ...)` while explaining what has never been
+// executed — a sentence, not a call — and the raw-source scan read it as a spawn sitting
+// above the guard, turning a true statement in a comment into a failing case. A string
+// that survives only inside a comment is not code. drift-guard.mjs carries the same
+// stripper for the same reason; issue #16 is the original.
+function stripLineComments(src) {
+  return src.split('\n').map(line => {
+    const i = line.indexOf('//')
+    return i === -1 ? line : line.slice(0, i)
+  }).join('\n')
+}
+
 function scanDir(rel) {
   const dir = join(ROOT, rel)
   if (!existsSync(dir)) return []
@@ -47,10 +60,25 @@ const ALL = [...scanDir('scripts'), ...scanDir('test')]
 // and keeps `spawnSync(process.execPath, [...])` out of it.
 const spawners = []
 for (const rel of ALL) {
-  const src = readFileSync(join(ROOT, rel), 'utf8')
+  const raw = readFileSync(join(ROOT, rel), 'utf8')
+  const src = stripLineComments(raw)
   const hits = []
   for (const m of src.matchAll(SPAWN_CALL)) {
     if (MODEL_SHAPED.test(m[2])) hits.push({ index: m.index, binary: m[2] })
+  }
+  // THE STRIPPER'S OWN BLINDNESS, asserted rather than hoped for. It cuts at the first
+  // `//` on a line, so a spawn call sitting after a `//` inside a string — a URL, a regex
+  // — disappears from the stripped source, this scan finds no spawner, and all three cases
+  // pass having examined nothing. That is worse than the raw-source bug it replaced,
+  // because it fails silent. A vanished match is legitimate ONLY when what precedes it on
+  // the line is genuinely a comment.
+  for (const m of raw.matchAll(SPAWN_CALL)) {
+    if (!MODEL_SHAPED.test(m[2])) continue
+    if (hits.some(h => src.slice(h.index, h.index + m[0].length) === m[0])) continue
+    const lineStart = raw.lastIndexOf('\n', m.index) + 1
+    const before = raw.slice(lineStart, m.index).trim()
+    ok(before.startsWith('//') || before.startsWith('*'),
+       `${rel} has a model-shaped spawn of ${m[2]} that disappears when comments are stripped, and what precedes it on the line (${JSON.stringify(before.slice(-60))}) is not a comment — a "//" inside a string is cutting live code out of this scan. Move the call to its own line; this is a limit of the stripper, not an absence of a spawner.`)
   }
   if (hits.length) spawners.push({ rel, src, hits })
 }
