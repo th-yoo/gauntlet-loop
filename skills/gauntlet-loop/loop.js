@@ -1071,7 +1071,14 @@ function probeFindings() {
   lines.push(selfid
     ? `content blindness: ${selfid.verdict}${selfid.verdict === 'clean' ? '' : ` — ${(selfid.self_identifying || []).join(', ')} identifies its own origin`}`
     : 'content blindness: NOT MEASURED — the probe returned nothing, so a leak cannot be ruled out')
-  return '\n\nALREADY MEASURED on the way to this refusal, and worth reading before you retry:\n  - ' + lines.join('\n  - ')
+  // All three probes above are the same agent type as the pairing check, and the
+  // pairing check just ANSWERED — that is why there is a refusal to attach this to.
+  // So any "NOT MEASURED" here is knowably an agent that returned nothing rather
+  // than a type that is missing, and saying it once beats repeating it per line.
+  const note = typeProven('gauntlet-loop:gauntlet-goal-check')
+    ? '\n  (any NOT MEASURED above is an agent that ran and returned nothing: the pairing check is the same agent type and it answered, so the type is registered — see issue #14.)'
+    : ''
+  return '\n\nALREADY MEASURED on the way to this refusal, and worth reading before you retry:\n  - ' + lines.join('\n  - ') + note
 }
 
 // FETCHABLE. `loop.js` runs in a sandbox with no filesystem — `shapeOf` is a pure

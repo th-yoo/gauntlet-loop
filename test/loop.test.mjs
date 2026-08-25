@@ -1270,6 +1270,11 @@ console.log('loop: required args throw, and the reference error explains why a b
   threw = null
   try { await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: [WORKER, SHUT] }) }
   catch (e) { threw = e.message }
+  // NOT MEASURED here is knowably an agent that answered with nothing: the pairing
+  // check shares the agent type and it answered, which is why there is a refusal at
+  // all. Said once rather than appended to each line.
+  ok(/pairing check is the same agent type and it answered/.test(threw),
+     `the refusal resolves #14 for its own NOT MEASURED lines rather than leaving them ambiguous — got: ${String(threw).slice(-260)}`)
   ok(/goal_fairness: NOT MEASURED/.test(threw) && /content blindness: NOT MEASURED/.test(threw),
      `an unmeasured probe says so rather than vanishing from the report — got: ${String(threw).slice(-260)}`)
 
