@@ -46,6 +46,31 @@ if (!results.length) {
   process.exit(0)
 }
 
+// AN ARM THIS REPORT DOES NOT SCORE IS NOT A ZERO, IT IS A SILENT DROP.
+//
+// The arm loop below iterates a fixed list, so an observation carrying any other arm is
+// counted nowhere and printed nowhere: the cohort header appears with nothing under it and
+// the run exits 0. That is the only silent outcome this tool has, and the observation most
+// likely to land in it is a `could-not-open` one — the very verdict #34 records as having
+// no evidence. Refusing costs a line; a number that quietly excluded an observation costs
+// whatever was decided on it.
+//
+// SCORED_ARMS is the single source for both this refusal and the loop below. Two lists
+// would drift, and the drift would restore the silent drop with the guard still green.
+const SCORED_ARMS = ['does-the-work', 'generator']
+const unscored = results.filter(r => !SCORED_ARMS.includes(r.arm))
+if (unscored.length) {
+  console.log('')
+  console.log(`REFUSING: ${unscored.length} observation(s) carry an arm this report does not score.`)
+  for (const arm of [...new Set(unscored.map(r => r.arm))]) {
+    const hits = unscored.filter(o => o.arm === arm)
+    console.log(`  arm ${JSON.stringify(arm)} — ${hits.length} observation(s), first on row ${hits[0].row}`)
+  }
+  console.log(`  This report scores ${SCORED_ARMS.join(' and ')}. Add the arm here, or take the observations`)
+  console.log('  out of the ledger — but they are not going to be counted silently.')
+  process.exit(1)
+}
+
 // WHICH COHORT DESCRIBES THE PROMPT THAT SHIPS.
 //
 // The report already refuses to pool cohorts, which stops a superseded instrument from
@@ -114,7 +139,7 @@ for (const [k, rs] of cohorts) {
   console.log(`── instrument ${ph.slice(0, 23)}… ── ${label}`)
   if (cohorts.size > 1) console.log('   (cohorts are reported separately: a different prompt is a different instrument)')
 
-  for (const arm of ['does-the-work', 'generator']) {
+  for (const arm of SCORED_ARMS) {
     const all = rs.filter(r => r.arm === arm)
     if (!all.length) continue
     // DISPUTED rows are excluded from the rate and reported on their own. Their ground

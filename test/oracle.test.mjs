@@ -405,7 +405,15 @@ function run(script, args, extraEnv) {
   console.log('oracle: an observation against a changed artifact is refused, and the fixture survives the test OK')
 }
 
-// THE CORPUS ROW ON DISK IS STILL GROUNDED — the acceptance command still passes.
+// EVERY CORPUS ROW CARRIES ITS GROUNDING — the fields, not the re-run.
+//
+// This block checks that each row NAMES how it was grounded. It does NOT re-run the
+// acceptance command and does not check that the emission still exists, so a row whose
+// deliverable has since broken passes here: replacing the unpinned hello.c that
+// make-hello's command compiles makes that command exit 1 while this suite stays green.
+// The header used to claim "the acceptance command still passes", which no line below
+// does — the same too-loose-sentence failure drift-guard.mjs's header catalogues. #40
+// carries the re-run.
 {
   const rows = readFileSync(join(ROOT, 'oracle', 'corpus.jsonl'), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l))
   ok(rows.length >= 1, 'the corpus has at least one row')
@@ -531,4 +539,32 @@ function run(script, args, extraEnv) {
   ok(!/── instrument \S+ ── SUPERSEDED/.test(out), 'and it is not reported as a prompt that was replaced, which it is not')
   rmSync(dir, { recursive: true, force: true })
   console.log('oracle: an observation predating the template hash is labelled UNKNOWN INSTRUMENT, not SUPERSEDED OK')
+}
+
+// AN ARM THE REPORT DOES NOT SCORE IS REFUSED, NOT DROPPED.
+//
+// Before this, an observation carrying a third arm was counted nowhere and printed
+// nowhere: the cohort header rendered with nothing under it and the run exited 0. The
+// observation most likely to land there is a could-not-open one — the verdict #34 records
+// as having no evidence — so the silent path and the missing evidence were the same hole.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'oracle-arm-'))
+  const results = join(dir, 'results.jsonl')
+  writeFileSync(results, JSON.stringify({
+    row: 'cno', arm: 'could-not-open', artifact: '/no/such', expected_role: 'could-not-open',
+    predicted_role: 'could-not-open', correct: true, prompt_hash: 'sha256:P',
+    template_hash: 'sha256:T', schema_fingerprint: 'sha256:fp', observer: 't',
+  }) + '\n')
+
+  const env = { ...process.env, ORACLE_CORPUS: join(dir, 'corpus.jsonl'), ORACLE_RESULTS: results }
+  let out = '', code = 0
+  try { out = execFileSync(process.execPath, [join(ROOT, 'scripts', 'oracle-report.mjs')], { encoding: 'utf8', cwd: ROOT, env, timeout: 30_000 }) }
+  catch (e) { code = e.status; out = String(e.stdout || '') + String(e.stderr || '') }
+
+  eq(code, 1, `an unscored arm fails the run rather than vanishing — got exit ${code}\n${out}`)
+  ok(/REFUSING: 1 observation\(s\) carry an arm this report does not score/.test(out), 'and it says how many')
+  ok(/arm "could-not-open"/.test(out), 'and names the arm, so the reader knows what to add')
+  ok(!/per-side error/.test(out), 'and prints no rate computed without it')
+  rmSync(dir, { recursive: true, force: true })
+  console.log('oracle: an observation whose arm the report cannot score is refused, not silently dropped OK')
 }
