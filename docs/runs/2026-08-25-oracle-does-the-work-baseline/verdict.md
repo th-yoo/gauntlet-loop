@@ -288,3 +288,50 @@ constructed hard ones. That is worth having and is not the same as accuracy.
 narrow and mostly prompt-shaped. Five distinct shapes are in it, only one of which is a
 prompt, and the probe caught all five. The arm was never limited by a shortage of
 candidate shapes.
+
+---
+
+## Repeat draws, and the first real defect this corpus has found
+
+Every row had exactly one observation, so the report had been printing *"answer
+stability NOT MEASURED — a wrong answer cannot be told from a fluke"* every run. Four
+rows were redrawn: the two hardest does-the-work rows and the two hardest generator
+rows. Same prompt, same artifact, fresh context.
+
+**`partial-handoff` flipped.** Draw 1 said `produces-an-instruction`. Draw 2 said
+`does-the-work`, and argued it:
+
+> *"An incomplete or admittedly-insufficient attempt that still directly manipulates
+> the target system is does-the-work, not produces-an-instruction. There is no separate
+> party being handed a deliverable here."*
+
+Draw 1 had read the same document the other way — real work done, goal untouched,
+handoff named — and quoted its explicit deferral. **Both readings are coherent.** The
+prompt does not say which governs when an artifact does real work *and* defers the
+goal-critical part, and the two draws each picked a different horn.
+
+That is not noise. It is an under-specified instrument, found by the only method that
+could find it — drawing the same row twice.
+
+```
+   does-the-work arm    8 obs / 6 distinct / 0 wrong   0/8, 95% CI [0%, 32%]
+                        answer stability  0/2 redrawn rows flipped
+   generator arm        7 obs / 5 distinct / 1 wrong   1/7, 95% CI [3%, 51%]
+                        answer stability  1/2 redrawn rows flipped
+                          partial-handoff: produces-an-instruction then does-the-work
+```
+
+The generator arm's interval is now `[3%, 51%]`, and its lower bound is off zero for
+the first time — because a real miss was recorded rather than avoided.
+
+## What follows
+
+The flip is **not** recorded as `DISPUTED`. Disputed means the two ground-truth
+classifiers disagreed; they did not — the executing agent and the emission classifier
+both said the goal was untouched. What disagreed is the probe with itself. Instability
+and contested ground truth are different failures and the report keeps them apart.
+
+The fix is not to redraw until it settles. It is to say, in `roleOf`'s prompt, which
+answer governs when an artifact does part of the work and hands off the rest. That is a
+change to the instrument, so it will move the template hash and start a new cohort —
+which is exactly what the cohort key exists to make visible.

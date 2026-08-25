@@ -105,6 +105,32 @@ for (const [k, rs] of cohorts) {
     // artifact measured twice masquerade as two.
     console.log(`     distinct artifacts ${distinct}${distinct < n ? '   <- the number that bears on any statistical claim' : ''}`)
     console.log(`     misclassified     ${wrong.length}`)
+
+    // ANSWER STABILITY, which this report has been listing as unestablished since it
+    // was written. Accuracy and stability are different questions and the same rows
+    // answer both: a row drawn twice that comes back differently is unstable, whether
+    // or not either draw was correct. One draw per row cannot tell a systematic bias
+    // from a coin landing the same way twice, so a flip rate is the only thing that
+    // separates them — and until it is MEASURED, reporting it as zero would be
+    // assuming exactly what needs checking.
+    const byRow = new Map()
+    for (const o of a) {
+      if (!byRow.has(o.row)) byRow.set(o.row, [])
+      byRow.get(o.row).push(o.predicted_role)
+    }
+    const redrawn = [...byRow.entries()].filter(([, v]) => v.length > 1)
+    const flipped = redrawn.filter(([, v]) => new Set(v).size > 1)
+    if (!redrawn.length) {
+      console.log(`     answer stability  NOT MEASURED — every row has one draw, so a wrong answer`)
+      console.log(`                       cannot be told from a fluke. Re-run a row to find out.`)
+    } else {
+      console.log(`     answer stability  ${flipped.length}/${redrawn.length} redrawn row(s) FLIPPED between draws`)
+      for (const [row, v] of flipped) console.log(`       ${row}: ${v.join(' then ')}`)
+      if (!flipped.length) {
+        console.log(`                       ${redrawn.length} row(s) drawn twice, none flipped. At this many redraws that`)
+        console.log(`                       bounds instability loosely, and says nothing about the rows never redrawn.`)
+      }
+    }
     if (contested.length) {
       console.log(`     DISPUTED          ${contested.length}, excluded from the rate above — contested ground truth is a finding, not a data point`)
       for (const c of contested) console.log(`       ${c.row}`)
