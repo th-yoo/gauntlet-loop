@@ -107,9 +107,27 @@ if (wf) {
      `${wf.f} runs the sweep but has no cron — a workflow that fires only on dispatch is still a remembered trigger, wearing CI's clothes`)
 
   // The sweep must not gate a push. Separate workflow, or at least not on push.
-  console.log('coverage-cadence: it does not block a push')
-  ok(!/^\s*push:\s*$/m.test(text),
-     `${wf.f} triggers on every push, which puts ~${ESTIMATE_MIN} min in front of ordinary work — a path filter or a schedule is what this needs`)
+  console.log('coverage-cadence: an unfiltered push trigger would put ~50 min in everyone\'s way')
+  // A bare `push:` and a path-filtered one are indistinguishable by a line regex —
+  // both leave `push:` alone on its line — and the first version of this check
+  // called the filtered form a failure. What separates them is the indented block
+  // underneath, so that is what gets read: an UNFILTERED push is the defect, a
+  // filtered one is the design.
+  {
+    const lines = text.split('\n')
+    const i = lines.findIndex(l => /^\s*push:\s*$/.test(l))
+    if (i !== -1) {
+      const indent = (lines[i].match(/^\s*/) || [''])[0].length
+      const block = []
+      for (let j = i + 1; j < lines.length; j++) {
+        if (!lines[j].trim()) continue
+        if ((lines[j].match(/^\s*/) || [''])[0].length <= indent) break
+        block.push(lines[j])
+      }
+      ok(block.some(l => /paths(-ignore)?:/.test(l)),
+         `${wf.f} triggers on every push with no paths filter, which queues ~${ESTIMATE_MIN} min of runner time for commits that cannot have changed what the properties pin`)
+    }
+  }
 
   console.log('coverage-cadence: a red sweep is reported rather than swallowed')
   ok(!/continue-on-error:\s*true/.test(text),

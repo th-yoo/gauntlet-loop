@@ -1,0 +1,83 @@
+# Run the mutation coverage sweep on a schedule, because it cannot run on a gate.
+#
+# scripts/coverage-sweep.mjs takes each property a test is supposed to pin, breaks
+# it, and reports anything that does NOT fail as a coverage regression: the code is
+# still correct and nothing would notice if it stopped being. It runs a full suite
+# per property — 114 of them at ~28s each, roughly 50 minutes — which is why it is
+# not in test/run-all.mjs and must not be put there. A gate that adds an hour to a
+# push gets bypassed, and a bypassed gate is worse than an absent one, because the
+# repo still reads as covered.
+#
+# WHY A SEPARATE WORKFLOW. `suite` (ci.yml) is the blocking check and finishes in
+# about a minute. Putting this in it would couple ordinary work to an hour of
+# mutation testing. Split, so a red sweep is visible without a red sweep being in
+# anyone's way.
+#
+# WHY WEEKLY AND NOT NIGHTLY. What this catches is coverage lost to a structural
+# edit — a rewrite of a test file once removed four cases beyond the one being
+# changed, and the suite went green at a lower count. That happens on the timescale
+# of design changes, not commits. Nightly would also make it ignorable, and the one
+# thing no check here can measure is whether anyone reads the result: a scheduled
+# red sweep nobody opens is the same coverage as no sweep at all.
+#
+# It also runs on pushes that touch what the properties are about — the loop, the
+# agents, the scripts and the tests — because that is when coverage actually moves.
+# Path-filtered, so ordinary commits do not queue an hour of runner time, and in a
+# separate workflow, so it never sits in front of a push.
+
+name: coverage
+
+on:
+  schedule:
+    # Mondays 06:00 UTC. A red Monday on a tree nobody touched is a finding in
+    # itself: it means something outside this repo moved under a property.
+    - cron: '0 6 * * 1'
+  push:
+    paths:
+      - 'skills/**'
+      - 'agents/**'
+      - 'scripts/**'
+      - 'test/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A second push while one is running cancels the first. The sweep is a picture of
+# a tree, and the older picture stops being worth an hour the moment it is stale.
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    # Comfortably over the ~50 minute estimate without being unbounded. A sweep
+    # that hangs should be killed and reported, not left to burn the job limit.
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify the toolchain the corpus needs
+        run: |
+          set -e
+          REQUIRED="cc make node python3 sqlite3"
+          missing=""
+          for bin in $REQUIRED; do
+            command -v "$bin" >/dev/null 2>&1 || missing="$missing $bin"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::runner image is missing:$missing" >&2
+            exit 1
+          fi
+          echo "toolchain present: $REQUIRED"
+
+      # No continue-on-error. A sweep whose failure is discarded reports coverage
+      # it has not got, which is the one outcome worse than not running it.
+      - name: Sweep every pinned property
+        run: node scripts/coverage-sweep.mjs
