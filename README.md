@@ -48,13 +48,17 @@ the same method.
   calls them. Kept for the recorded data and for the argument in `runs/README.md`,
   which is about a gap the loop still has.
 - `scripts/oracle-extract.mjs`, `scripts/oracle-add.mjs`, `scripts/oracle-record.mjs`,
-  `scripts/oracle-report.mjs`, `oracle/` — ground truth for the pairing check, from
-  something other than an opinion. The pairing check can REFUSE a run, and it acquired
+  `scripts/oracle-pair.mjs`, `scripts/oracle-report.mjs`, `oracle/` — ground truth for
+  the pairing check, from something other than an opinion. The pairing check can REFUSE a run, and it acquired
   that authority on two observations scored against predictions its own author wrote.
   A corpus row is only written when a shell command establishes it mechanically; every
   observation is pinned to a hash of the live prompt, so the change that silently
   invalidated five of seven earlier observations is refused at the door next time. The
   report says "cannot be posed" rather than printing a rate the sample cannot support.
+  A **pairing** — two grounded artifacts under one goal — is the only thing that can
+  observe the verdict that actually refuses a run, so the false-refusal rate is measured
+  from drawn pairings rather than derived from the per-side rate under an independence
+  assumption nothing measured.
 - `test/` — drift guard, the offline loop harness, and the canary and trial tests.
 - `docs/runs/` — a record per live run: what was compared, what the verdict was,
   and what it does **not** establish. This is the only evidence here about whether

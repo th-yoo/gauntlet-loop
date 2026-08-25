@@ -88,6 +88,34 @@ differ. Nothing derived is stored — the expected verdict is recomputed on ever
 copy of a rule that is already written down once is the drift this directory exists to
 avoid.
 
+### Observing a pairing
+
+```
+node scripts/oracle-draw.mjs --pairing <id> [--draws 1]
+node scripts/oracle-draw.mjs --all-pairings [--draws 1]
+```
+
+**Both sides are drawn in ONE invocation**, and that is the whole point of the mode. The
+pairing check runs `roleOf` on both artifacts in one pass and composes the verdict from
+what comes back; two sides drawn at different times are two measurements of two moments,
+and no amount of pooling turns them into one. Each side is recorded as an ordinary
+per-side observation carrying `--pairing` and a shared `--pairing-draw` id, and it is that
+shared id — nothing else — that makes the pair an observation of the verdict.
+
+Nothing about the verdict is written down. `oracle-report` recomposes it on every read by
+running `loop.js` on the two observed roles, exactly as the expected verdict is derived
+from the two rows' expected ones.
+
+What the join records and what it does not: it says these two sides belong to one draw. It
+cannot establish that they were **drawn together** — a hand-recorder can pass one draw id
+to two sides taken an hour apart, and no check here would know. That is the same residual
+`--raw` carries about where an answer came from, and the report prints it beside the rate.
+
+If one side produces nothing — a dead probe, a non-JSON answer — the draw is abandoned as
+a pairing and the surviving side is recorded as a plain per-side observation with no
+pairing tag. Half a pairing is not a smaller pairing, and a draw the report could only
+exclude is worse than an untagged observation that still counts for what it measures.
+
 ## Making an observation
 
 ```
@@ -145,10 +173,21 @@ Two figures say what the numbers rest on rather than what they are:
   unstable whether or not either draw was correct, and one draw per row cannot tell a
   systematic bias from a coin landing the same way twice.
 
-Finally it lists **declared pairings** with the verdict `loop.js` derives for each, and —
-while it is still true — states plainly that none has been observed, so the per-run false
-refusal figure above it remains a derivation from the per-side rate rather than a
-measurement of the thing that actually refuses runs.
+Finally it reports the **pairing arm**: every declared pairing with the verdict `loop.js`
+derives for it, every draw with the verdict its two observed roles compose to, and the
+false-refusal rate measured from those draws. Two cells are reported separately, because
+they answer different questions — the pairings whose true verdict is `comparable`, where
+any refusal is FALSE, and the pairings whose true verdict is a refusal, where the check
+firing is it working.
+
+Three things keep that number from saying more than it can. Draws that are not one draw
+are named and excluded rather than dropped — a half draw, two sides drawn against
+different instruments, a side whose row is disputed. Below five distinct pairings the rate
+is not posed at all, which is the threshold the per-side arm already applies to distinct
+artifacts. And the report states that these draws' sides are also counted in the per-side
+arm, so the measured figure and the derived `2q(1-q)` one rest on the same evidence:
+comparing them tests the independence assumption, it does not corroborate either with a
+second body of evidence.
 
 ## What this cannot establish
 
@@ -159,6 +198,10 @@ the same model asked again, not an independent draw.
 Selection bias is the one that cannot be fixed by adding rows, and adding rows can hide
 it: see #38, which holds that as a permanent disclosure rather than as work.
 
-The corpus also cannot express the **pairing** verdict — the thing that actually refuses
-a run. A row is one artifact under its own goal; a pairing is two artifacts under one
-shared goal, so no set of rows here composes into one. See #37.
+What the pairing arm still cannot reach: a pairing is two artifacts under **one** goal,
+and which pairings exist is the same selection this corpus does not solve. The rate is a
+rate over the pairings someone chose to declare, and the cell that decides whether an
+automatic refusal is safe is exactly the cell where a corpus of easy pairings would score
+perfectly. Every comparable pairing here therefore puts an instruction-shaped worker — a
+README, a checklist, a schema, a rules file — against an unambiguous one, because a cell
+that could only come back correct measures the corpus rather than the check.

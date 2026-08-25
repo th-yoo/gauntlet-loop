@@ -52,10 +52,11 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // to write into the tracked ledgers.
 const CORPUS = process.env.ORACLE_CORPUS || join(ROOT, 'oracle', 'corpus.jsonl')
 const RESULTS = process.env.ORACLE_RESULTS || join(ROOT, 'oracle', 'results.jsonl')
+const PAIRINGS = process.env.ORACLE_PAIRINGS || join(ROOT, 'oracle', 'pairings.jsonl')
 const ROLES = ['does-the-work', 'produces-an-instruction', 'could-not-open']
 
 const argv = process.argv.slice(2)
-const FLAGS = ['--row', '--predicted', '--reasoning', '--prompt-hash', '--schema-fingerprint', '--observer', '--what-it-is', '--raw']
+const FLAGS = ['--row', '--predicted', '--reasoning', '--prompt-hash', '--schema-fingerprint', '--observer', '--what-it-is', '--raw', '--pairing', '--pairing-draw']
 const arg = n => {
   const i = argv.indexOf(n)
   if (i === -1) return null
@@ -71,9 +72,11 @@ const schemaFp = arg('--schema-fingerprint')
 const observer = arg('--observer') || 'unnamed'
 const whatItIs = arg('--what-it-is')
 const rawPath = arg('--raw')
+const pairing = arg('--pairing')
+const pairingDraw = arg('--pairing-draw')
 
 if (!rowId || !predicted || !promptHash || !schemaFp) {
-  console.error('usage: node scripts/oracle-record.mjs --row <id> --predicted <role> --reasoning "<text>" --prompt-hash <hash> --schema-fingerprint <hash> [--observer <name>] [--what-it-is "<text>"] [--raw <response file>]')
+  console.error('usage: node scripts/oracle-record.mjs --row <id> --predicted <role> --reasoning "<text>" --prompt-hash <hash> --schema-fingerprint <hash> [--observer <name>] [--what-it-is "<text>"] [--raw <response file>] [--pairing <id> --pairing-draw <id>]')
   process.exit(2)
 }
 if (!ROLES.includes(predicted)) {
@@ -92,8 +95,12 @@ if (!ROLES.includes(predicted)) {
 // WHAT THIS IS NOT FOR. It is not a defence against anyone. A person recording by hand
 // can write this file too, and no check that runs here could tell. Nothing in this
 // corpus's history shows that happening, deliberately or otherwise: results.jsonl is
-// insertions-only apart from one schema migration, and no record anywhere describes a
-// corrected observation. This catches a MISMATCH between what was typed and what a
+// insertions-only apart from two migrations — one of schema, and one on 2026-08-26 that
+// re-keyed 12 records' template_hash after oracle-extract was found to be blanking the
+// caller's spelling of the artifact path rather than the resolved path it had actually
+// interpolated. Each of those 12 was re-keyed only because re-extracting its row
+// reproduced the record's own prompt_hash byte for byte, which is what established that
+// the observation was made against the prompt that ships. No verdict was touched. This catches a MISMATCH between what was typed and what a
 // response says — a slip, not an attack — and that failure has never been observed here
 // either. It is a precaution with no incident behind it, which is worth saying out loud
 // rather than dressing up.
@@ -137,6 +144,72 @@ const row = rows.find(r => r.id === rowId)
 if (!row) {
   console.error(`record: no corpus row "${rowId}". Known rows: ${rows.map(r => r.id).join(', ') || '(none)'}`)
   process.exit(2)
+}
+
+// ── A SIDE OF A PAIRING DRAW ────────────────────────────────────────────────────────
+//
+// The verdict that can refuse a run is not a property of this row. It is composed from
+// TWO roles under one goal (loop.js: `writers.length === 1`), and every observation in
+// this ledger is of one artifact alone — which is why the false-refusal rate has only
+// ever been printed as a derivation. #37.
+//
+// So a pairing OBSERVATION is two of these records joined by `--pairing-draw`. Nothing
+// about the verdict is stored: oracle-report recomposes it from the two predicted roles
+// by running loop.js, every read, exactly as the expected verdict is derived from the two
+// rows. Storing either would be #40 again.
+//
+// WHAT THE JOIN IS AND IS NOT. It records that these two sides belong to one draw. It
+// cannot establish that they were DRAWN together — a caller can pass the same draw id to
+// two sides taken an hour apart, and no check here or anywhere else could tell. That is
+// the same residual `--raw` carries, and oracle-report states it beside the number rather
+// than leaving the reader to assume the stronger claim.
+if (pairingDraw && !pairing) {
+  console.error('record: --pairing-draw was given with no --pairing, so this join key points at nothing.')
+  console.error('A draw id joins the two sides of ONE declared pairing. Name the pairing, or drop both flags and')
+  console.error('record this as the ordinary per-side observation it is.')
+  process.exit(2)
+}
+if (pairing) {
+  if (!pairingDraw) {
+    console.error(`record: --pairing ${pairing} was given with no --pairing-draw.`)
+    console.error('A side that cannot be joined to the side drawn beside it is not an observation of a pairing — the')
+    console.error('verdict needs both roles. Pass the same --pairing-draw to both sides of the draw.')
+    process.exit(2)
+  }
+  if (!existsSync(PAIRINGS)) {
+    console.error(`record: no pairings ledger at ${PAIRINGS}, so pairing "${pairing}" is not declared. Declare it with scripts/oracle-pair.mjs first.`)
+    process.exit(2)
+  }
+  const pairs = readFileSync(PAIRINGS, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l))
+  const p = pairs.find(x => x.id === pairing)
+  if (!p) {
+    console.error(`record: no pairing "${pairing}". Known: ${pairs.map(x => x.id).join(', ') || '(none)'}`)
+    process.exit(2)
+  }
+  // The row must be one of the two sides. Without this the report composes a verdict from
+  // an artifact the pairing never contained — and it cannot notice, because the arithmetic
+  // works perfectly on the wrong pair: both rows are grounded, both carry a role.
+  if (!p.sides.includes(rowId)) {
+    console.error(`record: row "${rowId}" is not a side of pairing "${pairing}" (${p.sides.join(' + ')}).`)
+    console.error('A pairing verdict composed from an artifact the pairing does not contain measures a pair nobody declared.')
+    process.exit(2)
+  }
+  // A draw is TWO sides. A third record under one draw id composes nothing, and at read
+  // time the only available response is to drop the draw — silently, unless the report
+  // goes out of its way. Refusing here names the fix instead.
+  const already = existsSync(RESULTS)
+    ? readFileSync(RESULTS, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)).filter(o => o.pairing_draw === pairingDraw)
+    : []
+  const clash = already.find(o => o.row === rowId)
+  if (clash) {
+    console.error(`record: draw "${pairingDraw}" already holds an observation of row "${rowId}" (${clash.predicted_role}).`)
+    console.error('A draw is the two sides of one pairing, once each. Use a new draw id for a second draw of this pairing.')
+    process.exit(2)
+  }
+  if (already.length >= 2) {
+    console.error(`record: draw "${pairingDraw}" already has ${already.length} sides (${already.map(o => o.row).join(', ')}).`)
+    process.exit(2)
+  }
 }
 
 // The artifact must still be the one the row was grounded against — or, for the absence
@@ -215,9 +288,13 @@ const rec = {
   template_hash: live.template_hash,
   schema_fingerprint: schemaFp,
   observer,
+  // The join, and nothing derived from it. Which pairing these two sides belong to and
+  // which draw they were taken in; the verdict they compose to is recomputed on every
+  // read by running loop.js.
+  ...(pairing ? { pairing, pairing_draw: pairingDraw } : {}),
   // Present only when a response on disk was checked against these fields. Its absence
   // means attested, and oracle-report says so rather than letting the two look alike.
   ...(corroboration ? { corroboration } : {}),
 }
 appendFileSync(RESULTS, JSON.stringify(rec) + '\n')
-console.log(`recorded ${rowId}: expected ${row.expected_role}, got ${predicted} — ${rec.correct ? 'CORRECT' : 'WRONG'}`)
+console.log(`recorded ${rowId}: expected ${row.expected_role}, got ${predicted} — ${rec.correct ? 'CORRECT' : 'WRONG'}${pairing ? `  [pairing ${pairing}, draw ${pairingDraw}]` : ''}`)

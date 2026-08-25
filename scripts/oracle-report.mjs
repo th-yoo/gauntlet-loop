@@ -14,6 +14,14 @@
 // blind to a case the per-side figure is not: both sides misjudged as writers reads
 // as `comparable`, so no refusal fires and a refusal-rate framing never sees it.
 //
+// AND THE PAIRING ARM MEASURES IT DIRECTLY. A pairing is two grounded artifacts under
+// ONE goal, drawn in one invocation and joined by a draw id, so the verdict can be
+// composed from two observed roles instead of inferred from one rate. That figure is
+// reported beside the derivation rather than in place of it: it rests on however many
+// pairings someone declared, and its draws are the same draws the per-side rate is
+// computed over, so the two are not independent checks of each other. Comparing them
+// tests the independence assumption; it does not corroborate either.
+//
 // Cohorts are NEVER pooled across prompt hashes. The prompt changed once and
 // invalidated five of seven observations; blending an old cohort into a new rate
 // would hide exactly that.
@@ -131,6 +139,25 @@ if (unscored.length) {
   process.exit(1)
 }
 
+// AND AN OBSERVATION NAMING A PAIRING NOBODY DECLARED IS THE SAME SILENT DROP, found by
+// the rule rather than by an incident: the pairing block below iterates DECLARED pairings,
+// so a side tagged with one that is not in the ledger is counted nowhere and printed
+// nowhere, exactly as an unscored arm was. oracle-record refuses this at the door, which
+// means the way it arrives is a pairing REMOVED after its draws were taken — the corpus
+// moving underneath a number, which is the class this report exists to catch.
+const declaredPairings = new Set(pairings.map(p => p.id))
+const orphaned = results.filter(o => o.pairing && !declaredPairings.has(o.pairing))
+if (orphaned.length) {
+  console.log('')
+  console.log(`REFUSING: ${orphaned.length} observation(s) name a pairing that is not declared.`)
+  for (const id of [...new Set(orphaned.map(o => o.pairing))]) {
+    const hits = orphaned.filter(o => o.pairing === id)
+    console.log(`  pairing ${JSON.stringify(id)} — ${hits.length} side-observation(s), on row(s) ${[...new Set(hits.map(o => o.row))].join(', ')}`)
+  }
+  console.log('  Declare it again, or take the tag off those observations — they are not going to be counted silently.')
+  process.exit(1)
+}
+
 // GROUND TRUTH IS RE-DERIVED HERE, NOT READ BACK OUT OF THE OBSERVATION.
 //
 // `correct` was computed once, by oracle-record, at the moment the observation was written
@@ -211,15 +238,22 @@ try {
 const liveKey = `${live.template_hash}|${live.schema_fingerprint}`
 console.log(`instrument that ships: ${live.template_hash.slice(0, 23)}…   (read from loop.js, never from the ledger)`)
 
+// GROUPED BY TEMPLATE. Grouping by prompt_hash put every row in its own cohort,
+// because the goal and artifact path are interpolated into the prompt — the tool
+// reported four cohorts of one on a four-row corpus. An observation predating the
+// template hash has none; it belongs to an unknown instrument and is reported as
+// its own cohort rather than silently folded into a current one.
+//
+// Named once because the pairing block below needs the same key: a draw whose two sides
+// were taken against different prompts is two instruments, not one observation. A second
+// copy of this expression is a copy that drifts, which is the defect this file spends its
+// longest comment on.
+const cohortKey = r => `${r.template_hash || 'template-unknown:' + (r.prompt_hash || 'none')}|${r.schema_fingerprint}`
+
 // Group by instrument, then by arm. A cohort is (prompt_hash, schema_fingerprint).
 const cohorts = new Map()
 for (const r of results) {
-  // GROUPED BY TEMPLATE. Grouping by prompt_hash put every row in its own cohort,
-  // because the goal and artifact path are interpolated into the prompt — the tool
-  // reported four cohorts of one on a four-row corpus. An observation predating the
-  // template hash has none; it belongs to an unknown instrument and is reported as
-  // its own cohort rather than silently folded into a current one.
-  const k = `${r.template_hash || 'template-unknown:' + (r.prompt_hash || 'none')}|${r.schema_fingerprint}`
+  const k = cohortKey(r)
   if (!cohorts.has(k)) cohorts.set(k, [])
   cohorts.get(k).push(r)
 }
@@ -370,24 +404,130 @@ for (const [k, rs] of cohorts) {
 if (pairings.length) {
   console.log('')
   console.log(`── pairings ── ${pairings.length} declared`)
-  let posable = 0
+
+  // A PAIRING OBSERVATION IS TWO SIDE-OBSERVATIONS JOINED BY A DRAW ID. Each side is an
+  // ordinary roleOf observation — grounded, instrument-checked, re-scored against the
+  // corpus like every other — and what makes the pair an observation of the VERDICT is
+  // the draw id they share.
+  //
+  // The observed verdict is composed HERE, by running loop.js, and stored nowhere. So is
+  // the expected one. Both follow a change to loop.js's rule with nothing to re-sync,
+  // which is the whole reason oracle-derive.mjs exists.
+  //
+  // Nested maps rather than a joined string key: a delimiter is a rule about what an id
+  // may not contain, and nothing enforces it.
+  const draws = new Map()
+  for (const o of results) {
+    if (!o.pairing) continue
+    if (!draws.has(o.pairing)) draws.set(o.pairing, new Map())
+    const byDraw = draws.get(o.pairing)
+    if (!byDraw.has(o.pairing_draw)) byDraw.set(o.pairing_draw, [])
+    byDraw.get(o.pairing_draw).push(o)
+  }
+
+  const unscorable = []
+  const scored = []
+
   for (const p of pairings) {
     const [ra, rb] = p.sides.map(id => byId.get(id))
     if (!ra || !rb) { console.log(`   ${p.id}: names a row the corpus does not have — ${p.sides.join(', ')}`); continue }
     let expected
     try { expected = await verdictFor(ra.expected_role, rb.expected_role) }
     catch (e) { console.log(`   ${p.id}: the verdict could not be derived — ${String(e.message).split('\n')[0]}`); continue }
-    const obs = results.filter(o => o.pairing === p.id)
-    posable++
-    console.log(`   ${p.id.padEnd(20)} ${ra.expected_role} + ${rb.expected_role} -> ${expected}   ${obs.length} observation(s)`)
+
+    const mine = [...(draws.get(p.id) || new Map()).entries()]
+    console.log(`   ${p.id.padEnd(20)} ${ra.expected_role} + ${rb.expected_role} -> ${expected}   ${mine.length} draw(s)`)
     if (expected === 'comparable') console.log(`   ${' '.repeat(20)} a refusal on this pairing would be FALSE — this is the cell the rate comes from`)
+
+    for (const [drawId, obs] of mine) {
+      const sides = p.sides.map(id => obs.find(o => o.row === id))
+      // EVERY WAY A DRAW FAILS TO BE ONE IS NAMED RATHER THAN DROPPED. A rate resting on
+      // fewer draws than the ledger appears to hold is the silent-drop failure this report
+      // already refuses for an unscored arm, and a draw is where it would happen next.
+      // Excluded and printed, not fatal: the runner records nothing for a probe that died,
+      // so a half draw is the normal consequence of one flaky spawn, and exiting non-zero
+      // on it would make a dead agent look like a broken corpus.
+      if (obs.length !== 2 || sides.some(x => !x)) {
+        unscorable.push(`draw ${drawId} (${p.id}): incomplete — ${obs.length} of 2 sides recorded (${obs.map(o => o.row).join(', ') || 'none'}). One side has no second role to compose with, and supplying one is inventing an answer.`)
+        continue
+      }
+      const keys = new Set(sides.map(cohortKey))
+      if (keys.size > 1) {
+        unscorable.push(`draw ${drawId} (${p.id}): its two sides were drawn against DIFFERENT instruments, so composing them would answer for a check nobody runs`)
+        continue
+      }
+      if ([...keys][0] !== liveKey) {
+        unscorable.push(`draw ${drawId} (${p.id}): drawn against an instrument that no longer ships — re-draw it rather than re-scoring it`)
+        continue
+      }
+      if (sides.some(o => o.disputed)) {
+        unscorable.push(`draw ${drawId} (${p.id}): a side's ground truth is contested, so scoring the composed verdict would cost a choice of side`)
+        continue
+      }
+      let observed
+      try { observed = await verdictFor(sides[0].predicted_role, sides[1].predicted_role) }
+      catch (e) { unscorable.push(`draw ${drawId} (${p.id}): the observed verdict could not be composed — ${String(e.message).split('\n')[0]}`); continue }
+      const tag = expected === 'comparable'
+        ? (observed === 'comparable' ? '' : '   FALSE REFUSAL')
+        : observed === expected ? '   refused, and the corpus says it should be'
+        : observed === 'comparable' ? '   MISSED REFUSAL'
+        : '   REFUSED FOR THE WRONG REASON'
+      console.log(`   ${' '.repeat(20)} draw ${drawId}: ${sides[0].predicted_role} + ${sides[1].predicted_role} -> ${observed}${tag}`)
+      scored.push({ pairing: p.id, expected, observed })
+    }
   }
-  const observed = results.filter(o => o.pairing).length
-  if (!observed) {
+
+  if (unscorable.length) {
+    console.log('')
+    console.log(`   ${unscorable.length} draw(s) could not be scored, and are excluded from everything below:`)
+    for (const u of unscorable) console.log(`     ${u}`)
+  }
+
+  const cell = scored.filter(s => s.expected === 'comparable')
+  const refused = cell.filter(s => s.observed !== 'comparable')
+  const distinctPairings = new Set(cell.map(s => s.pairing)).size
+  const trueCell = scored.filter(s => s.expected !== 'comparable')
+
+  if (!scored.length) {
     console.log('')
     console.log('   NO PAIRING HAS BEEN OBSERVED. The verdict that refuses runs has zero draws behind it, so the')
     console.log('   per-run false refusal figure above remains a derivation from the per-side rate and not a')
     console.log('   measurement of the thing itself.')
+  } else {
+    console.log('')
+    console.log(`   ── the false-refusal cell ── ${distinctPairings} distinct pairing(s), ${cell.length} draw(s)`)
+    if (!cell.length) {
+      console.log('     falsely refused   NOT POSED — every scored draw is of a pairing whose true verdict IS a refusal,')
+      console.log('                       so nothing here could have been falsely refused. That is a gap in the corpus,')
+      console.log('                       not a rate of zero.')
+    } else if (distinctPairings < 5) {
+      // The same threshold the per-side arm applies to distinct artifacts. A newer arm does
+      // not get a lower bar, and the unit is the PAIRING: two draws of one pairing are one
+      // artifact pair measured twice, which is the repeat-execution problem n_distinct
+      // exists to keep out of a rate.
+      console.log(`     falsely refused   ${refused.length} of ${cell.length} draw(s) — NO RATE: ${distinctPairings} distinct pairing(s) supports no rate.`)
+      console.log(`                       Same threshold the per-side arm uses on distinct artifacts. Declaring and`)
+      console.log(`                       drawing more pairings in this cell moves it; redrawing these ones does not.`)
+    } else {
+      const ci = wilson(refused.length, cell.length)
+      console.log(`     falsely refused   ${refused.length}/${cell.length}, 95% CI [${pct(ci[0])}, ${pct(ci[1])}]   <- MEASURED by drawing the pairing, not derived from 2q(1-q)`)
+      console.log(`                       The number #33 calls the one that decides whether an automatic refusal is`)
+      console.log(`                       safe to keep, over ${distinctPairings} distinct pairing(s).`)
+    }
+    if (trueCell.length) {
+      const fired = trueCell.filter(s => s.observed === s.expected).length
+      const missed = trueCell.filter(s => s.observed === 'comparable').length
+      console.log(`   ── the refusal-fires cell ── ${trueCell.length} draw(s) whose true verdict is a refusal`)
+      console.log(`     fired correctly   ${fired}/${trueCell.length}${missed ? `, ${missed} MISSED — the run would have proceeded on a pairing the corpus says is not comparable` : ''}`)
+    }
+
+    // WHAT THESE DRAWS DO NOT ESTABLISH, on the branch that carries the number.
+    console.log('')
+    console.log('   The sides of these draws are also counted in the per-side arm above, so the measured figure')
+    console.log('   and the derived 2q(1-q) one rest on the SAME draws. Comparing them tests the independence')
+    console.log('   assumption on one body of evidence; it does not corroborate either with a second.')
+    console.log('   And the draw id records that two sides belong to one draw. Nothing here establishes that they')
+    console.log('   were DRAWN together — the same residual --raw carries about where an answer came from.')
   }
 }
 
