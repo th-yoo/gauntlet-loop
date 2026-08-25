@@ -46,14 +46,49 @@ let failures = 0
 const fail = m => { console.error(`  FAIL  ${m}`); failures++ }
 const ok = (cond, msg) => { if (!cond) fail(msg) }
 
-// COMPUTED. A figure restated by hand goes stale — ">10 min" already did.
-const PROPERTY_COUNT = (readFileSync(SWEEP, 'utf8').match(/^ {2}\['/gm) || []).length
-const SECONDS_EACH = 28          // measured: one entry, and one full run-all, both ~28s
-const ESTIMATE_MIN = Math.round((PROPERTY_COUNT * SECONDS_EACH) / 60)
+// THE COUNT IS READ FROM THE PROPERTIES LITERAL, quote style and all.
+//
+// The first version matched /^ {2}\['/ and reported 114. The sweep itself reported
+// 117. Three entries open with a double quote because their own text contains an
+// apostrophe — "the builder's failed-attempts note is kept" and two more — so a
+// regex that assumed one quote character under-counted by exactly those three.
+// Bounding the scan to the literal and matching the bracket rather than the quote
+// removes the assumption instead of widening it.
+const SWEEP_SRC = readFileSync(SWEEP, 'utf8')
+const LITERAL_START = SWEEP_SRC.indexOf('const PROPERTIES = [')
+const LITERAL_END = LITERAL_START === -1 ? -1 : SWEEP_SRC.indexOf('\n]', LITERAL_START)
+const PROPERTY_COUNT = (LITERAL_START === -1 || LITERAL_END === -1)
+  ? 0
+  : (SWEEP_SRC.slice(LITERAL_START, LITERAL_END).match(/^ {2}\[/gm) || []).length
 
-console.log('coverage-cadence: the sweep is too slow for a blocking gate, computed not assumed')
-console.log(`          ${PROPERTY_COUNT} properties x ~${SECONDS_EACH}s = ~${ESTIMATE_MIN} min`)
+// THE COST IS AN OBSERVATION, NOT AN EXTRAPOLATION.
+//
+// This said `114 x ~28s = ~53 min`, from timing one property locally. The first
+// real run took 13m35s for 117 on ubuntu-latest — off by four times, because
+// per-entry cost measured one at a time carries startup that does not repeat 117
+// times. Multiplying a local sample was the error; the figure below is a run that
+// happened, with where it happened, and it is not used to derive anything.
+//
+// The conclusion is unchanged and does not depend on the precision: a 13-minute
+// gate is as unusable in front of a push as a 53-minute one.
+const OBSERVED = { minutes: 14, entries: 117, where: 'ubuntu-latest', run: '32900618692' }
+
+console.log('coverage-cadence: the sweep is too slow for a blocking gate')
+console.log(`          ${PROPERTY_COUNT} properties in the list; last full run ~${OBSERVED.minutes} min for ${OBSERVED.entries} on ${OBSERVED.where} (run ${OBSERVED.run})`)
 ok(PROPERTY_COUNT > 0, 'no properties found in coverage-sweep.mjs — either the list is empty or this scan has gone blind, and those are different situations')
+// The scan and the sweep must agree. They disagreed once — 114 here against 117
+// there — silently, and the test was the one that was wrong.
+//
+// TWO THINGS make this fire and the message names both, because a guard that
+// diagnoses only the case its author had in mind sends the reader the wrong way:
+//   1. this parse went blind to entries the sweep still executes, or
+//   2. the list genuinely shrank.
+// The second is not a false positive. Coverage-sweep exists because a structural
+// edit once removed four cases beyond the one being rewritten and the suite went
+// green at a lower count — so a drop in the property count is exactly the event
+// worth stopping on, and clearing it means updating OBSERVED on purpose.
+ok(PROPERTY_COUNT >= OBSERVED.entries,
+   `this scan counts ${PROPERTY_COUNT} properties, and run ${OBSERVED.run} executed ${OBSERVED.entries}. Either this parse is blind to entries the sweep still runs, or the list lost ${OBSERVED.entries - PROPERTY_COUNT} — the second is the silent-coverage-loss this sweep exists to catch. Establish which, then update OBSERVED deliberately.`)
 
 // It must NOT be in run-all. This is asserted in the direction that would actually
 // go wrong: someone reads #45, adds the sweep to the suite, and every push becomes
@@ -65,7 +100,7 @@ console.log('coverage-cadence: the sweep stays out of the blocking suite')
     const src = readFileSync(join(ROOT, 'test', f), 'utf8')
     // A mention is fine; a spawn is not. Only an actual invocation costs the time.
     if (/(spawnSync|execFileSync|exec|spawn)\s*\([^)]*coverage-sweep/.test(src)) {
-      fail(`test/${f} invokes coverage-sweep — that puts ~${ESTIMATE_MIN} min into every run of the suite, and a gate that slow gets bypassed`)
+      fail(`test/${f} invokes coverage-sweep — that puts ~${OBSERVED.minutes} min into every run of the suite, and a gate that slow gets bypassed`)
     }
   }
   const runAll = readFileSync(join(ROOT, 'test', 'run-all.mjs'), 'utf8')
@@ -125,7 +160,7 @@ if (wf) {
         block.push(lines[j])
       }
       ok(block.some(l => /paths(-ignore)?:/.test(l)),
-         `${wf.f} triggers on every push with no paths filter, which queues ~${ESTIMATE_MIN} min of runner time for commits that cannot have changed what the properties pin`)
+         `${wf.f} triggers on every push with no paths filter, which queues ~${OBSERVED.minutes} min of runner time for commits that cannot have changed what the properties pin`)
     }
   }
 
