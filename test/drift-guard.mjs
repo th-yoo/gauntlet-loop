@@ -570,6 +570,41 @@ console.log('drift-guard: the oracle report still discloses what it cannot estab
   }
 }
 
+// NOTHING THE SUITE RUNS MAY REACH A LIVE-MODEL SPAWNER.
+//
+// `scripts/oracle-draw.mjs` spawns real agents. The suite must not be able to reach it,
+// and a mutation sweep — whose entire purpose is to delete a guard and run the check
+// anyway — must not either. This repo has already paid for the alternative: a canary in
+// test/oracle.test.mjs was a live `claude -p`, the mutation that removed the guard in
+// front of it ran the canary, and the agent it spawned re-entered the repo and re-ran the
+// suite. Depth 13, 22 live agents, ~3.5 minutes
+// (docs/runs/2026-08-25-oracle-fork-bomb/).
+//
+// This is the STATIC half: no file the suite executes may name the spawner. The dynamic
+// half is GAUNTLET_SUITE, set by run-all and by mutate's check, refused by the spawner,
+// and inherited by every descendant — which is the reachability path a name scan cannot
+// see. Two barriers because this is the riskiest thing here, and one of them can be true
+// while the other is false.
+{
+  const SPAWNER = 'oracle-draw'
+  const mustNotName = [
+    ...readdirSync(join(ROOT, 'test')).filter(f => f.endsWith('.mjs')).map(f => join('test', f)),
+    join('scripts', 'mutate.mjs'),
+    join('scripts', 'coverage-sweep.mjs'),
+  ]
+  for (const rel of mustNotName) {
+    const full = join(ROOT, rel)
+    if (!existsSync(full)) continue
+    const text = readFileSync(full, 'utf8')
+    // The guard itself has to be exempt, or it fails on its own name.
+    if (rel.endsWith('drift-guard.mjs')) continue
+    if (text.includes(SPAWNER)) {
+      fail(`${rel} names "${SPAWNER}". Anything the suite or a mutation sweep executes must not be able to reach a live-model spawner — that is how this repo produced a fork bomb to depth 13. If a test needs to prove the spawner refuses, assert on its refusal MESSAGE without naming or invoking it.`)
+    }
+  }
+  console.log(`drift-guard: nothing the suite runs names the live-model spawner (${mustNotName.length} file(s) scanned)`)
+}
+
 console.log('drift-guard: every repo-relative path cited in a live file still exists')
 for (const rel of LIVE_SURFACES) {
   let text

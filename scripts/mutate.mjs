@@ -113,7 +113,11 @@ try {
   // in the working tree looking like source. A hang is also not a verdict: it is the
   // "did not run" class below, not NOT CAUGHT.
   const timeoutMs = Number(process.env.MUTATE_CHECK_TIMEOUT_MS || 300_000)
-  const r = spawnSync(check[0], check.slice(1), { encoding: 'utf8', timeout: timeoutMs })
+  // GAUNTLET_SUITE, for the same reason run-all sets it. A mutation sweep's whole purpose
+  // is to remove a guard and run the check anyway, so this is the run most likely to reach
+  // a spawn that the removed guard was in front of. It once did. Env is inherited, so
+  // anything the check reaches — at any depth — carries the marker too.
+  const r = spawnSync(check[0], check.slice(1), { encoding: 'utf8', timeout: timeoutMs, env: { ...process.env, GAUNTLET_SUITE: '1' } })
   if (r.error && r.error.code === 'ETIMEDOUT') {
     console.error(`mutate: the check command did not finish within ${timeoutMs} ms and was killed.`)
     console.error('A check that hangs has not noticed anything — and a mutation can CAUSE the hang, so this is')
