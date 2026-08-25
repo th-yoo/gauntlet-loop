@@ -191,3 +191,49 @@ form are both plainly in it, and the probe caught both. Finding 4's hypothesis i
 lack of candidate shapes, and the falsification hunt should continue rather than stop.
 
 **What it does not add.** Two artifacts, one draw each. No rate, and no claim of one.
+
+---
+
+## Six rows, and the first rate this corpus has been able to pose
+
+Two more does-the-work rows, chosen for shapes the arm had not seen:
+
+- **`sql-schema`** — a SQL DDL file. Every earlier row was imperative: a script or a
+  runbook. This one is a *declaration* that is applied rather than run.
+- **`runbook-checklist`** — a second row near the boundary. An imperative checklist
+  addressed to a reader ("work through these in order"), which a careless classifier
+  reads as instructions for someone else. One boundary row is not enough, because the
+  boundary is the only place a false refusal comes from.
+
+Both correct. Six distinct artifacts, so the arm crosses the threshold where the report
+will state a rate:
+
+```
+   does-the-work arm
+     observations      6
+     distinct artifacts 6
+     misclassified     0
+     per-side error    0/6, 95% CI [0%, 39%]  <- PRIMARY
+     derived per-run   0%–48% of two-does-the-work pairings would be falsely refused
+```
+
+**Read the interval, not the zero.** Six for six is consistent with a per-side error
+rate as high as 39%, and with a false-refusal rate on two-worker pairings as high as
+48% — on this evidence a false refusal could still be about as likely as a coin flip.
+What is now ruled out is a classifier that is *badly* wrong on obvious cases, across
+six shapes including two near the boundary. That is more than was known, and much less
+than a green number looks like.
+
+## A bug in the first real run of that branch
+
+It printed **"~0% would be falsely refused"** — a bare point estimate, produced by the
+one tool here whose entire purpose is refusing those, and it read as *safe* while the
+interval directly above it reached 39%.
+
+The derived figure now carries the interval through instead: `2p(1-p)` evaluated across
+the CI rather than at the point. The function is not monotonic — it peaks at `p = 0.5`
+— so the range is taken over both endpoints and over `0.5` when the interval contains
+it, rather than by mapping the endpoints and hoping.
+
+The synthetic ten-observation test written a round earlier had asserted the point-estimate
+form and passed. Verifying a branch is not the same as verifying it says something true.

@@ -127,10 +127,21 @@ for (const [k, rs] of cohorts) {
     } else {
       console.log(`     per-side error    ${wrong.length}/${n}, 95% CI [${pct(ci[0])}, ${pct(ci[1])}]  <- PRIMARY`)
       if (arm === 'does-the-work') {
-        const p = wrong.length / n
-        console.log(`     derived per-run   ~${pct(2 * p * (1 - p))} of two-does-the-work pairings would be falsely refused,`)
-        console.log(`       false refusal   ASSUMING the two sides fail independently. That assumption is not`)
-        console.log(`                       measured and is probably false — same model, same run. Secondary.`)
+        // DERIVED FROM THE INTERVAL, NOT THE POINT. The first real run of this branch
+        // printed "~0% would be falsely refused" off a point estimate of 0/6 — a bare
+        // point estimate, in the one tool here whose whole purpose is refusing those,
+        // and it read as "this is safe" while the interval above it reached 39%.
+        //
+        // 2p(1-p) is not monotonic: it rises to 0.5 at p=0.5 and falls after. So the
+        // range is taken over the CI's endpoints AND p=0.5 when the interval contains
+        // it, rather than by mapping the endpoints and hoping.
+        const f2 = q => 2 * q * (1 - q)
+        const pts = [ci[0], ci[1], ...(ci[0] <= 0.5 && 0.5 <= ci[1] ? [0.5] : [])].map(f2)
+        const lo = Math.min(...pts), hi = Math.max(...pts)
+        console.log(`     derived per-run   ${pct(lo)}–${pct(hi)} of two-does-the-work pairings would be falsely refused,`)
+        console.log(`       false refusal   carried through from the interval above rather than from the point`)
+        console.log(`                       estimate, and ASSUMING the two sides fail independently — an assumption`)
+        console.log(`                       nothing here measures, and probably false: same model, same run. Secondary.`)
       }
     }
   }

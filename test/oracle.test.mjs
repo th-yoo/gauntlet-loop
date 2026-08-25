@@ -297,9 +297,18 @@ function run(script, args, extraEnv) {
   ok(/per-side error    1\/10/.test(out), 'the per-side count is reported')
   ok(/95% CI \[2%, 40%\]/.test(out), `with the Wilson interval, which is the number that must not be a bare point estimate — got: ${(out.match(/95% CI.*/) || [''])[0]}`)
   ok(/<- PRIMARY/.test(out), 'and per-side accuracy is marked PRIMARY, because the refusal rate is derived from it')
-  // 2p(1-p) at p = 1/10 is 0.18 -> 18%.
-  ok(/~18% of two-does-the-work pairings would be falsely refused/.test(out),
-     `the derived per-run figure is computed — got: ${(out.match(/~\d+% of two.*/) || [''])[0]}`)
+  // THE DERIVED FIGURE CARRIES THE INTERVAL, NOT THE POINT. At 1/10 the point estimate
+  // gives 2p(1-p) = 18%, and printing that alone is the bare point estimate this tool
+  // refuses everywhere else — it reads as a measurement while the interval behind it is
+  // wide. Wilson on 1/10 is about [0.018, 0.404], and 2p(1-p) over that range is about
+  // [3.6%, 48%]. The first REAL six-row run printed "~0%" off a point estimate of 0/6
+  // while its own interval reached 39%, which is how this was found.
+  const derived = (out.match(/derived per-run   (\d+)%–(\d+)%/) || [])
+  ok(derived.length === 3, `the derived figure is a RANGE, not a point — got: ${(out.match(/derived per-run.*/) || [''])[0]}`)
+  ok(Number(derived[1]) <= 4 && Number(derived[2]) >= 45,
+     `and the range is carried from the interval (expected roughly 3%–48% at 1/10) — got ${derived[1]}%–${derived[2]}%`)
+  ok(!/~\d+% of two/.test(out), 'and no tilde-point-estimate form survives anywhere')
+  ok(/carried through from the interval above/.test(out), 'and it says where the range comes from')
   ok(/ASSUMING the two sides fail independently/.test(out),
      'and is labelled with the assumption it rests on, which is not measured anywhere')
   ok(/Secondary/.test(out), 'and marked secondary to the per-side number')

@@ -158,6 +158,7 @@ const PROPERTIES = [
 
   ['a small corpus refuses to state a rate', OP, 'if (distinct < 5) {', 'if (false) {'],
   ['a stated rate carries its interval, not a point estimate', OP, 'console.log(`     per-side error    ${wrong.length}/${n}, 95% CI [${pct(ci[0])}, ${pct(ci[1])}]  <- PRIMARY`)', 'console.log(`     per-side error    ${pct(wrong.length/n)}  <- PRIMARY`)'],
+  ['the derived refusal figure carries the interval, not the point', OP, 'const pts = [ci[0], ci[1], ...(ci[0] <= 0.5 && 0.5 <= ci[1] ? [0.5] : [])].map(f2)', 'const pts = [f2(wrong.length / n)]'],
   ['the derived refusal figure states its assumption', OP, 'ASSUMING the two sides fail independently', 'assuming nothing in particular'],
 
   ['a hanging acceptance command is killed', OA, "if (res.error?.code === 'ETIMEDOUT' || res.signal === 'SIGKILL') {", 'if (false) {'],
