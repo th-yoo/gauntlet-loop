@@ -153,8 +153,84 @@ const GOAL = 'a goal worth looping over'
   })
   eq(r.result.outcome.status, 'CANCELLED', 'a breaker that returns nothing stops the run rather than continuing')
   eq(r.result.rounds, 1, 'exactly 1 round completed before the dead probe')
-  ok(r.logs.some(l => /the breaker returned nothing at round 2/.test(l)), 'a WARNING names the dead probe rather than reporting it as an operator cancel')
+  ok(r.logs.some(l => /returned nothing at round 2/.test(l)), 'a WARNING names the dead probe rather than reporting it as an operator cancel')
+  // Round 1's breaker ANSWERED, so its type is proven registered. A later silence
+  // from that type is therefore an agent that ran and gave nothing back, and the
+  // verdict must say so rather than leaving the operator with #14's ambiguity.
+  ok(/[Ii]ts type is registered and working this run/.test(r.result.stopped_by_silence || ''),
+     `with the type already proven this run, the silence is attributed to the agent, not to a missing type — got: ${r.result.stopped_by_silence}`)
+  ok(!/indistinguishable/.test(r.result.stopped_by_silence || ''),
+     'and the run does not claim an ambiguity it has the evidence to resolve')
   console.log('loop: a breaker that returns nothing fails SAFE and stops the loop OK')
+}
+
+// THE SAME SILENCE, WITH NO EVIDENCE EITHER WAY — issue #14's irreducible half.
+// When the FIRST breaker of the run returns nothing, no call of that type has
+// returned anything yet, so "the agent answered with nothing" and "the type was
+// never registered" are the same observation. The run must take the weaker reading
+// and say which one it is taking, because the operator reads CANCELLED and needs to
+// know whether they caused it.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: () => null,
+    rounds: [],
+    runawayGuard: 5,
+  })
+  eq(r.result.outcome.status, 'CANCELLED', 'a first-round dead breaker still stops the run')
+  ok(/indistinguishable from that type not being registered/.test(r.result.stopped_by_silence || ''),
+     `with nothing yet proven, the run reports the ambiguity instead of asserting a cancel — got: ${r.result.stopped_by_silence}`)
+  ok(/weaker reading/.test(r.result.stopped_by_silence || ''),
+     'and says which reading it took, rather than leaving the operator to guess')
+  console.log('loop: a breaker silent before its type is proven reports the ambiguity, not a cancel OK')
+}
+
+// THE CASE A HAND-WRITTEN SIBLING LIST GETS WRONG — and the reason the derivation
+// exists at all.
+//
+// Spawnability used to be `!!(fairness || fitted)`: two named probes of the
+// gauntlet-loop:gauntlet-goal-check type. Two more callers of that same type were
+// added later — the two halves of the pairing check — and the disjunction was not
+// updated. So a run where the goal probes returned nothing but the PAIRING probes
+// answered had proof the type was live, and still reported the weaker reading.
+//
+// Here fairness and fitted return nothing and the blindness probe returns nothing,
+// while the pairing probes answer. The type is therefore proven registered, and the
+// blindness disclosure must attribute the silence to the agent rather than to a
+// possibly-missing type. Reverting to the hand-written disjunction fails this and
+// nothing else in the suite.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: rd => rd <= 2,
+    rounds: [],
+    fairness: null,
+    fitted: null,
+    selfid: null,
+    roles: { role: 'does-the-work', what_it_is: 'a runbook', reasoning: 'it names the commands' },
+  })
+  const line = r.result.not_enforced.find(b => /CONTENT BLINDNESS WAS NOT CHECKED/.test(b))
+  ok(line, 'the blindness probe returned nothing, so the run discloses that it was not checked')
+  ok(/registered and working this run/.test(line),
+     `a SIBLING probe of the same type answered, so the type is proven live and the silence belongs to the agent — got: ${line}`)
+  ok(!/NO probe of its agent type returned anything/.test(line),
+     'and the run does not claim an ambiguity it has the evidence to resolve — this is the case a hand-written sibling list gets wrong once a new caller of the same type is added')
+  console.log('loop: spawnability is derived from ANY call of a type, not from a hand-written pair OK')
+}
+
+// ...and when the very FIRST critic returns nothing, no call of that type has
+// answered yet, so #14's two events are genuinely one observation. The verdict must
+// say so rather than asserting the agent answered — this is the irreducible half,
+// and reporting it honestly is the whole fix available.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    critic: () => null,
+  })
+  eq(r.result.outcome.status, 'ERROR', 'a first-round dead critic ends the run')
+  ok(/indistinguishable from the type not being registered/.test(r.result.outcome.why || ''),
+     `with nothing yet proven, the verdict reports the ambiguity instead of blaming the agent — got: ${r.result.outcome.why}`)
+  console.log('loop: a critic silent before its type is proven reports #14 ambiguity rather than asserting an empty answer OK')
 }
 
 // A breaker that answers anything other than PRESENT is also a stop. The enum
@@ -389,6 +465,14 @@ console.log('loop: required args throw, and the reference error explains why a b
   ok(spawnBullet, 'a spawn-count bullet is present')
   ok(/\b2 separate critic spawn/.test(spawnBullet), 'the bullet reports the actual spawn count (2), not history.length (1)')
   ok(/1 produced a recorded verdict/.test(spawnBullet), 'the bullet also reports how many produced a recorded verdict')
+  // THE SENTENCE ISSUE #14 IS NAMED AFTER. "critic returned nothing" was reported
+  // identically whether the agent answered with nothing or its type was never
+  // registered. Round 1's critic ANSWERED here, so the type is proven live and the
+  // verdict must attribute round 2's silence to the agent.
+  ok(/registered and working this run/.test(r.result.outcome.why || ''),
+     `the ERROR says WHICH of the two events this was, given round 1 proved the type live — got: ${r.result.outcome.why}`)
+  ok(!/indistinguishable/.test(r.result.outcome.why || ''),
+     'and does not report an ambiguity the run has the evidence to resolve')
   console.log('loop: spawn-count bullet counts actual spawns, not history.length OK')
 }
 

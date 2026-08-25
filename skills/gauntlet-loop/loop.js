@@ -310,9 +310,66 @@ const BREAKER_SCHEMA = {
 // run was cancelled because a probe saw it absent; without this that is an
 // assertion about an agent nobody can check.
 let stoppedByEvidence = null
+let breakerSilent = null
+
+// WHICH AGENT TYPES ARE PROVEN LIVE THIS RUN — issue #14.
+//
+// The runtime hands a Workflow script the SAME value for two different events: an
+// agent that ran and returned nothing, and an agent type that was never registered.
+// The script cannot ask the harness which happened. That much is irreducible.
+//
+// What is not irreducible is discarding the evidence the run already has. A type
+// that returned a result ONCE is registered, and every later empty result from that
+// type is an agent that ran and gave nothing back. This records that, for every
+// type, from every call — so the disambiguation is DERIVED from what the run did
+// rather than hand-written.
+//
+// It replaces `!!(fairness || fitted)`, which named two probes of one type. A third
+// and fourth caller of that same type were added later and the disjunction was not
+// updated, so a run where only the newer probes answered still reported the weaker
+// reading. That is this very issue, reintroduced by the fix's own maintenance — the
+// sixth time a hand-written list duplicating something derivable has gone stale in
+// this repository.
+//
+// A THROW is deliberately not counted, in either direction. The runtime does name a
+// missing type in its error text, but `parallel()` turns a throw into null before
+// any of it is visible, so half the call sites could never see it. One rule that
+// works at every call site beats a better rule that works at some of them.
+const typeSawResult = new Map()
+
+function spawn(prompt, opts) {
+  return agent(prompt, opts).then(r => {
+    if (r && opts && opts.agentType) typeSawResult.set(opts.agentType, true)
+    return r
+  })
+}
+
+// PROVEN, never assumed. `false` means "no call of this type has returned anything",
+// which is not the same as "the type is missing" — at round 1 the breaker is the
+// first agent in the run, so nothing can have proven it yet.
+const typeProven = t => typeSawResult.get(t) === true
+
+// Kept out of tokenPresent so the schema-field scan's forward window still reaches
+// the line that reads `probe.evidence`. A guard whose window a comment can overflow
+// is a guard that gets widened until it stops biting.
+// The half of the #14 sentence that is the same wherever a spawn comes back empty.
+// Kept as one function so the rule cannot drift between the places that state it —
+// the last hand-maintained version of this idea named two probes and went stale the
+// moment a third caller of the same type appeared.
+function silenceNote(type) {
+  return typeProven(type)
+    ? ` — that agent type is registered and working this run (another call of the same type returned a result), so this is an agent that answered with nothing, NOT a missing agent type`
+    : ` — and no call of that agent type has returned anything this run, so per issue #14 this is indistinguishable from the type not being registered at all. A Workflow script sees an empty result either way`
+}
+
+function breakerSilenceNote(round) {
+  return typeProven('gauntlet-loop:gauntlet-breaker')
+    ? `the breaker agent ran and returned nothing at round ${round}. Its type is registered and working this run (another probe of the same type returned a result), so this is an agent that answered with nothing, NOT a missing agent type.`
+    : `the breaker returned nothing at round ${round}, and no probe of its agent type has returned anything this run — so per issue #14 this is indistinguishable from that type not being registered at all. A Workflow script sees an empty result either way. Assume the weaker reading: the run may have stopped because the breaker could not be spawned, not because you cancelled it.`
+}
 
 async function tokenPresent(round, tag) {
-  const probe = await agent(
+  const probe = await spawn(
     `Report whether ONE file exists. This is the whole task — do not read it, do not create it,
 do not modify it, and do not look at anything else on the filesystem.
 
@@ -336,7 +393,13 @@ has failed, and this run stops rather than continuing uncancellable.`,
     return null
   })
   if (!probe) {
-    log(`WARNING: the breaker returned nothing at round ${round} — treating the run as cancelled rather than continuing a loop nobody can stop`)
+    // WHICH of the two events this was, when the run can tell. The fail-safe is the
+    // same either way — a breaker that cannot be read cannot stop the run, so the run
+    // stops — but the operator reads a CANCELLED verdict and needs to know whether
+    // they caused it. At round 1 the breaker is the first agent in the run, so
+    // nothing can have proven its type yet and the ambiguity is real.
+    breakerSilent = breakerSilenceNote(round)
+    log(`WARNING: ${breakerSilent} Treating the run as cancelled rather than continuing a loop nobody can stop.`)
     return false
   }
   if (probe.token !== 'PRESENT') { stoppedByEvidence = probe.evidence || null; return false }
@@ -374,7 +437,7 @@ const sizeByRound = []
 const sizeUnmeasured = []
 
 async function measureSize(round, tag, pieceName, path) {
-  const m = await agent(
+  const m = await spawn(
     `Report the SIZE of one file. That is the whole task — do not read it, do not open it, do not
 form an opinion about what is in it, and do not look at anything else.
 
@@ -515,7 +578,7 @@ let selfid = null
 // goal then named. Nothing in the run could see that, and the operator who wrote
 // both is the last party who will notice.
 async function checkGoalFitted() {
-  const f = await agent(
+  const f = await spawn(
     `You are asked the FITTED question. Here is one artifact and one goal.
 
 Does this goal read as a NEED — something a person would state before seeing any artifact, in
@@ -545,7 +608,7 @@ to describe it. You are judging where the goal came from, as far as the text can
 }
 
 async function checkGoalFairness() {
-  const f = await agent(
+  const f = await spawn(
     `Here is one artifact and one goal. Answer only: does this artifact attempt that goal at all?
 
 THE GOAL:
@@ -618,7 +681,7 @@ const ARTIFACT_ROLE_SCHEMA = {
 let comparability = null
 
 async function roleOf(path, n) {
-  return agent(
+  return spawn(
     `Answer ONE question about ONE artifact. Do not judge whether it is good.
 
 THE GOAL SOMEONE IS PURSUING: ${GOAL}
@@ -731,7 +794,7 @@ const SELFID_SCHEMA = {
 // where it was before this probe existed. The check ratchets one way — it can
 // withdraw a claim, never strengthen one.
 async function checkSelfIdentification() {
-  const f = await agent(
+  const f = await spawn(
     `Two artifacts are about to be compared blind, as A and B. A judge will be shown both and
 never told which one was built for the comparison. Answer one question:
 
@@ -855,7 +918,7 @@ let decomposition = null
 
 async function decompose() {
   leadSpawns++
-  const plan = await agent(
+  const plan = await spawn(
     `Divide this goal into the smallest pieces that can be improved and judged INDEPENDENTLY.
 
 THE GOAL:
@@ -1128,7 +1191,7 @@ async function runPiece(piece) {
   async function spawnCritic(i) {
     const s = sides(round, i, PC, PR)
     criticSpawns++
-    const v = await agent(
+    const v = await spawn(
       criticPrompt(s, piece),
       {
         label: CRITICS === 1 ? `${TAG}:ab` : `${TAG}:ab:${i + 1}`,
@@ -1171,9 +1234,10 @@ async function runPiece(piece) {
   if (critic_died || positions.length === 0) {
     pieceOutcome = {
       status: 'ERROR',
-      why: CRITICS === 1
+      why: (CRITICS === 1
         ? `critic returned nothing at round ${round}`
-        : `a critic returned nothing at round ${round} — a round is not decided on a partial line of ${CRITICS}`,
+        : `a critic returned nothing at round ${round} — a round is not decided on a partial line of ${CRITICS}`) +
+        silenceNote('gauntlet-loop:gauntlet-ab-critic'),
     }
     break
   }
@@ -1283,7 +1347,7 @@ async function runPiece(piece) {
   // and may need more rounds to close the same gap. That is measurable
   // (rounds-to-win) and reversible in one line. The opposite error is not
   // measurable — it degrades every verdict after it.
-  const built = await agent(
+  const built = await spawn(
     `You are building toward this goal:
 ${GOAL}
 
@@ -1560,7 +1624,7 @@ if (DECOMPOSED && outcome.status === 'WON' && PIECES_EDIT_THE_WHOLE) {
   let w = null
   let threw = null
   try {
-    w = await agent(criticPrompt(s, { name: null }), {
+    w = await spawn(criticPrompt(s, { name: null }), {
       label: 'split-check:whole', phase: 'Loop', schema: AB_SCHEMA, agentType: 'gauntlet-loop:gauntlet-ab-critic',
     })
   } catch (e) {
@@ -1656,7 +1720,7 @@ const CONTENT_LEAKS = !!(selfid && (selfid.verdict === 'self-identifying' || LEA
 // is remove the ambiguity in the one place it has actually cost something:
 // wf_fdbb326d-333 spawned a probe against a type added mid-session, got null,
 // and printed "content blindness was NOT checked" while looking perfectly healthy.
-const GOAL_CHECK_SPAWNABLE = !!(fairness || fitted)
+const GOAL_CHECK_SPAWNABLE = typeProven('gauntlet-loop:gauntlet-goal-check')
 
 const recordedVerdicts = history.reduce((n, h) => n + ((h.split && h.split.positions.length) || 0), 0) + (split_check.ran ? 1 : 0)
 
@@ -1664,6 +1728,12 @@ return {
   outcome,
   rounds: history.length,
   stopped_by_evidence: stoppedByEvidence,
+  // Set only when a probe's SILENCE stopped the run, and it records which of the two
+  // events issue #14 conflates this run could actually tell apart. The log carries
+  // the same sentence, but a log is not what an operator reads when a run comes back
+  // CANCELLED — the verdict is, and "you cancelled this" and "an agent type may be
+  // missing" are different problems with different fixes.
+  stopped_by_silence: breakerSilent,
   goal: GOAL,
   candidate: CANDIDATE,
   reference: REFERENCE,

@@ -109,7 +109,11 @@ console.log('drift-guard: every agent definition is actually spawned by loop.js'
   }
 }
 
-console.log('drift-guard: every agentType loop.js spawns has a definition and a tool assertion')
+// SAYS WHAT IT CANNOT SEE. Registration happens when the session loads the plugin;
+// nothing static observes it, so a green line here is not evidence the types are
+// live. That gap is issue #14, and a run resolves what it can at runtime by
+// recording which types actually returned something.
+console.log('drift-guard: every agentType loop.js spawns has a definition FILE and a tool assertion (a file on disk is not a registered agent — see #14)')
 const spawned = [...new Set([...loopCode.matchAll(/agentType:\s*'gauntlet-loop:([a-z-]+)'/g)].map(m => m[1]))].sort()
 if (!spawned.length) fail('no agentType strings found in loop.js — the scan pattern has drifted from the code')
 for (const name of spawned) {
@@ -241,7 +245,10 @@ console.log("drift-guard: the critic prompt never uses the word 'candidate'")
 // would notice, because the run would still finish and still print the claim.
 console.log('drift-guard: the build prompt carries the gap and nothing else from the verdict')
 {
-  const i = loop.indexOf('const built = await agent(')
+  // Every agent call goes through the `spawn()` wrapper (issue #14), which records
+  // which types have proven themselves live. Matching the wrapper rather than
+  // `agent(` is the precise form: a direct call would BYPASS that recording.
+  const i = loop.indexOf('const built = await spawn(')
   if (i === -1) fail('the builder dispatch was not found in loop.js — this scan has drifted from the code')
   else {
     const body = loop.slice(i, loop.indexOf('agentType:', i))
@@ -338,7 +345,7 @@ console.log('drift-guard: every schema field the loop demands is read somewhere'
       // its own and reported the size probe's as read too. A guard whose matching
       // is looser than its claim reports success for the case it exists to catch.
       const sites = [...loopCode.matchAll(new RegExp(`schema: ${name}\\b`, 'g'))].map(m => m.index)
-      if (!sites.length) fail(`${name} is defined and never used in an agent() call`)
+      if (!sites.length) fail(`${name} is defined and never used in a spawn() call`)
       // FORWARD from the call site only. A result is read after the call that
       // produces it, and a window reaching backwards spanned the neighbouring
       // probe — which reads its own `evidence` — so the size probe's dropped field
@@ -764,7 +771,12 @@ const laneFiles = readdirSync(SKILLDIR).filter(f => f.endsWith('.js')).sort()
 let comparerLanes = 0
 for (const f of laneFiles) {
   const src = stripLineComments(readFileSync(join(SKILLDIR, f), 'utf8'))
-  if (!src.includes('await agent(')) continue          // not a lane: spawns nothing
+  // What makes a file a LANE is that it dispatches typed agents, not the syntax it
+  // dispatches them with. This matched `await agent(` and went silent the day those
+  // calls moved behind a wrapper — the detector reported zero comparer lanes in a
+  // directory containing one, which its own closing check caught. `agentType:` is
+  // the property being relied on and survives any call-site refactor.
+  if (!/agentType\s*:/.test(src)) continue             // not a lane: dispatches no typed agent
   if (!LANE_IS_COMPARER.test(src)) continue            // a lane, but runs no forced two-sided choice
   comparerLanes++
   for (const c of COMPARER_CONTRACT) {

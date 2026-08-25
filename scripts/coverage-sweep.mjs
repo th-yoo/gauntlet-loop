@@ -29,7 +29,7 @@ const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
   ['position balance counts the whole-artifact critic', L, '  .concat(split_check.ran ? [split_check.candidateSide] : [])', ''],
   ['a content leak withdraws the blindness claim', L, "selfid.verdict === 'self-identifying' || LEAKING_FILES.length > 0", 'false'],
-  ['a working sibling probe narrows a null result', L, 'const GOAL_CHECK_SPAWNABLE = !!(fairness || fitted)', 'const GOAL_CHECK_SPAWNABLE = true'],
+  ['a working sibling probe narrows a null result', L, "const GOAL_CHECK_SPAWNABLE = typeProven('gauntlet-loop:gauntlet-goal-check')", 'const GOAL_CHECK_SPAWNABLE = true'],
   ['a split whose whole loses is SPLIT_UNSOUND', L, '    if (!candidateWon) {', '    if (false) {'],
   ['the split check only judges what the pieces edited', L, 'const PIECES_EDIT_THE_WHOLE = PIECES.every(p => (p.candidate || CANDIDATE) === CANDIDATE)', 'const PIECES_EDIT_THE_WHOLE = true'],
   ['a cancel after rounds is not reported as a bad token path', L, '      why: history.length === 0', '      why: round === 1'],
@@ -45,7 +45,7 @@ const PROPERTIES = [
   ['a candidate cannot be compared against itself', L, 'if (CANDIDATE && REFERENCE && String(CANDIDATE).trim() === String(REFERENCE).trim())', 'if (false)'],
   ['artifact paths cannot forge prompt structure', L, '  if (value && /[\\r\\n]/.test(String(value))) throw new Error(', '  if (false) throw new Error('],
   ['paths reach shell-running agents single-quoted', L, 'test -e ${shq(TOKEN)}', 'test -e ${JSON.stringify(TOKEN)}'],
-  ['a silent breaker stops the run', L, 'continuing a loop nobody can stop`)\n    return false', 'continuing a loop nobody can stop`)\n    return true'],
+  ['a silent breaker stops the run', L, 'nobody can stop.`)\n    return false', 'nobody can stop.`)\n    return true'],
   ["the builder's failed-attempts note is kept", L, 'failed: built.failed || null }', '}'],
   ['probe evidence behind a cancel is kept', L, '{ stoppedByEvidence = probe.evidence || null; return false }', 'return false'],
   ['the token-check count matches the probes that ran', L, '  else { breakerSpawns++; tokenOk = await tokenPresent(round, TAG) }', '  else { tokenOk = await tokenPresent(round, TAG) }'],
@@ -119,6 +119,17 @@ const PROPERTIES = [
   ['a generator refusal keeps the findings already paid for', L, "'against a design document.' + probeFindings())", "'against a design document.')"],
   ['an unreadable refusal keeps them too', L, "'against nothing. Check the path — a typo here costs a whole run.' + probeFindings())", "'against nothing. Check the path — a typo here costs a whole run.')"],
   ['a probe that died is reported as unmeasured, not omitted', L, "    : 'goal_fairness: NOT MEASURED — the probe returned nothing, so whether the reference even attempts this goal is unknown')", "    : '')"],
+
+  // --- an empty result vs a missing agent type (#14) ------------------------
+  ['every spawn records which agent types answered', L, "if (r && opts && opts.agentType) typeSawResult.set(opts.agentType, true)", "if (false) typeSawResult.set(opts.agentType, true)"],
+  ['spawnability is proven, never assumed', L, "const typeProven = t => typeSawResult.get(t) === true", "const typeProven = t => true"],
+  ['spawnability uses the evidence rather than ignoring it', L, "const typeProven = t => typeSawResult.get(t) === true", "const typeProven = t => false"],
+  ['spawnability is derived, not a hand-written sibling pair', L, "const GOAL_CHECK_SPAWNABLE = typeProven('gauntlet-loop:gauntlet-goal-check')", "const GOAL_CHECK_SPAWNABLE = !!(fairness || fitted)"],
+  ['a silent breaker records WHICH event it was', L, "    breakerSilent = breakerSilenceNote(round)", "    breakerSilent = null"],
+  ['the breaker note distinguishes the two cases', L, "  return typeProven('gauntlet-loop:gauntlet-breaker')", "  return true ? null : typeProven('gauntlet-loop:gauntlet-breaker')"],
+
+  ['a dead critic says which of the two events it was', L, "        silenceNote('gauntlet-loop:gauntlet-ab-critic'),", "        '',"],
+  ['the shared silence note reads the evidence', L, '  return typeProven(type)', '  return true ? ` — that agent type is registered and working this run` : typeProven(type)'],
 
   // --- the shipped tools refuse a wrong invocation (#98) --------------------
   // NOT listed: needleFrom's `!lines.length` guard. It sweeps NOT CAUGHT and that
