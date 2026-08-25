@@ -1189,7 +1189,30 @@ async function runPiece(piece) {
   }
   history.push(entry)
 
-  log(`round ${round}: ${positions.length} critic(s) — ${positions.length - dissenters.length} for the candidate, ${dissenters.length} against — ${candidateWon ? 'CANDIDATE WINS' : 'reference still ahead'}`)
+  // THE GAP GOES OUT LIVE, and this line is why.
+  //
+  // commands/loop.md Step 5 tells the operator: "Read gaps_in_order before the
+  // verdict. Gaps that get smaller and more specific mean the loop is working; the
+  // same gap restated in round 5 as in round 1 means it is not, and that is worth
+  // stopping for." That instruction was unfollowable. `gaps_in_order` exists only
+  // in the FINAL verdict, so the one judgement the operator is told to make WHILE
+  // watching is the one the live output could not support — they saw vote counts
+  // and nothing else.
+  //
+  // This is also the source's "live progress page" in the only form a Workflow
+  // script can offer one: the script has no filesystem, so it cannot write a page,
+  // but log() reaches the operator through /workflows as the run goes. Reporting
+  // the gap the round actually produced is the substance that page was for.
+  //
+  // Truncated because a gap is free prose and can be a paragraph; the full text is
+  // kept verbatim in the verdict. The truncation marker is deliberate — a silently
+  // cut string reads as a gap the critic phrased tersely.
+  const gapLive = String(primary.gap || '').replace(/\s+/g, ' ').trim()
+  const gapShown = gapLive.length > 180 ? gapLive.slice(0, 180) + '… (full text in the verdict)' : gapLive
+  const sizeLive = sizeByRound.filter(x => x.round === round && x.piece === (piece.name || null)).pop()
+  log(`round ${round}${piece.name ? ` [${piece.name}]` : ''}: ${positions.length} critic(s) — ${positions.length - dissenters.length} for the candidate, ${dissenters.length} against — ${candidateWon ? 'CANDIDATE WINS' : 'reference still ahead'}` +
+      `${sizeLive ? ` · ${sizeLive.bytes} bytes` : ''}` +
+      `\n  gap: ${gapShown || '(the critic recorded no gap text)'}`)
 
   if (candidateWon) {
     pieceOutcome = {

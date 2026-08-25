@@ -207,8 +207,17 @@ is a need; "documents the two scripts and adds a command file" is an answer key.
 
 Watch with `/workflows`. Stop it with `/gauntlet-loop:cancel-loop`.
 
-Read `gaps_in_order` before the verdict. Gaps that get smaller and more specific
-mean the loop is working; the same gap restated in round 5 as in round 1 means
-it is not, and that is worth stopping for. A run that ends `CANCELLED` has not
+**Watch the gaps, not the vote counts.** Each round prints its own line as it
+happens — how the critics split, the bytes measured that round, and the gap the
+critic named, truncated with a marker when it runs long. That is the judgement to
+make while it runs: gaps getting smaller and more specific mean the loop is
+working; the same gap restated in round 5 as in round 1 means it is not, and that
+is worth stopping for. `gaps_in_order` in the final verdict carries every gap
+verbatim, for reading afterwards.
+
+This is the source's "live progress page" in the form a Workflow script can offer
+one — the script has no filesystem and cannot write a page, but these lines reach
+you through `/workflows` as the run goes. Until they carried the gap, this
+paragraph asked you to make a judgement the output could not support. A run that ends `CANCELLED` has not
 failed — Shumer stopped his own "while it was still improving", and his bar was
 never reached.

@@ -1170,6 +1170,48 @@ console.log('loop: required args throw, and the reference error explains why a b
   console.log('loop: a piece judged against its own path is disclosed as outside the pairing check, and one that is not is not OK')
 }
 
+// THE GAP MUST REACH THE OPERATOR WHILE THE RUN IS STILL GOING.
+//
+// commands/loop.md Step 5 tells them to watch whether gaps get smaller and more
+// specific, and to stop the run when round 5's gap restates round 1's. That
+// judgement was impossible to make: `gaps_in_order` lives in the FINAL verdict, so
+// the live output carried vote counts and nothing else. The doc instructed a
+// decision the instrument could not support.
+{
+  const GAP_1 = 'the opening buries the one number a reader needs'
+  const GAP_2 = 'row three still gives a rationale with no named alternative'
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: rd => rd <= 2,
+    critic: (round, s) => ({ winner: round === 1 ? (s.candidateSide === 'A' ? 'B' : 'A') : s.candidateSide,
+                             why: 'w', gap: round === 1 ? GAP_1 : GAP_2, inspected: 'i' }),
+    sizes: round => 1000 + round * 100,
+  })
+  const roundLines = r.logs.filter(l => /^round \d/.test(l))
+  ok(roundLines.length >= 2, `each round reports as it happens — got ${roundLines.length}`)
+  ok(roundLines.some(l => l.includes(GAP_1)), `round 1's gap reaches the operator live — got: ${JSON.stringify(roundLines)}`)
+  ok(roundLines.some(l => l.includes(GAP_2)), "and round 2's, so the operator can see whether it CHANGED — which is the judgement Step 5 asks them to make")
+  ok(roundLines.some(l => /1100 bytes/.test(l)), 'the size measured that round goes out with it, so growth is visible before the verdict')
+  console.log('loop: the gap and the size reach the operator each round, not only in the final verdict OK')
+}
+
+// A gap longer than a line is truncated with a marker, never silently cut — a
+// string that stops mid-sentence with no marker reads as a critic being terse.
+{
+  const LONG = 'x'.repeat(400)
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: rd => rd <= 1,
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: LONG, inspected: 'i' }),
+  })
+  const line = r.logs.find(l => /^round 1/.test(l))
+  ok(line && !line.includes(LONG), 'a very long gap is not dumped whole into the progress line')
+  ok(line && /full text in the verdict/.test(line),
+     `and the operator is told where the rest is, rather than the string just stopping — got: ${String(line).slice(-80)}`)
+  eq(r.result.gaps_in_order[0].endsWith(LONG), true, 'while the verdict still carries the gap verbatim')
+  console.log('loop: a long gap is truncated in the live line with a marker, and kept whole in the verdict OK')
+}
+
 // AND WHEN NOTHING IS MEASURABLE AT ALL, the verdict must say so.
 //
 // Live run wf_50a6af1d-379 passed a DIRECTORY as the candidate. The probe answered

@@ -109,6 +109,10 @@ const PROPERTIES = [
 
   ['the JS side resolves the temp root through the full chain', S, "process.env.TMPDIR || process.env.TMP || process.env.TEMP || '/tmp'", "'/tmp'"],
 
+  ['the gap reaches the operator while the run is going', L, '\\n  gap: ${gapShown', '\\n  ${"" && gapShown'],
+  ['the size measured this round goes out with it', L, "${sizeLive ? \` · ${sizeLive.bytes} bytes\` : ''}", "${''}"],
+  ['a truncated gap says it was truncated', L, "gapLive.slice(0, 180) + '… (full text in the verdict)'", "gapLive.slice(0, 180)"],
+
   // --- the shipped tools refuse a wrong invocation (#98) --------------------
   // NOT listed: needleFrom's `!lines.length` guard. It sweeps NOT CAUGHT and that
   // is correct — removing it yields [].sort()[0] === undefined, which the !needle
