@@ -39,6 +39,7 @@
 // one-sided check that only says "something is wrong" cannot come back against you.
 
 import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, isAbsolute, resolve } from 'node:path'
@@ -111,44 +112,62 @@ if (unresolvable.length) {
 }
 
 // ---------------------------------------------------------------------------
-// RC3 — a missing artifact and a stale hash must be distinguishable by exit code.
+// RC3 — the MISSING-ARTIFACT refusal and the STALE-INSTRUMENT refusal must be
+// distinguishable by exit code.
 //
-// Both are deliberate refusals and both are correct; the defect is that a caller
-// cannot tell which fired. Two purpose-built rows are constructed here rather than
-// borrowed from the tracked corpus, so this check measures the REFUSALS and not
-// whichever way the tracked rows happen to be broken today — including after RC1
-// and RC2 are fixed, when the tracked corpus will no longer produce a missing
-// artifact at all.
+// CORRECTED after the first version of this file tested the wrong pair. It
+// compared missing-artifact against a stale artifact HASH, which is not the pair
+// that broke: oracle.test.mjs:371 is aiming at the stale-INSTRUMENT refusal (the
+// prompt-hash mismatch, "DIFFERENT instrument") and received missing-artifact
+// instead. A stale hash never reaches the instrument check, so a guard built on
+// it would have gone green while the defect stood. Building the reproducible
+// first is what surfaced this; reasoning about the fix would not have.
+//
+// Missing-artifact and stale-hash are deliberately NOT required to differ. Both
+// mean "this row no longer describes reality, re-ground it" — one remedy, so one
+// code. A code earns its own value by naming a different thing for the caller to
+// DO, not by marking a different internal branch.
+//
+// The rows are purpose-built here rather than borrowed from the tracked corpus,
+// so this measures the refusals themselves and keeps measuring them after RC1
+// and RC2 land, when no tracked row will produce a missing artifact at all.
 // ---------------------------------------------------------------------------
 
-console.log('corpus-portability: the missing-artifact and stale-hash refusals are distinguishable')
+console.log('corpus-portability: the missing-artifact and stale-instrument refusals are distinguishable')
 
 const realFixture = 'oracle/fixtures/make-hello/Makefile'
 if (!existsSync(resolve(ROOT, realFixture))) {
   fail(`the fixture this check is built on is missing at ${realFixture} — the check itself cannot run, which is not the same as passing`)
 } else {
   const template = rows.find(r => r.arm !== 'could-not-open') || rows[0]
+  const trueHash = 'sha256:' + createHash('sha256').update(readFileSync(resolve(ROOT, realFixture))).digest('hex')
 
-  // Row A: the artifact is genuinely absent. Nothing about the hash is wrong.
-  const missingRow = { ...template, id: 'probe-missing-artifact', artifact: 'oracle/fixtures/no-such-dir/nothing.md' }
-  // Row B: the artifact is present and readable; only the pinned hash disagrees.
-  const staleRow = { ...template, id: 'probe-stale-hash', artifact: realFixture, artifact_hash: 'sha256:' + '0'.repeat(64) }
+  // Row A: the artifact is genuinely absent — the refusal that actually fired.
+  const missingRow = { ...template, id: 'probe-missing-artifact', arm: 'does-the-work', artifact: 'oracle/fixtures/no-such-dir/nothing.md' }
+  // Row B: artifact present AND correctly pinned, so the row-reality checks all
+  // pass and execution reaches the instrument check — the refusal being aimed at.
+  const liveRow = { ...template, id: 'probe-stale-instrument', arm: 'does-the-work', artifact: realFixture, artifact_hash: trueHash }
 
-  writeFileSync(join(SANDBOX, 'corpus.jsonl'), [JSON.stringify(missingRow), JSON.stringify(staleRow)].join('\n') + '\n')
+  writeFileSync(join(SANDBOX, 'corpus.jsonl'), [JSON.stringify(missingRow), JSON.stringify(liveRow)].join('\n') + '\n')
 
   const pin = ['--predicted', 'does-the-work', '--prompt-hash', 'sha256:0000', '--schema-fingerprint', 'sha256:0000']
   const a = run(RECORD, ['--row', 'probe-missing-artifact', ...pin])
-  const b = run(RECORD, ['--row', 'probe-stale-hash', ...pin])
+  const b = run(RECORD, ['--row', 'probe-stale-instrument', ...pin])
 
-  // COMPUTED, not asserted. If both refusals are ever made to fire on the same
-  // code again, this line says so with the codes in hand.
-  console.log(`          missing-artifact exits ${a.code}; stale-hash exits ${b.code}`)
+  // COMPUTED, not asserted. If the two are ever collapsed onto one code again,
+  // this line says so with the codes in hand rather than only that something broke.
+  console.log(`          missing-artifact exits ${a.code}; stale-instrument exits ${b.code}`)
 
   if (a.code === 0) fail('the missing-artifact case was ACCEPTED — a row whose artifact is gone cannot be re-grounded, so an observation against it means nothing')
-  if (b.code === 0) fail('the stale-hash case was ACCEPTED — the artifact pin is what makes an observation describe the artifact it was grounded against')
+  if (b.code === 0) fail('the stale-instrument case was ACCEPTED — the prompt pin is what ties an observation to the instrument that produced it')
+
+  // The refusal has to be identifiable by its own words too, not only by a number.
+  if (b.code !== 0 && !/DIFFERENT instrument/.test(b.out)) {
+    fail(`the stale-instrument row did not reach the instrument check — it was refused earlier, with: ${b.out.trim().split('\n')[0]}`)
+  }
 
   if (a.code !== 0 && b.code !== 0 && a.code === b.code) {
-    fail(`both refusals exit ${a.code}, so a guard asserting only the exit code passes for either one. That is exactly how oracle.test.mjs:371 came to assert the staleness refusal while receiving the missing-artifact refusal.`)
+    fail(`both refusals exit ${a.code}, so a guard asserting only the exit code passes for either one. That is exactly how oracle.test.mjs:371 came to assert the stale-instrument refusal while receiving the missing-artifact refusal.`)
   }
 }
 
