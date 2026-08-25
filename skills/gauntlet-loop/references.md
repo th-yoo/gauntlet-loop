@@ -1,13 +1,9 @@
-# References — the baseline this instrument is not
+# References — the source this instrument implements
 
-`critic-prompt.md` requires every finding to carry an anchor outside the artifact,
-and `SOURCE` means *URL plus the sentence you rely on*. Until this file existed,
-every claim `README.md` made about Shumer's method was a paraphrase with no
-sentence behind it — the repo held its critics to a standard its own provenance
-section did not meet.
-
-Two artifacts are the baseline. Both are quoted in full below, because the whole
-point of a `SOURCE` anchor is that the reader does not have to trust the summary.
+Two artifacts are the source. Both are quoted in full below, because the point of
+a citation is that the reader does not have to trust the summary. Until this file
+existed, every claim this repo made about Shumer's method was a paraphrase with no
+sentence behind it.
 
 **Transcribed 2026-08-24.** Published prompts get edited; verify against the live
 source before relying on exact wording.
@@ -114,16 +110,14 @@ Two facts worth carrying, because both bear on decisions made here:
 - **Round 3 regressed** (4.14 → 4.05). An uncapped loop absorbs a bad round; a
   capped one can terminate on it. The source method's answer is the ratchet —
   keep the best candidate so far, replace it only on a head-to-head win.
-  Neither instrument here has one, and this line predates the split into two, so
-  say it separately for each. For `gauntlet.js` the absence is an omission. For
-  `loop.js` it is a DECISION taken 2026-08-24 under issue #18: a Workflow script
+  `loop.js` has none, and that is a DECISION taken 2026-08-24 under issue #18
+  rather than an omission: a Workflow script
   has no filesystem, so both the snapshot and the revert would be spawned-agent
   actions the script cannot observe, and a snapshotter that silently no-ops
   leaves the run reporting a preserved best version that does not exist. A
   two-party hash probe can falsify the copy; nothing available falsifies the
-  revert, which is the half a ratchet exists for. The caps differ too:
-  `gauntlet.js` is ≤2 rounds terminal by design, and `loop.js` has had no round
-  cap since `1978f66`.
+  revert, which is the half a ratchet exists for. `loop.js` has had no round cap
+  since `1978f66`.
 - **The build lane never won.** Every critic, every round, picked the reference.
   Its record is measured improvement under a bar it never cleared — not a record
   of passing.

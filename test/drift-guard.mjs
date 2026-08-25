@@ -1,145 +1,148 @@
-// Drift guard: gauntlet.js carries the critic contract inline (Workflow scripts
-// cannot read files), so the script and critic-prompt.md can silently diverge.
-// This pins them together.
+// Drift guard for loop.js: the loop carries its contract in two prompt surfaces
+// — the round prompts inside the script, and the standing agent definitions it
+// spawns — and either can be edited without the other. This pins them together,
+// checks the tool allowlists the verdict claims, and scans for the runtime APIs
+// and round-cap names that would silently change what the loop is.
 //
 //   node test/drift-guard.mjs
 //
 // Exit 0 = pinned. Exit 1 = drift. No dependencies.
 
-import { readFileSync, readdirSync } from 'node:fs'
+// ADDING A CHECK HERE — one rule, learned five times in a row.
+//
+// **Match as precisely as the claim you are making.** Every failure this file has
+// had was a check whose matching was looser than its sentence, and every one of
+// them PASSED on the exact case it existed to catch — which is the only way a
+// checker can fail that matters, because green is what people read.
+//
+//   "loop.js has no round cap"        → an IDENTIFIER. Substring matched the name
+//                                       inside a quoted refusal list.
+//   "this status is documented"       → a WHOLE WORD. `includes('BUDGET')` is
+//                                       satisfied by "BUDGETX".
+//   "this disclosure is present"      → LIVE CODE. Against raw source, commenting
+//                                       it out passes.
+//   "this schema field is read"       → the CALL SITE. File-wide, one schema's
+//                                       `evidence` covered another's.
+//   "this argument is documented"     → the ARGUMENT TABLE. Any-table matched a
+//                                       verdict-field row.
+//   "this directory is inventoried"   → BOUNDED. `docs/` is inside `mydocs/`.
+//
+// The dividing line: a long distinctive phrase can be matched loosely, because
+// collision is implausible. A NAME cannot — names nest inside other names and
+// inside ordinary prose. If your needle is short and name-shaped, bound it.
+//
+// And when you add one: break the thing it checks and watch it fail. A guard that
+// has never been seen to fail is a guard nobody has tested. `scripts/mutate.mjs`
+// does this without the three mistakes doing it by hand kept producing.
+
+import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SKILLDIR = join(ROOT, 'skills', 'gauntlet-loop')
-const critic = readFileSync(join(SKILLDIR, 'critic-prompt.md'), 'utf8')
-const script = readFileSync(join(SKILLDIR, 'gauntlet.js'), 'utf8')
-const skill = readFileSync(join(SKILLDIR, 'SKILL.md'), 'utf8')
 const loop = readFileSync(join(SKILLDIR, 'loop.js'), 'utf8')
 
-// Load-bearing contract elements. Each MUST appear verbatim in both
-// critic-prompt.md and gauntlet.js. Drop one from either and the review
-// silently becomes a different instrument.
-const PINNED = [
-  // the anchor rule — the thing that separates a finding from an opinion
-  'THE ANCHOR RULE — hard constraint',
-  'Every finding needs an anchor OUTSIDE the artifact.',
-  'SOURCE  — a paper/post/doc you opened.',
-  'REPO    — a file on this machine.',
-  'HARNESS — a demonstrable behavior of the tool.',
-  'TRACE   — a scenario walked step by step',
-  'If your best anchor is "in my judgment", you do not have a finding.',
+// Comment-stripped source, defined here because nearly every scan below needs it.
+// A string that survives only inside a comment is not code and is not a prompt:
+// commenting out the only spawn of an agent type left that type looking spawned,
+// so an orphaned definition passed. Same shape as issue #16.
+function stripLineComments(src) {
+  return src.split('\n').map(line => {
+    const idx = line.indexOf('//')
+    return idx === -1 ? line : line.slice(0, idx)
+  }).join('\n')
+}
 
-  // stance — the measured +4pp protocol retains the adversarial role
-  'Truth-seeking, not consensus-seeking',
-  'STAY IN YOUR LANE',
+const loopCode = stripLineComments(loop)
 
-  // the required output fields — missing ones are malformed by contract
-  'falsifier:',
-  'anchor-says:',
-  'behavior-delta:',
-  'GETS-RIGHT',
-  'FAILED-ATTACK',
-  'SPILLOVER',
+// The stripper is a HEURISTIC: it cuts at the first `//` on a line, which also
+// truncates a regex literal like /^\/\// — line 216 of loop.js loses its second
+// half this way. Nothing pinned currently lives on such a line, and this asserts
+// that stays true. Without it, a needle added to a line containing `//` would
+// vanish from the stripped source and every check below would report it as
+// "removed or left in a comment" — the wrong diagnosis, sending someone to look
+// for a deletion that never happened.
+function assertStripperKept(needles, where) {
+  for (const n of needles) {
+    if (loop.includes(n) && !loopCode.includes(n)) {
+      fail(`"${n}" (${where}) is in loop.js but disappears when comments are stripped — it sits on a line containing "//", so the scans below cannot see it. Move it to its own line; this is a limit of the stripper, not a missing disclosure.`)
+    }
+  }
+}
 
-  // finding ids must be addressable across critics, or the round-2 margin
-  // tally cannot key on them
-  'as the <id> prefix for every finding you file, so findings can be addressed by id across critics.',
 
-  // verifier triad
-  'EXISTS',
-  'SAYS',
-  'SUPPORTS',
-  'GROUNDED-WEAK',
-  'NOT-GROUNDED',
-  'ABSENCE CLAIMS',
-
-  // round 2 is a cross-check, not a re-argument
-  'CROSS-CHECK',
-
-  // the blind A/B comparer — a forced choice with no "seems fine" exit
-  'You must pick a winner. A tie is not available.',
-  'Speculation about provenance is not a judgment about quality.',
-]
-
-// Gate semantics that live in SKILL.md and are implemented in gauntlet.js.
-// These pin the SCRIPT to the SKILL, the other direction of drift.
-const GATE_SEMANTICS = [
-  { skill: 'VOID ≠ miss', script: "status: 'VOID'", what: 'VOID is a distinct outcome from MISS' },
-  { skill: 'Two VOIDs → NO VERDICT', script: 'voids >= 2', what: 'two VOIDs terminate' },
-  { skill: 'Missed twice → NO VERDICT', script: 'misses >= 2', what: 'two misses terminate' },
-  { skill: 'Gate 2 has **no veto**', script: 'YOU HAVE NO VETO', what: 'gate 2 cannot refuse the run' },
-  { skill: 'The author doesn\'t write the bar', script: 'You have NOT been told what the artifact', what: 'bar writer is blind' },
-  { skill: 'lenses uncalibrated', script: 'lenses uncalibrated', what: 'verdict carries the uncalibrated count' },
-  { skill: 'only a MISS burns a defect kind', script: 'spentKinds.push', what: 'a VOID re-runs the same kind, so it must not consume one' },
-  { skill: 'control arm', script: "status: 'FALSE-POSITIVE'", what: 'gate 7 has a specificity arm that can discard a catch' },
-  { skill: 'dropped, and fewer than two survivors halts', script: 'deadCriteria', what: 'gate 6 is enforced in code, not warned about' },
-  { skill: 'blind A/B', script: "enum: ['LEFT', 'RIGHT']", what: 'the compare lane runs where a reference exemplar exists' },
-  { skill: 'margin', script: 'contested', what: 'cross-check outcomes are tallied rather than read for' },
-]
-
-// The "what is actually enforced" table is only true while the allowlists hold.
-// Prose cannot check itself: these assert that each agent definition still LACKS
-// the tools the script claims it lacks. Add a tool back to any frontmatter and
-// the property that tool was denying silently becomes a promise again.
+// The three agent types loop.js spawns. Each entry quotes the claim in the run's
+// `enforced` list that goes false if the tool comes back.
 const ALLOWLIST = [
-  { agent: 'gauntlet-bar-writer', forbidden: ['Read', 'Grep', 'Glob', 'Bash'], buys: 'cannot open the artifact (gate 5)' },
-  { agent: 'gauntlet-critic', forbidden: ['Agent', 'ListAgents', 'SendMessage', 'Write', 'Edit'], buys: 'cannot reach a peer critic through the agent-messaging channel, nor alter the artifact through a file-editing tool call' },
-  { agent: 'gauntlet-verifier', forbidden: ['Agent', 'ListAgents', 'SendMessage', 'Write', 'Edit'], buys: 'cannot delegate its own checking' },
-  { agent: 'gauntlet-seeder', forbidden: ['Agent', 'ListAgents', 'SendMessage', 'WebSearch', 'WebFetch'], buys: 'cannot look the artifact up to plant a recallable defect' },
-  { agent: 'gauntlet-isolator', forbidden: ['Agent', 'SendMessage', 'WebSearch', 'WebFetch'], buys: 'cannot tell a critic which side is which' },
-  { agent: 'gauntlet-reporter', forbidden: ['Read', 'Grep', 'Glob', 'Bash', 'Agent', 'WebSearch', 'WebFetch'], buys: 'can only write down what the run handed it' },
-  { agent: 'gauntlet-judge', forbidden: ['Read', 'Grep', 'Glob', 'Bash', 'Agent', 'ListAgents', 'SendMessage', 'WebSearch', 'WebFetch'], buys: 'cannot form its own opinion of the artifact and grade the critic against that' },
-  // loop.js makes three allowlist claims of its own in `enforced`, and until
-  // now no guard checked any of them — the list above covers gauntlet.js's
-  // seven agent types only. Same mechanism, extended to the second script's
-  // three; the claims are quoted in the `buys` field so a reader can see which
-  // sentence in the verdict goes false when an entry starts failing.
   { agent: 'gauntlet-ab-critic', forbidden: ['Write', 'Edit', 'Agent', 'ListAgents', 'SendMessage'], buys: 'is claimed to have "no Write or Edit — it could not use those TOOLS to alter either artifact", and to be unable to reach the builder or another critic' },
   { agent: 'gauntlet-builder', forbidden: ['Agent', 'ListAgents', 'SendMessage'], buys: 'is claimed to be an agent type "with no Agent/ListAgents/SendMessage — it could not reach or spawn a critic"' },
+  { agent: 'gauntlet-goal-check', forbidden: ['Write', 'Edit', 'Agent', 'ListAgents', 'SendMessage'], buys: 'is the only party that never sees both sides — it reports whether the reference attempts the goal at all, and cannot be swayed by what the candidate is good at' },
+  { agent: 'gauntlet-lead', forbidden: ['Write', 'Edit', 'Agent', 'ListAgents', 'SendMessage'], buys: 'divides the goal but cannot build, judge, or spawn either party' },
   { agent: 'gauntlet-breaker', forbidden: ['Read', 'Grep', 'Glob', 'Agent', 'ListAgents', 'SendMessage', 'WebSearch', 'WebFetch', 'Write', 'Edit'], buys: 'is claimed to be an agent type "whose whole tool allowlist is Bash and which never saw the goal, either artifact, or any verdict"' },
-]
-
-// A disclosure that can be deleted without failing a test is not a
-// disclosure. Each of these MUST appear verbatim in gauntlet.js's
-// `not_enforced` prose — this pins the disclosure itself, not just the
-// property it discloses.
-const DISCLOSURES = [
-  'general shell and can write files',
 ]
 
 let failures = 0
 const fail = m => { console.error(`  FAIL  ${m}`); failures++ }
 
-console.log('drift-guard: critic contract pinned between critic-prompt.md and gauntlet.js')
-for (const needle of PINNED) {
-  const inCritic = critic.includes(needle)
-  const inScript = script.includes(needle)
-  if (inCritic && inScript) continue
-  if (!inCritic && !inScript) fail(`"${needle}" — absent from BOTH files (was it renamed?)`)
-  else if (!inScript) fail(`"${needle}" — in critic-prompt.md but NOT in gauntlet.js (script is stale)`)
-  else fail(`"${needle}" — in gauntlet.js but NOT in critic-prompt.md (prompt authority is stale)`)
+// Every agentType loop.js actually spawns must have a definition file AND an
+// entry above. ALLOWLIST is hand-written, so without this the two drift the
+// moment someone adds a spawn: the new type gets no tool assertion, and if its
+// file is missing the loop calls an agent that does not exist.
+//
+// What this CANNOT check, and it cost a 40-minute run to learn: a file on disk
+// is not a registered agent. Types are registered when the session loads the
+// plugin, so one added mid-session does not exist yet, and issue #14 means the
+// loop cannot tell that from an agent that returned nothing. A green result here
+// means the definition is present, not that a running session can spawn it.
+// And the reverse: a definition nothing spawns is dead weight that still reads as
+// part of the instrument. One was created and orphaned in a single session here —
+// written, pointed at, then repointed away — and only noticed by hand.
+console.log('drift-guard: every agent definition is actually spawned by loop.js')
+{
+  const defined = readdirSync(join(ROOT, 'agents')).filter(f => f.endsWith('.md')).map(f => f.replace(/\.md$/, ''))
+  const spawnedNames = new Set([...loopCode.matchAll(/agentType:\s*'gauntlet-loop:([a-z-]+)'/g)].map(m => m[1]))
+  for (const d of defined) {
+    if (!spawnedNames.has(d)) {
+      fail(`agents/${d}.md exists and loop.js never spawns it — an orphaned agent definition reads as part of the instrument while doing nothing. Delete it, or spawn it.`)
+    }
+  }
 }
 
-console.log('drift-guard: gate semantics pinned between SKILL.md and gauntlet.js')
-for (const g of GATE_SEMANTICS) {
-  const inSkill = skill.includes(g.skill)
-  const inScript = script.includes(g.script)
-  if (inSkill && inScript) continue
-  if (!inSkill) fail(`${g.what}: SKILL.md no longer says "${g.skill}"`)
-  if (!inScript) fail(`${g.what}: gauntlet.js no longer implements it (looked for "${g.script}")`)
+console.log('drift-guard: every agentType loop.js spawns has a definition and a tool assertion')
+const spawned = [...new Set([...loopCode.matchAll(/agentType:\s*'gauntlet-loop:([a-z-]+)'/g)].map(m => m[1]))].sort()
+if (!spawned.length) fail('no agentType strings found in loop.js — the scan pattern has drifted from the code')
+for (const name of spawned) {
+  let def = null
+  try {
+    def = readFileSync(join(ROOT, 'agents', `${name}.md`), 'utf8')
+  } catch {
+    fail(`loop.js spawns "${name}" but agents/${name}.md does not exist — that call returns nothing at runtime, and per #14 the loop reports it as an agent that stayed silent`)
+  }
+  // The plugin registers an agent under the name DECLARED IN ITS FRONTMATTER, not
+  // under its filename. loop.js spawns by the filename-shaped type, so a rename on
+  // either side alone gives file-present-but-type-missing: the guard above passes
+  // and the runtime says "agent type not found". That is exactly how a probe
+  // failed silently on a live run this session.
+  if (def) {
+    const declared = (def.match(/^name:\s*(.+)$/m) || [])[1]
+    if (!declared) fail(`agents/${name}.md has no name: in its frontmatter — nothing registers it, so loop.js spawning "${name}" finds no such type`)
+    else if (declared.trim() !== name) {
+      fail(`agents/${name}.md declares name: "${declared.trim()}" but loop.js spawns "${name}" — the plugin registers the declared name, so that spawn resolves to no agent and the loop reports it as one that returned nothing`)
+    }
+  }
+  if (!ALLOWLIST.some(a => a.agent === name)) {
+    fail(`loop.js spawns "${name}" and no ALLOWLIST entry asserts its tools — whatever the verdict claims that agent cannot do is unchecked`)
+  }
 }
 
-// Gates 0, 1 and 4 are OPERATOR judgment and must NOT be automated. A workflow
-// that decides its own cost ceiling is the improvised-panel failure with extra
-// steps.
 console.log('drift-guard: agent allowlists still deny what the verdict claims they deny')
 for (const a of ALLOWLIST) {
   let text
   try {
     text = readFileSync(join(ROOT, 'agents', `${a.agent}.md`), 'utf8')
   } catch {
-    fail(`${a.agent}.md is missing — the script names it as an agentType`)
+    fail(`${a.agent}.md is missing — loop.js names it as an agentType`)
     continue
   }
   const m = text.match(/^tools:\s*(.+)$/m)
@@ -150,18 +153,335 @@ for (const a of ALLOWLIST) {
   }
 }
 
-console.log('drift-guard: required disclosures present in gauntlet.js')
-for (const needle of DISCLOSURES) {
-  if (!script.includes(needle)) fail(`"${needle}" — not found in gauntlet.js; a not_enforced disclosure was removed or reworded away`)
+// Every repo-relative path a LIVE file cites must exist. Deleting a file does not
+// delete the sentences that name it, and a citation a reader cannot open is the
+// same defect whether it points at a deleted module or a renamed one.
+//
+// Three instances of exactly this shipped on this branch: `docs/README.md` cited
+// `skills/gauntlet-loop/critic-prompt.md` as the live authority for its own rule
+// after that file was deleted, and two scripts cited "gate 7" of a sequence that
+// no longer exists. Grep found them only because someone went looking.
+//
+// Only paths containing a slash are checked — a bare `doc-1.md` in prose is an
+// illustrative name, not a citation.
+//
+// EXEMPTIONS, and why each was verified rather than assumed. An exemption is a
+// claim like any other: the root README's inventory check once skipped `docs/` on
+// the assumption it was mentioned, and it was not — the run records, the only
+// evidence here about whether the method works, went unlinked from the front page.
+//
+//   * docs/ and runs/ — these describe what the repo WAS. Checked: every
+//     unresolvable citation in them sits in a "what used to be here" or "was
+//     deleted on branch drop-judge-lane" sentence. Naming a deleted path while
+//     saying it is deleted is correct, and rewriting it would falsify the record.
+//   * test/ — same shape: drift-guard.mjs cites critic-prompt.md inside a comment
+//     explaining the bug where a live file cited it after deletion. A test that
+//     cited a MOVED path would fail on execution anyway, which is a stronger check
+//     than this one.
+//
+// The distinction this scan cannot make is live-reference versus named-as-deleted,
+// which is why the exemption is per file rather than per citation.
+const LIVE_SURFACES = [
+  'README.md',
+  ...readdirSync(join(ROOT, 'commands')).filter(f => f.endsWith('.md')).map(f => join('commands', f)),
+  ...readdirSync(SKILLDIR).map(f => join('skills', 'gauntlet-loop', f)),
+  ...readdirSync(join(ROOT, 'scripts')).filter(f => f.endsWith('.mjs')).map(f => join('scripts', f)),
+  ...readdirSync(join(ROOT, 'agents')).filter(f => f.endsWith('.md')).map(f => join('agents', f)),
+]
+
+// A test that feeds a field the loop never reads is VACUOUS: it passes because
+// its input never arrived, not because the behaviour holds. This repo's most
+// repeated defect — `dependencies:` where PIECE_SCHEMA says `depends_on:` looked
+// exactly like a working dependency test, and the graph it was asserting about
+// was empty. The allowed set is DERIVED from PIECE_SCHEMA so it cannot drift from
+// what the loop actually accepts.
+console.log('drift-guard: piece stubs in tests only use fields PIECE_SCHEMA defines')
+{
+  const seg = loop.slice(loop.indexOf('PIECE_SCHEMA'), loop.indexOf('PIECE_SCHEMA') + 3000)
+  const allowed = new Set([...seg.matchAll(/^\s{8,}([a-z_]+): \{ type:/gm)].map(m => m[1]))
+  if (!allowed.size) fail('no piece fields found in PIECE_SCHEMA — this scan has drifted from the schema')
+  const tests = readFileSync(join(ROOT, 'test', 'loop.test.mjs'), 'utf8')
+  for (const lit of tests.match(/\{ name: [^}]*\}/g) || []) {
+    for (const f of new Set([...lit.matchAll(/([a-z_]+):/g)].map(m => m[1]))) {
+      if (!allowed.has(f)) {
+        fail(`a test piece stub sets "${f}", which PIECE_SCHEMA does not define — the loop never reads it, so whatever that test asserts is not being exercised`)
+      }
+    }
+  }
 }
 
-console.log('drift-guard: gates 0/1/4 stay out of the script')
-for (const forbidden of ['cost_ceiling', 'costCeiling', 'gate0', 'gate1:', 'gate4']) {
-  if (script.includes(forbidden)) fail(`gauntlet.js references "${forbidden}" — gates 0/1/4 are operator-run and must stay in prose`)
+// `enforced` claims the critic "was never TOLD which artifact was the candidate —
+// sides alternate by round parity and the prompt never uses the word 'candidate'".
+// The second half is a fact about a specific string, so it is checkable, and a
+// verdict that asserts a property the prompt has quietly lost is this repo's
+// disqualifying class. The blind A/B is the whole mechanism; the word that gives
+// it away is one careless edit from appearing.
+console.log("drift-guard: the critic prompt never uses the word 'candidate'")
+{
+  const i = loop.indexOf('function criticPrompt(')
+  if (i === -1) fail('criticPrompt not found in loop.js — this scan has drifted from the code')
+  else {
+    const rest = loop.slice(i)
+    const end = rest.indexOf('\n}')
+    const body = end === -1 ? rest : rest.slice(0, end)
+    const hit = /candidate/i.exec(body)
+    if (hit) {
+      const line = body.slice(0, hit.index).split('\n').length
+      fail(`criticPrompt contains "candidate" (about line ${line} of the function) — the enforced list claims the prompt never uses that word, and a critic told which side is which is not judging blind`)
+    }
+  }
+}
+
+// `enforced` claims the builder "was handed the gap STRING and nothing else from
+// the verdict — the critic's `why` field is not forwarded". loop.js explains at
+// length why: `why` is in practice a LIST of differences, so forwarding it hands
+// the builder a menu of other things to fix under four lines insisting it fix one,
+// and a round that changes five things makes the next verdict uninterpretable.
+// That was issue #11. It is one interpolation away from coming back, and nothing
+// would notice, because the run would still finish and still print the claim.
+console.log('drift-guard: the build prompt carries the gap and nothing else from the verdict')
+{
+  const i = loop.indexOf('const built = await agent(')
+  if (i === -1) fail('the builder dispatch was not found in loop.js — this scan has drifted from the code')
+  else {
+    const body = loop.slice(i, loop.indexOf('agentType:', i))
+    const interpolated = [...body.matchAll(/\$\{([^}]+)\}/g)].map(m => m[1].trim())
+    const fromVerdict = interpolated.filter(x => /^(primary|verdict|entry|v)\./.test(x))
+    for (const x of fromVerdict) {
+      if (x !== 'primary.gap') {
+        fail(`the build prompt interpolates ${x} — the enforced list claims the builder gets the gap and nothing else from the verdict, and every extra field is a second, unbounded gap channel aimed at the one control this loop has (issue #11)`)
+      }
+    }
+    if (!interpolated.includes('primary.gap')) {
+      fail('the build prompt no longer interpolates primary.gap — the builder is being told to fix a gap it was never given')
+    }
+  }
+}
+
+// Two more `enforced` claims that are facts about specific structures, and so are
+// checkable rather than merely stated.
+console.log('drift-guard: the gap slot is schema-required, and the breaker sees only the token')
+{
+  // "one gap SLOT is required per round by the schema (AB_SCHEMA.gap is in `required`)"
+  const ab = loop.slice(loop.indexOf('const AB_SCHEMA'), loop.indexOf('const AB_SCHEMA') + 1200)
+  const req = (ab.match(/required: \[([^\]]*)\]/) || [])[1] || ''
+  if (!/'gap'/.test(req)) {
+    fail("AB_SCHEMA no longer requires 'gap', and the enforced list claims the critic cannot omit one — a round with no gap gives the builder nothing to fix and the loop nothing to iterate on")
+  }
+
+  // "...by an agent type whose whole tool allowlist is Bash and which never saw
+  // the goal, either artifact, or any verdict". The breaker is the cancel path; a
+  // breaker that can see an artifact could leak which side is which, and one that
+  // sees a verdict could have opinions about whether the run should continue.
+  const i = loop.indexOf('async function tokenPresent(')
+  if (i === -1) fail('tokenPresent not found in loop.js — this scan has drifted from the code')
+  else {
+    const body = loop.slice(i, loop.indexOf('agentType:', i))
+    for (const forbidden of ['GOAL', 'CANDIDATE', 'REFERENCE', 'PC', 'PR']) {
+      if (new RegExp(`\\$\\{${forbidden}[.}]`).test(body)) {
+        fail(`the breaker prompt interpolates \${${forbidden}} — the enforced list claims it never saw the goal, either artifact, or any verdict, and a breaker that can see an artifact can leak which side is which`)
+      }
+    }
+  }
+}
+
+// Every outcome status the loop can EMIT must be documented where an operator
+// reads. SPLIT_UNSOUND shipped undocumented, and BUDGET and ERROR were never
+// documented at all — so a run could end in a state whose name appears nowhere the
+// person reading the verdict would look. Derived from the code, so adding a status
+// and forgetting to explain it fails here rather than in front of an operator.
+console.log('drift-guard: every outcome status the loop emits is documented')
+{
+  const statuses = [...new Set([...loop.matchAll(/status: '([A-Z_]+)'/g)].map(m => m[1]))]
+  if (!statuses.length) fail('no outcome statuses found in loop.js — this scan has drifted from the code')
+  const docs = ['README.md', join('skills', 'gauntlet-loop', 'SKILL.md'), join('commands', 'loop.md')]
+    .map(f => { try { return readFileSync(join(ROOT, f), 'utf8') } catch { return '' } }).join('\n')
+  for (const st of statuses) {
+    // Matched as a WORD, not a substring. `docs.includes('BUDGET')` is satisfied by
+    // "BUDGETX", so renaming the documented entry still passed — the same
+    // substring-for-token mistake that once disabled the round-cap tripwire.
+    if (!new RegExp(`\\b${st}\\b`).test(docs)) {
+      fail(`loop.js can end a run with status "${st}" and no operator-facing doc mentions it — a verdict naming a state the reader cannot look up`)
+    }
+  }
+}
+
+// Every field a schema DEMANDS must be read somewhere, or be listed below as
+// deliberately dropped with a reason. A schema field is a thing the loop makes an
+// agent produce on every call: unread, it is wasted work and — worse — silently
+// lost signal. Two shipped that way. `failed` ("anything you tried that did not
+// work") was collected every round and thrown away, so a dead end could repeat
+// with nothing in the verdict showing it. `evidence` ("the command plus its
+// literal output") was demanded of both probes and never read, leaving the
+// verdict asserting a cancel and a byte count with the proof discarded.
+//
+// Read means read off a RESULT — `probe.evidence`, `built.failed`. The field name
+// appearing in prompt text does not count, which is exactly the mistake an ad-hoc
+// version of this check made: it reported everything as used.
+const DELIBERATELY_UNREAD = {
+  // 'SCHEMA_NAME.field': 'why it is collected but not used',
+}
+
+console.log('drift-guard: every schema field the loop demands is read somewhere')
+{
+  const schemas = [...loopCode.matchAll(/const ([A-Z_]+_SCHEMA) = \{/g)].map(m => m[1])
+  if (!schemas.length) fail('no schemas found in loop.js — this scan has drifted from the code')
+  for (const name of schemas) {
+    const start = loopCode.indexOf(`const ${name} = {`)
+    const end = loopCode.indexOf('\n}', start)
+    const block = loopCode.slice(start, end)
+    const outside = loopCode.slice(0, start) + loopCode.slice(end)
+    for (const f of [...block.matchAll(/^\s{4}([a-z_]+): \{ type:/gm)].map(m => m[1])) {
+      if (DELIBERATELY_UNREAD[`${name}.${f}`]) continue
+      // Scoped to the call sites that USE this schema, not the whole file. Two
+      // schemas both demand `evidence`; a file-wide search saw the breaker reading
+      // its own and reported the size probe's as read too. A guard whose matching
+      // is looser than its claim reports success for the case it exists to catch.
+      const sites = [...loopCode.matchAll(new RegExp(`schema: ${name}\\b`, 'g'))].map(m => m.index)
+      if (!sites.length) fail(`${name} is defined and never used in an agent() call`)
+      // FORWARD from the call site only. A result is read after the call that
+      // produces it, and a window reaching backwards spanned the neighbouring
+      // probe — which reads its own `evidence` — so the size probe's dropped field
+      // still looked read. Adjacent functions are why this has to be directional.
+      const windows = sites.map(i => loopCode.slice(i, i + 1200)).join('\n')
+      if (!new RegExp(`\\.${f}\\b`).test(windows)) {
+        fail(`${name} demands "${f}" and nothing reads it — every call makes an agent produce that field and the loop drops it. Read it, remove it from the schema, or record it in DELIBERATELY_UNREAD with a reason.`)
+      }
+    }
+  }
+}
+
+// The network disclosure and the tool grants have to agree. If someone removes
+// WebSearch/WebFetch from the critic and builder — a real narrowing, and the right
+// one if nobody needs them — the disclosure becomes false in the other direction,
+// telling an operator the run is weaker than it is. Both halves are derived.
+console.log('drift-guard: the network disclosure matches who can actually reach the network')
+{
+  const netAgents = ['gauntlet-ab-critic', 'gauntlet-builder'].filter(a => {
+    try {
+      const t = (readFileSync(join(ROOT, 'agents', `${a}.md`), 'utf8').match(/^tools:\s*(.+)$/m) || [])[1] || ''
+      return /WebSearch|WebFetch/.test(t)
+    } catch { return false }
+  })
+  const discloses = loopCode.includes('THE BLINDNESS PROBE MODELS THE FILESYSTEM ONLY')
+  if (netAgents.length && !discloses) {
+    fail(`${netAgents.join(' and ')} can reach the network and no disclosure says so — the blindness probe searches this disk only, so a "clean" result would read as broader than it is`)
+  }
+  if (!netAgents.length && discloses) {
+    fail('the verdict discloses a network channel that no agent still holds — an operator reading it would discount a run that is actually tighter than described')
+  }
+  // PER AGENT, not "somebody has it". The disclosure names the critic and the
+  // builder; if only one loses the tools it becomes half false, and an "any agent
+  // still has network" check passes right through that.
+  if (discloses) {
+    const namedInDisclosure = { 'gauntlet-ab-critic': /critic and builder/.test(loopCode), 'gauntlet-builder': /critic and builder/.test(loopCode) }
+    for (const a of ['gauntlet-ab-critic', 'gauntlet-builder']) {
+      const has = netAgents.includes(a)
+      if (namedInDisclosure[a] && !has) {
+        fail(`the disclosure says the critic and builder both hold WebSearch/WebFetch, but ${a}.md no longer grants them — the sentence is now half wrong, and the half that is still true is the one an operator would discount`)
+      }
+    }
+  }
+}
+
+// The mirror of the citation check: a README that INVENTORIES a directory must
+// name everything in it. A citation to a missing path misleads a reader who
+// follows it; an omission misleads one who trusts the list. Both shipped —
+// README.md named one of four scripts, and docs/README.md named one of its two
+// subdirectories, leaving a whole plans folder invisible to anyone reading it.
+console.log('drift-guard: README inventories name everything actually present')
+{
+  const inventories = [
+    { readme: 'README.md', dir: '.', skip: new Set(['node_modules']) },
+    { readme: join('docs', 'README.md'), dir: 'docs', skip: new Set() },
+  ]
+  for (const { readme, dir, skip } of inventories) {
+    let text
+    try { text = readFileSync(join(ROOT, readme), 'utf8') } catch { continue }
+    for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith('.') || skip.has(entry.name)) continue
+      // Bounded so a longer name cannot satisfy a shorter one: a README that
+      // mentions `mydocs/` would otherwise count as naming `docs/`. Same
+      // substring-for-token defect that has already hidden gaps in four other
+      // scans here.
+      if (!new RegExp(`(^|[^A-Za-z0-9_-])${entry.name}/`).test(text)) {
+        fail(`${dir}/${entry.name}/ exists and ${readme} never mentions it — an inventory that omits a directory misleads the reader who trusts it`)
+      }
+    }
+  }
+}
+
+// Every line a suite prints as a pass must have an assertion behind it. A case
+// that logs "OK" with nothing asserted between it and the previous one is a case
+// that ran no check, and the count it inflates is the number everyone reads. This
+// repo's most repeated defect is a figure that says more than it can support —
+// verdicts recorded, critic spawns, token checks — and the suite's own pass count
+// was the last one still unguarded: a skip branch ended its message with OK, so on
+// a machine where that case could not run the total stayed the same.
+console.log('drift-guard: every reported test case has an assertion behind it')
+{
+  for (const f of readdirSync(join(ROOT, 'test')).filter(x => x.endsWith('.test.mjs'))) {
+    const lines = readFileSync(join(ROOT, 'test', f), 'utf8').split('\n')
+    let prev = 0
+    lines.forEach((line, i) => {
+      if (!/console\.log\(['"`].*OK/.test(line)) return
+      const between = lines.slice(prev, i).join('\n')
+      if (!/\b(ok|eq)\(/.test(between)) {
+        fail(`test/${f}:${i + 1} reports a passing case with no assertion between it and the previous one — it inflates the count with a check that never ran`)
+      }
+      prev = i
+    })
+  }
+}
+
+// Every field the verdict CARRIES must be explained where an operator reads. The
+// verdict is the loop's entire output and eight of its eighteen fields were
+// documented nowhere — someone reading `position_balance` or `goal_fitted` had to
+// open loop.js to learn what they meant. Derived from the returned object, so a
+// new field cannot ship unexplained.
+console.log('drift-guard: every verdict field is explained in the docs')
+{
+  const ret = loopCode.lastIndexOf('\nreturn {')
+  if (ret === -1) fail('the verdict object was not found in loop.js — this scan has drifted from the code')
+  else {
+    // SHORTHAND COUNTS. This required a COLON, so a field written as the ES6
+    // shorthand `comparability,` was invisible to the scan and the guard reported
+    // every field documented while never having seen one of them. Found by adding
+    // a field in shorthand form and noticing the guard stayed silent when it had
+    // just failed for a field added with a colon. A guard reporting success while
+    // guarding nothing is the failure this file exists to prevent, and that has
+    // now happened here twice.
+    const fields = [...new Set([...loopCode.slice(ret).matchAll(/^  ([a-z_]+)[,:]/gm)].map(m => m[1]))]
+    const docs = ['README.md', join('skills', 'gauntlet-loop', 'SKILL.md'), join('commands', 'loop.md')]
+      .map(f => { try { return readFileSync(join(ROOT, f), 'utf8') } catch { return '' } }).join('\n')
+    // Matched as a BACKTICKED TOKEN, not a substring. Fields are named `rounds`,
+    // `goal`, `history` — words the prose uses constantly — so a substring check
+    // passes for a field documented nowhere. Same defect as the argument table
+    // scan above, in the guard written to replace it.
+    for (const f of fields) {
+      if (!new RegExp('`' + f + '`').test(docs)) {
+        fail(`the verdict carries "${f}" and no operator-facing doc names it — a field nobody can look up is a field nobody reads`)
+      }
+    }
+  }
+}
+
+console.log('drift-guard: every repo-relative path cited in a live file still exists')
+for (const rel of LIVE_SURFACES) {
+  let text
+  try { text = readFileSync(join(ROOT, rel), 'utf8') } catch { continue }
+  const cited = new Set([...text.matchAll(/`([A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)+\.(?:md|js|mjs|jsonl))`/g)].map(m => m[1]))
+  for (const c of cited) {
+    if (c.startsWith('http') || c.startsWith('~') || c.startsWith('/')) continue
+    if (!existsSync(join(ROOT, c))) {
+      fail(`${rel} cites \`${c}\` and that path does not exist — a reader following it finds nothing`)
+    }
+  }
 }
 
 // loop.js is a second Workflow script under the same runtime constraints as
-// gauntlet.js (no import/require, no filesystem, no Node APIs; Date.now(),
+// the Workflow runtime's constraints (no import/require, no filesystem, no Node
+// APIs; Date.now(),
 // Math.random() and argless new Date() THROW in the real runtime). Nothing
 // previously guarded it. This is a static scan, not execution — the offline
 // harness in test/harness.mjs runs scripts via AsyncFunction, which happily
@@ -169,17 +489,10 @@ for (const forbidden of ['cost_ceiling', 'costCeiling', 'gate0', 'gate1:', 'gate
 // runtime-safe. Comments are stripped first: loop.js legitimately DISCUSSES
 // Math.random() in prose (explaining why alternation replaces it), and that
 // mention must not itself trip the guard.
-function stripLineComments(src) {
-  return src.split('\n').map(line => {
-    const idx = line.indexOf('//')
-    return idx === -1 ? line : line.slice(0, idx)
-  }).join('\n')
-}
 
 const RUNTIME_FORBIDDEN = ['import ', 'require(', 'Date.now', 'Math.random', 'new Date()']
 
 console.log('drift-guard: loop.js runtime-safety scan (no import/require/Date.now/Math.random/new Date())')
-const loopCode = stripLineComments(loop)
 for (const forbidden of RUNTIME_FORBIDDEN) {
   if (loopCode.includes(forbidden)) fail(`loop.js contains "${forbidden}" outside a comment — this throws in the real Workflow runtime`)
 }
@@ -197,11 +510,67 @@ for (const forbidden of RUNTIME_FORBIDDEN) {
 // `if (round > n) break` with a computed n — so it is a tripwire on the known
 // names, not a proof. The behavioural proof is in test/loop.test.mjs, where an
 // unbounded run must run past the old default until the harness stops it.
+// Every argument loop.js READS must be documented, and everything documented must
+// be read. An undocumented argument is one an operator cannot know to pass; a
+// documented one the loop ignores is worse, because they will pass it and believe
+// it took effect — which is precisely how a silently-ignored round cap would have
+// left someone thinking their run was bounded. Both sides are derived, so neither
+// list can drift.
+console.log('drift-guard: args loop.js reads and args SKILL.md documents are the same set')
+{
+  const read = new Set([...loopCode.matchAll(/\bargs\.([a-z][a-zA-Z]*)/g)].map(m => m[1]))
+  const skill = readFileSync(join(SKILLDIR, 'SKILL.md'), 'utf8')
+  // Scoped to the ARGUMENT table, not every table in the file. SKILL.md also
+  // carries a verdict-field table in the same shape, and a file-wide row scan read
+  // `enforced` as a documented argument — the guard claiming "documented
+  // arguments" while matching "any backticked first cell". The table is bounded by
+  // its `goal` row and the next blank line.
+  const argTableStart = skill.indexOf('| `goal` |')
+  const argTable = argTableStart === -1 ? '' : skill.slice(argTableStart, skill.indexOf('\n\n', argTableStart))
+  if (!argTable) fail('the argument table was not found in SKILL.md — this scan has drifted from the doc')
+  const documented = new Set([...argTable.matchAll(/^\| `([a-z][a-zA-Z]*)` \|/gm)].map(m => m[1]))
+  if (!read.size) fail('no args.* reads found in loop.js — this scan has drifted from the code')
+  if (!documented.size) fail("no argument table found in SKILL.md — this scan has drifted from the doc")
+  for (const a of read) {
+    if (!documented.has(a)) fail(`loop.js reads args.${a} and SKILL.md's argument table does not list it — an operator cannot know to pass it`)
+  }
+  for (const a of documented) {
+    if (!read.has(a)) fail(`SKILL.md documents args.${a} and loop.js never reads it — an operator will pass it and believe it took effect`)
+  }
+  // commands/loop.md carries the same fact a THIRD time, in the JSON block an
+  // operator copies from. That is the surface most likely to be used verbatim, so
+  // it is the one where a stale argument does the most damage.
+  const cmd = readFileSync(join(ROOT, 'commands', 'loop.md'), 'utf8')
+  const shown = new Set([...cmd.matchAll(/^\s*"([a-z][a-zA-Z]*)":/gm)].map(m => m[1]))
+  if (!shown.size) fail('no args JSON block found in commands/loop.md — this scan has drifted from the command')
+  for (const a of shown) {
+    if (!read.has(a)) fail(`commands/loop.md's args block shows "${a}" and loop.js never reads it — an operator copying that block passes a setting that does nothing`)
+  }
+  for (const a of read) {
+    if (!shown.has(a)) fail(`loop.js reads args.${a} and commands/loop.md's args block omits it — the block is copied verbatim, so the argument is invisible to whoever uses it`)
+  }
+}
+
 const CAP_NAMES = ['maxRounds', 'MAX_ROUNDS', 'HARD_CAP', 'ROUND_CAP', 'maxIterations']
+
+// Matched as an IDENTIFIER, not as a substring. loop.js now REFUSES a cap
+// argument by name — `for (const cap of ['maxRounds', ...])` — which is the
+// opposite of having one, and a bare-substring scan cannot tell those apart.
+// Quote-delimited occurrences are the refusal list; everything else (`const
+// maxRounds`, `args.maxRounds`) is a real use and still trips this.
+//
+// An earlier attempt stripped all string literals first. That silently DISABLED
+// the tripwire: loop.js is full of template literals containing apostrophes, so
+// quote-pairing swallowed whole spans of code — including a planted cap. Caught
+// only by mutating in a real cap and watching the guard stay quiet.
+//
+// Residue, unchanged: `args['maxRounds']` would evade this. It is a tripwire on
+// known names, not a proof — the behavioural proof is the no-round-cap test.
+const usedAsIdentifier = name => new RegExp(`(?<!['"\`])\\b${name}\\b(?!['"\`])`).test(loopCode)
 
 console.log('drift-guard: loop.js has no round cap (the source forbids a fixed round count)')
 for (const name of CAP_NAMES) {
-  if (loopCode.includes(name)) {
+  if (usedAsIdentifier(name)) {
     fail(`loop.js contains "${name}" outside a comment — the loop's terminators are a win, an operator cancel and a budget. A round cap is "the arbitrary final round" the source forbids.`)
   }
 }
@@ -210,8 +579,7 @@ for (const name of CAP_NAMES) {
 // loop.js carries its contract in TWO prompt surfaces: the standing agent
 // definitions under agents/ (the system prompt each spawn is born with) and the
 // round prompts rendered inside loop.js. Either can be edited without the other
-// — which is the same drift PINNED guards between critic-prompt.md and
-// gauntlet.js, on the script that had no such guard at all.
+// — a prompt duplicated across two surfaces drifts unless something pins it.
 //
 // Issue #16 is what the failure looks like: the source's one requirement on the
 // judge — "a really harsh critic" — was present in loop.js only inside a comment
@@ -234,6 +602,12 @@ const LOOP_PINNED = [
     what: 'the concrete-enough-to-act-on example that defines what a gap must look like' },
   { loop: 'the next verdict uninterpretable', agent: 'gauntlet-builder', needle: 'the next verdict uninterpretable',
     what: 'the builder fixes exactly one gap, because a five-change round cannot be read' },
+  { loop: 'Do not assess your own work', agent: 'gauntlet-builder', needle: 'grade your own work',
+    what: 'the builder never judges what it just made — a fresh critic decides next round, and a builder that grades itself is the loop marking its own homework' },
+  { loop: 'what would be inspected to judge it alone', agent: 'gauntlet-lead', needle: 'inspected to judge it',
+    what: 'what makes a piece a piece — a named observable. Without it a "split" is topical, every piece can win, and the artifact as a whole is unjudged' },
+  { loop: 'SPLIT_UNSOUND', agent: 'gauntlet-lead', needle: 'SPLIT_UNSOUND',
+    what: "the one check standing behind the lead's judgement. The lead is told a bad split still gets through and that this catches only one shape of it — if the check goes and the prompt does not, the lead is being reassured about something that no longer runs" },
   { loop: 'breaker that cannot be read', agent: 'gauntlet-breaker', needle: 'breaker that cannot be read',
     what: 'the circuit breaker fails SAFE — an unreadable probe stops the run rather than continuing it' },
 ]
@@ -247,7 +621,47 @@ const LOOP_DISCLOSURES = [
   // If this line goes, the verdict starts implying a precedent that does not
   // exist — which is the exact class this tracker files most.
   'ADDITION, not source fidelity',
+  // Deleting the panel deleted the only calibration mechanism. If this line goes,
+  // the plugin stops telling anyone that nothing checks its critics.
+  'NO CALIBRATION ANYWHERE',
+  // A builder that answers every absence by appending grows the artifact while
+  // every round is locally correct. If this goes, nothing reports it. Pinned on
+  // the stable half: the message names WHICH piece grew once a run is split, so
+  // it can no longer say "THE ARTIFACT" — but the detector going away must still
+  // fail here.
+  'GREW EVERY ROUND',
+  // The lead chooses what gets judged. A split that WON is now checked once more
+  // against the whole artifact, and one that did not is still unverified — both
+  // branches must survive, so both phrases are pinned.
+  'THE SPLIT IS NOT CHECKED',
+  'THE SPLIT IS CHECKED ONE WAY ONLY',
+  // Content blindness: the run withholds its blindness claim when an artifact
+  // gives away its origin. If this goes, a leaking run silently claims blindness.
+  'NOT blind on content',
+  // The blindness probe's criterion is the whole check. If this goes, the probe
+  // silently reverts to pattern-matching for repo names and misses every other
+  // way one artifact can stand apart from the other.
+  'DIFFERENT relationship to this machine',
+  'FIND THOSE ORIGINALS AND DIFF BOTH',
+  // A goal fitted to the candidate cannot discriminate, and the first live run of
+  // this build was decided by exactly that. Both halves of the residual are
+  // pinned: the reference-side finding, and the candidate-side hole nothing checks.
+  // Both goal probes read TEXT. Neither can see when the goal was written or by
+  // whom, which is the failure that actually decided the first live run.
+  'nothing here can see when it was written',
   'not independent judgments',
+  // The judge and the judged are the same model. This is the deepest limitation
+  // the method has — a critic cannot be counted on to catch the mistakes it would
+  // make itself — and it is disclosed nowhere else.
+  'Critic and builder share a model family',
+  // Cancellation is the operator's only control in a loop with no round cap, so
+  // what it does NOT do has to survive: removing the token stops the run at the
+  // next round boundary, it does not abort an agent already in flight.
+  'The breaker is checked at ROUND BOUNDARIES, not continuously',
+  // The blindness probe searches this disk; two agents can reach the network. If
+  // that disclosure goes while the tools remain, a `clean` probe result reads as
+  // broader than it is — see the tool-grant check below, which pins the pair.
+  'THE BLINDNESS PROBE MODELS THE FILESYSTEM ONLY',
 ]
 
 console.log('drift-guard: loop.js round prompts pinned to the agent definitions they spawn')
@@ -267,39 +681,44 @@ for (const pin of LOOP_PINNED) {
   else fail(`${pin.what}: loop.js still renders "${pin.loop}", but ${pin.agent}.md no longer says "${pin.needle}" — the standing prompt is stale`)
 }
 
+assertStripperKept(LOOP_DISCLOSURES, 'a pinned disclosure')
+assertStripperKept(LOOP_PINNED.map(x => x.loop), 'a pinned prompt clause')
+
 console.log('drift-guard: required disclosures present in loop.js')
 for (const needle of LOOP_DISCLOSURES) {
-  if (!loop.includes(needle)) fail(`"${needle}" — not found in loop.js; a not_enforced disclosure was removed or reworded away`)
+  // COMMENT-STRIPPED, like the prompt-clause check beside it. Against the raw
+  // source, commenting out a disclosure passes: the phrase is still in the file
+  // and no longer in the verdict. That is issue #16's exact shape — a clause
+  // surviving only as a comment while the live text loses it — in the guard
+  // written to prevent it. Nobody reads a comment out of a not_enforced list.
+  if (!loopCode.includes(needle)) fail(`"${needle}" — not present in LIVE loop.js code; a not_enforced disclosure was removed, reworded away, or left behind in a comment`)
 }
 
 // ---------------------------------------------------------------------------
 // CROSS-LANE CONTRACT — the first check in this file whose subject is the
 // RELATION between lanes rather than any one file.
 //
-// Everything above is pinned pairwise INSIDE a lane: critic-prompt.md against
-// gauntlet.js, loop.js against its own agent definitions. Measured consequence
-// (issue #20): plant the same defect — a blind comparer losing its instruction
-// not to reason about provenance — in each lane, and placement alone decides
-// whether anything catches it. The gauntlet.js arm fails this suite; the
-// loop.js arm passed it, exit 0. gauntlet.js is protected only because it
-// happens to have a paired prompt-authority file. A defect whose home is the
-// relation between lanes had nothing to fail.
+// Everything above pins loop.js against its own agent definitions — one lane,
+// checked against itself. This check is the other kind: it asks what the
+// DIRECTORY contains and holds every comparer lane it finds to the same
+// contract, including lanes that do not exist yet.
 //
-// So this does not add loop.js to a list — that would be one entry per
-// incident, and a third lane would reproduce the hole (#3). Lanes are
-// DISCOVERED from the directory, and the contract is required of whichever of
-// them runs a blind two-sided comparison:
+// That distinction was learned the expensive way. When this repo had two lanes,
+// the same defect — a blind comparer losing its instruction not to reason about
+// provenance — was caught in one lane and invisible in the other, because only
+// one of them happened to have a paired prompt-authority file. Placement, not
+// importance, decided whether anything noticed. A check that lists the lanes it
+// guards reproduces that hole the moment a lane is added; a check that discovers
+// them does not.
 //
 //   a LANE            = a .js in the skill dir that spawns agents
 //   a BLIND COMPARER  = a lane declaring a side-naming field whose domain is a
-//                       closed two-option enum. That is the structural
-//                       signature of a forced binary choice, and it does not
-//                       depend on the two side-naming conventions in use today
-//                       ('A'/'B' in loop.js, 'LEFT'/'RIGHT' in gauntlet.js).
+//                       closed two-option enum. That is the structural signature
+//                       of a forced binary choice and does not depend on the
+//                       naming convention any particular lane uses.
 //
 // Checked against COMMENT-STRIPPED source, same rule as LOOP_PINNED: a clause
 // surviving only in a comment reaches no agent.
-// ---------------------------------------------------------------------------
 const LANE_IS_COMPARER = /(winner|ours_side|side)\s*:\s*\{[^}]*enum:\s*\[\s*'[^']+'\s*,\s*'[^']+'\s*\]/
 
 const COMPARER_CONTRACT = [
@@ -337,25 +756,8 @@ if (!/await parallel\(/.test(loopCode)) {
   fail('loop.js no longer calls parallel() outside a comment — a line of k critics spawned sequentially costs k times the wall clock and nothing in the behavioural tests would notice')
 }
 
-// The plugin loader namespaces plugin agents (checked against ListAgents —
-// see the comment above `const AT` in gauntlet.js). A bare agent-type name in
-// AT would fail to resolve on first use, silently turning a restricted spawn
-// into a spawn that never runs. Parsed textually, same style as the rest of
-// this file: no new dependencies.
-console.log('drift-guard: AT map values stay namespaced "gauntlet-loop:" so a spawn cannot fail to resolve')
-const atMatch = script.match(/const AT = \{([\s\S]*?)\n\}/)
-if (!atMatch) {
-  fail('could not find "const AT = { ... }" in gauntlet.js — the AT-prefix check needs updating')
-} else {
-  const atValues = [...atMatch[1].matchAll(/:\s*'([^']*)'/g)].map(m => m[1])
-  if (!atValues.length) fail('found the AT map literal but no quoted values inside it — the AT-prefix check needs updating')
-  for (const v of atValues) {
-    if (!v.startsWith('gauntlet-loop:')) fail(`AT map value "${v}" is not prefixed "gauntlet-loop:" — this agentType will fail to resolve at runtime`)
-  }
-}
-
 if (failures) {
   console.error(`\ndrift-guard: ${failures} failure(s) — the script and its prompt authority have diverged.`)
   process.exit(1)
 }
-console.log(`\ndrift-guard: OK — ${PINNED.length} contract elements + ${GATE_SEMANTICS.length} gate semantics + ${LOOP_PINNED.length} loop.js prompt clauses pinned, ${comparerLanes} comparer lane(s) holding the cross-lane contract, ${ALLOWLIST.length} allowlists still denying, ${DISCLOSURES.length + LOOP_DISCLOSURES.length} disclosure(s) present, gates 0/1/4 absent from script, AT map namespaced, loop.js clean of ${RUNTIME_FORBIDDEN.length} forbidden runtime APIs and ${CAP_NAMES.length} round-cap names.`)
+console.log(`\ndrift-guard: OK — ${LOOP_PINNED.length} prompt clauses pinned between loop.js and its agent definitions, ${comparerLanes} comparer lane(s) holding the cross-lane contract, ${ALLOWLIST.length} allowlists still denying, ${LOOP_DISCLOSURES.length} disclosure(s) present, loop.js clean of ${RUNTIME_FORBIDDEN.length} forbidden runtime APIs and ${CAP_NAMES.length} round-cap names.`)

@@ -23,9 +23,27 @@ function eq(a, b, msg) {
 function gen(file, line, ...extra) {
   return JSON.parse(execFileSync('node', [CANARY, file, String(line), '--json', ...extra], { encoding: 'utf8' }))
 }
+// Returns the failure with its exit CODE and message, not merely "it failed".
+// `fails` used to answer only "did this exit non-zero", which cannot tell a
+// deliberate refusal from a crash: removing the range check made the script blow
+// up on an undefined line instead of refusing, and every assertion still passed.
+// The script uses 2 for bad input it refuses and 1 for "I could not build a false
+// claim" — a distinction worth asserting, since one is the operator's mistake and
+// the other is the tool declining to guess.
 function fails(file, line, ...extra) {
   try { execFileSync('node', [CANARY, file, String(line), '--json', ...extra], { encoding: 'utf8', stdio: 'pipe' }); return null }
-  catch (e) { return e }
+  catch (e) { return { status: e.status, out: String(e.stdout || '') + String(e.stderr || '') } }
+}
+// Runs the script with the argv list EXACTLY as written. `fails` cannot express
+// "too few arguments": it always passes four, and `String(undefined)` is the
+// literal "undefined", so `fails()` handed the script two arguments, sailed past
+// the arity check and died on ENOENT opening a file named "undefined". The
+// assertion then read that crash as the refusal it was meant to test. The input
+// never arrived — which is why every case below also checks that the message is
+// the one that branch prints.
+function failsArgv(argv) {
+  try { execFileSync('node', [CANARY, ...argv], { encoding: 'utf8', stdio: 'pipe' }); return null }
+  catch (e) { return { status: e.status, out: String(e.stdout || '') + String(e.stderr || '') } }
 }
 
 // THE property. Across many real anchors in this repo, the fabricated claim must
@@ -108,13 +126,54 @@ function fails(file, line, ...extra) {
   writeFileSync(f, 'ok\n')
   const e = fails(f, 1)
   ok(e, 'a file with one short line produces no canary')
-  ok(/could not build a false claim/.test(String(e.stderr)), 'and it says why rather than emitting something unproven')
+  ok(e.status === 1, `refused with code 1 — "I could not build a false claim" is the tool declining to guess, not bad input (got ${e.status})`)
+  ok(/could not build a false claim/.test(e.out), 'and it says why rather than emitting something unproven')
   console.log('canary: refuses to emit when it cannot prove the claim false OK')
+}
+
+// Argument validation. These are the first things a person hits when they run
+// the tool wrong, and the tool is only useful if it says so rather than dying on
+// an undefined path deep inside.
+//
+// Each case asserts the MESSAGE as well as the code, because the code alone does
+// not say the input arrived: an ENOENT crash exits non-zero too, and its stack
+// trace contains the words "canary", "scripts" and the script's own path, so the
+// loose alternation this block used to match was satisfied by the crash it
+// existed to rule out.
+const USAGE = 'usage: node scripts/canary.mjs <file> <line>'
+{
+  for (const [what, argv] of [['no arguments', []], ['only a file', ['skills/gauntlet-loop/SKILL.md']]]) {
+    const r = failsArgv(argv)
+    ok(r, `running with ${what} is refused`)
+    ok(r.status === 2, `${what}: refused with the bad-input code 2, not a crash — got ${r.status}`)
+    ok(r.out.includes(USAGE), `${what}: prints the usage line an operator can copy — got: ${r.out.slice(0, 200)}`)
+    ok(!/ENOENT|at ModuleJob/.test(r.out), `${what}: the arity check answered, rather than the script crashing further in — got: ${r.out.slice(0, 200)}`)
+  }
+
+  // A line that is not an integer. NaN fails no comparison — `NaN < 1` and
+  // `NaN > lines.length` are both false — so the range check lets it through and
+  // only Number.isInteger refuses it. Without that clause the script reads
+  // lines[NaN] and generates against undefined.
+  for (const [what, line] of [['a non-numeric line', 'twelve'], ['a fractional line', '12.5'], ['an empty line argument', '']]) {
+    const r = failsArgv(['skills/gauntlet-loop/SKILL.md', line])
+    ok(r, `${what} is refused`)
+    ok(r.status === 2, `${what}: refused with code 2 — got ${r.status}`)
+    ok(new RegExp(`${line === '' ? '' : line}`).test(r.out) && /is not a line in it/.test(r.out),
+       `${what}: the message names the offending argument and says what is wrong — got: ${r.out.slice(0, 200)}`)
+    ok(!/ENOENT|matchAll|at ModuleJob/.test(r.out), `${what}: refused rather than crashing on lines[NaN] — got: ${r.out.slice(0, 200)}`)
+  }
+  console.log('canary: too few arguments and non-integer lines are refused with the usage message, not a crash OK')
 }
 
 // Out-of-range and bad input are refused, not guessed at.
 {
-  ok(fails('skills/gauntlet-loop/SKILL.md', 99999), 'a line past the end of the file is refused')
-  ok(fails('skills/gauntlet-loop/SKILL.md', 41, '--mode', 'invent-something'), 'an unknown mode is refused')
+  const past = fails('skills/gauntlet-loop/SKILL.md', 99999)
+  ok(past, 'a line past the end of the file is refused')
+  ok(past.status === 2, `refused with the bad-input code 2, not merely non-zero — got ${past && past.status}: a crash also exits non-zero`)
+  ok(/canary:/.test(past.out), 'and says what was wrong, rather than emitting a stack trace')
+  const badMode = fails('skills/gauntlet-loop/SKILL.md', 41, '--mode', 'invent-something')
+  ok(badMode, 'an unknown mode is refused')
+  ok(badMode.status === 2, `refused with the bad-input code 2 — got ${badMode && badMode.status}`)
+  ok(/unknown mode/.test(badMode.out), 'naming the mode as the problem')
   console.log('canary: out-of-range lines and unknown modes are refused OK')
 }

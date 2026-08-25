@@ -1,5 +1,20 @@
 # runs/
 
+> **HISTORICAL — this directory documents machinery that no longer exists.**
+>
+> Everything below describes the gate sequence (gates 0–7) and its refusal
+> ledger. **The gates were deleted on branch `drop-judge-lane`.** `SKILL.md`
+> now contains the word "gate" zero times, and the line this file quotes as
+> `SKILL.md:35` is not in it. `scripts/refusal-log.mjs` and
+> `scripts/refusal-tally.mjs` write and read the gate-shaped schema in
+> `refusals.jsonl` (`gate0`, `gate1`, `gate4_number`), and nothing in the loop
+> calls either one.
+>
+> The single ledger entry is kept because it is real recorded data about a real
+> decision. The reasoning below is kept because it argues something the loop
+> still lacks — a way to score what a refusal bought — and whoever closes that
+> gap should read it first. Nothing here describes what the plugin does today.
+
 ## Why this exists
 
 `SKILL.md` concedes the hole this directory closes:

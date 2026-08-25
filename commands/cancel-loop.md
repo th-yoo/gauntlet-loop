@@ -22,12 +22,23 @@ If `$ARGUMENTS` names a path, use it. Otherwise list the default location:
 ls -1t /tmp/gauntlet-loop/*.token 2>/dev/null
 ```
 
-- **Nothing listed** → say "No active gauntlet loop token found." and stop. Do
-  not go hunting; a loop started with a token elsewhere is one the operator
-  knows the path to.
-- **Exactly one** → that is the run.
-- **More than one** → list them with their timestamps and ask which. Two loops
-  can be running at once, and cancelling the wrong one wastes the other's work.
+**A token does not mean a run is alive.** Only *cancelling* removes one: a run
+that WINS, errors, or stops on budget leaves its token on disk. So this list is
+"runs that were started and not cancelled", which includes every run that
+finished normally. Observed directly — three tokens from won runs sat in this
+directory at once.
+
+- **Nothing listed** → say "No gauntlet loop token found." and stop. Do not go
+  hunting; a loop started with a token elsewhere is one the operator knows the
+  path to.
+- **Exactly one** → that is the token. Whether its run is still going is a
+  separate question, answered below.
+- **More than one** → list them with their timestamps and ask which. Do not
+  present them as concurrent live runs; most stale tokens are just finished ones.
+
+**Confirm the run is actually running before claiming to stop it.** This command
+cannot tell from the filesystem — check `/workflows` for a live run whose args
+name the same candidate as the token, or ask the operator. Say which you did.
 
 ## Step 2 — read it before deleting it
 
@@ -47,7 +58,18 @@ rm <token-path>
 
 ## Step 4 — say what will actually happen
 
-Be precise, because the stop is not instant:
+Be precise, because the stop is not instant — and because it may not be a stop
+at all.
+
+If the run was **not** confirmed live, removing a stale token changes nothing,
+and reporting a cancel that did not happen is worse than admitting you could not
+tell:
+
+> Removed the token. I could not confirm a running loop for it — a finished run
+> leaves its token behind, so this may have been a stale one and nothing was
+> stopped. Check `/workflows` if you expected a run to be in progress.
+
+When the run **is** live:
 
 > Cancelled. The loop checks the token before spawning each round's critic, so
 > it will stop at the **next round boundary** and emit its normal verdict —

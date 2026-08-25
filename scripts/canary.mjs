@@ -4,8 +4,8 @@
 //
 // A verifier's specificity is only measured if something it should reject is
 // put in front of it. Until now those were written by hand, by whoever knew how
-// the verifier works — the contamination gate 7 keeps its seeder away from the
-// critic prompt to avoid. A script has no knowledge to leak and no preference
+// the verifier works — exactly the contamination the deleted gate sequence tried to
+// avoid by keeping a seeder away from the prompt it seeds against. A script has no knowledge to leak and no preference
 // about which fabrications are catchable, so it removes the author instead of
 // asking the author to be fair.
 //
@@ -117,6 +117,20 @@ if (!out) {
 }
 
 // FALSITY ASSERTION. Everything above is generation; this is the guarantee.
+//
+// DELIBERATELY UNREACHABLE, and it must stay here anyway. Both generators already
+// refuse to return the original: lineShift takes a candidate only when
+// `candidate !== truth`, and wordSwap swaps two DISTINCT tokens, so neither can
+// produce text equal to the real line. Mutating this branch away therefore breaks
+// no test — which reads exactly like dead code and is not.
+//
+// It is the backstop for a generator changing. The properties above are each
+// pinned by their own case (a file whose lines repeat 20 rows apart cannot yield
+// a true claim; a line with fewer than two distinct words yields nothing), and if
+// one of those is ever relaxed this line is what stops a canary being emitted
+// that happens to be TRUE — a "provably false" anchor that is not false, which
+// would make every verifier that catches it look wrong and every verifier that
+// misses it look right.
 if (out.claimed === truth) {
   console.error('canary: refusing to emit — the generated claim equals the real line, so it is not false')
   process.exit(1)

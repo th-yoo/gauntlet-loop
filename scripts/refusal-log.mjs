@@ -1,3 +1,14 @@
+// HISTORICAL — the mechanism this reports on was deleted.
+//
+// The gate sequence (gates 0-7) that produced these records is gone: it was
+// removed on branch `drop-judge-lane`, and `SKILL.md` now contains the word
+// "gate" zero times. Nothing in the loop writes to this ledger any more.
+//
+// The script still runs, and its output still names gates, so it is easy to read
+// as a report on something current. It is not. See runs/README.md for why the
+// record is kept: the argument in it is about a gap the loop still has — no way
+// to score what a refusal bought — and whoever closes that should read it first.
+
 // Append one decision to runs/refusals.jsonl. Friction is what kills ledgers,
 // so this exists purely to make the honest thing the easy thing.
 //
@@ -26,7 +37,10 @@ const FILE = join(ROOT, 'runs', 'refusals.jsonl')
 
 const argv = process.argv.slice(2)
 if (!argv.length || argv.includes('-h') || argv.includes('--help')) {
-  console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(0, 20).join('\n'))
+  // Wide enough to cover the historical notice AND the usage block beneath it.
+  // The notice was added above and pushed the actual instructions out of a
+  // 20-line window, so `--help` printed the warning and nothing else.
+  console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(0, 31).join('\n'))
   process.exit(0)
 }
 

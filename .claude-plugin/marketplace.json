@@ -1,14 +1,14 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "gauntlet-loop-local",
-  "description": "Gates that decide whether a multi-agent review should run at all, and an executable panel for when it should.",
+  "description": "Matt Shumer's Gauntlet Loop as an executable Workflow script: a builder and a fresh blind critic per round, A/B against a real reference exemplar, one gap back each time, no round cap.",
   "owner": {
     "name": "th-yoo"
   },
   "plugins": [
     {
       "name": "gauntlet-loop",
-      "description": "Pre-flight gates for multi-agent review, plus an executable panel with a blind bar and seeded-defect critic calibration.",
+      "description": "Improve an artifact until a blind judge picks it over a real reference. Builder plus fresh critic each round, positions split, unanimous exit, operator-held stop token.",
       "source": "./",
       "category": "review"
     }
