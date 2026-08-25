@@ -568,3 +568,19 @@ function run(script, args, extraEnv) {
   rmSync(dir, { recursive: true, force: true })
   console.log('oracle: an observation whose arm the report cannot score is refused, not silently dropped OK')
 }
+
+// GROUND TRUTH IS RE-DERIVED, NOT READ BACK — the four cases of #40, run as a suite gate.
+//
+// scripts/staleness-trial.mjs builds each situation rather than describing it: an
+// acceptance command whose unpinned input is broken, a generator row whose emission is
+// deleted, a row whose expected_role is corrected after the fact, and a row marked disputed
+// after its draws were taken. It works in its own sandbox and spawns no model. Running it
+// here is what stops the four from regressing quietly; running it as a script is what makes
+// a failure legible when it does.
+{
+  const r = run(join(ROOT, 'scripts', 'staleness-trial.mjs'), [])
+  eq(r.code, 0, `every stale fact is caught — got exit ${r.code}\n${r.out}`)
+  ok(/ENFORCED — all four facts are recomputed/.test(r.out), 'and the trial says so in the form its own README claims')
+  ok(!/BROKEN/.test(r.out), 'and none of its cases passed because the report failed to run')
+  console.log('oracle: grounding, verdict and dispute are re-derived at read time, not read back from what was written OK')
+}

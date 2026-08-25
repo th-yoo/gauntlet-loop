@@ -19,6 +19,8 @@
 // would hide exactly that.
 
 import { existsSync, readFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { liveInstrument } from './oracle-instrument.mjs'
@@ -38,6 +40,59 @@ const results = read('results.jsonl')
 console.log('oracle report — the pairing check\'s roleOf classifier')
 console.log('')
 console.log(`corpus: ${corpus.length} row(s) — ${corpus.filter(r => r.arm === 'does-the-work').length} does-the-work, ${corpus.filter(r => r.arm === 'generator').length} generator`)
+
+// GROUNDING IS RE-RUN, NOT REMEMBERED.
+//
+// oracle-add runs the acceptance command once, refuses the row unless it exits 0, and
+// stores `exit_code: 0`. Nothing ever ran it again, so the row's evidence was a past
+// result. That is not a hypothetical: replacing the file a command compiles — one the row
+// does not pin, because a row pins ONE artifact and a command reads whatever it likes —
+// left the command exiting 1 while the whole suite stayed green and oracle-record accepted
+// an observation against the row and scored it CORRECT.
+//
+// AND THAT IS WHY RE-RUNNING RATHER THAN PINNING. The command's footprint is unbounded and
+// unrecorded: `evidence` carries acceptance_command, exit_code and stdout_head, and no
+// dependency set. There is no list of files to hash. Running the thing is the only check
+// whose scope matches the claim.
+//
+// The generator arm has no command, so its grounding is the emission — the file executing
+// the artifact produced. That was a bare path: deleting it outright changed nothing anyone
+// could see. Existence is checked here always, and the hash whenever the row carries one.
+//
+// Arbitrary shell out of the ledger runs here, which is the same trust oracle-add already
+// extends when it runs the command to admit the row, and it is bounded by a timeout for
+// the reason mutate.mjs learned: a check that hangs reports nothing, and nothing reads as
+// "not run" rather than "broken".
+if (corpus.length) {
+  const ungrounded = []
+  for (const row of corpus) {
+    if (row.arm === 'generator') {
+      const em = row.evidence && row.evidence.emission
+      if (!em) { ungrounded.push(`row ${JSON.stringify(row.id)}: a generator row with no emission recorded — nothing shows what executing it produced`); continue }
+      const abs = existsSync(join(ROOT, em)) ? join(ROOT, em) : em
+      if (!existsSync(abs)) { ungrounded.push(`row ${JSON.stringify(row.id)}: its emission ${em} is gone, and that file is the row's entire ground truth`); continue }
+      if (row.evidence.emission_hash) {
+        const now = 'sha256:' + createHash('sha256').update(readFileSync(abs)).digest('hex')
+        if (now !== row.evidence.emission_hash) ungrounded.push(`row ${JSON.stringify(row.id)}: its emission ${em} has changed since the row was added — grounded against ${row.evidence.emission_hash.slice(0, 23)}…, on disk now ${now.slice(0, 23)}…`)
+      }
+      continue
+    }
+    const cmd = row.evidence && row.evidence.acceptance_command
+    if (!cmd) { ungrounded.push(`row ${JSON.stringify(row.id)}: no acceptance command recorded, so nothing grounds it`); continue }
+    const r = spawnSync(cmd, { shell: true, cwd: ROOT, stdio: 'ignore', timeout: 60_000 })
+    if (r.status !== 0) {
+      ungrounded.push(`row ${JSON.stringify(row.id)}: its acceptance command exits ${r.status === null ? 'nothing (killed or timed out)' : r.status} now, and exited 0 when the row was added — \`${cmd.length > 90 ? cmd.slice(0, 90) + '…' : cmd}\``)
+    }
+  }
+  if (ungrounded.length) {
+    console.log('')
+    console.log(`REFUSING: ${ungrounded.length} row(s) are no longer grounded.`)
+    for (const u of ungrounded) console.log(`  ${u}`)
+    console.log('  A row\'s ground truth is what its command does NOW, not the exit code stored when it was added.')
+    console.log('  Observations against an ungrounded row are not evidence; fix the row or drop it.')
+    process.exit(1)
+  }
+}
 
 if (!results.length) {
   console.log('')
@@ -69,6 +124,57 @@ if (unscored.length) {
   console.log(`  This report scores ${SCORED_ARMS.join(' and ')}. Add the arm here, or take the observations`)
   console.log('  out of the ledger — but they are not going to be counted silently.')
   process.exit(1)
+}
+
+// GROUND TRUTH IS RE-DERIVED HERE, NOT READ BACK OUT OF THE OBSERVATION.
+//
+// `correct` was computed once, by oracle-record, at the moment the observation was written
+// (`predicted === row.expected_role`), and every rate below used to come from that stored
+// value. So a row whose expected_role is later CORRECTED — which is exactly what a
+// #36-class finding produces, since #36 changed what the right answer IS for a whole class
+// of artifact — left every existing draw carrying its old score, silently. The corpus could
+// assert the opposite of what was measured and this report would not change by a character;
+// scripts/staleness-trial.mjs demonstrates that by inverting a row and diffing the output.
+//
+// `disputed` was worse, and it was found by the root cause rather than by an incident: if
+// the defect is "a derivable fact is stored", it is in every such field. This one is copied
+// onto the observation (oracle-record.mjs) and was filtered on the observation's copy, and
+// it decides whether an observation counts toward a rate AT ALL. Marking a row disputed
+// withdrew nothing that had already been drawn.
+//
+// Both now come from the row, every run. The stored `correct` is kept and compared rather
+// than ignored: a disagreement between what was written and what the corpus says today is
+// the event worth hearing about, and comparing two independently produced values is the
+// over-determination this repo asks a checker to supply.
+const byId = new Map(corpus.map(r => [r.id, r]))
+if (!corpus.length) {
+  // NOT the same as "everything agrees". Without a corpus there is nothing to re-derive
+  // against, and saying so is the honest reading — a constructed ledger with no corpus is
+  // how the report's own tests exercise cohort grouping.
+  console.log('ground truth: NOT RE-DERIVED — no corpus supplied, so nothing checks the recorded verdicts against it')
+} else {
+  const disagreements = []
+  for (const o of results) {
+    const row = byId.get(o.row)
+    if (!row) { disagreements.push(`observation on row ${JSON.stringify(o.row)} — the corpus has no such row, so nothing establishes what its answer was`); continue }
+    const nowCorrect = o.predicted_role === row.expected_role
+    if (nowCorrect !== o.correct) {
+      disagreements.push(`row ${JSON.stringify(o.row)}: recorded as ${o.correct ? 'CORRECT' : 'WRONG'}, but the corpus now expects ${JSON.stringify(row.expected_role)} and this observation predicted ${JSON.stringify(o.predicted_role)}`)
+    }
+  }
+  if (disagreements.length) {
+    console.log('')
+    console.log(`REFUSING: ${disagreements.length} observation(s) disagree with the corpus they were scored against.`)
+    for (const d of disagreements) console.log(`  ${d}`)
+    console.log('  A verdict frozen at record time is not evidence about a corpus that has since been corrected.')
+    console.log('  Re-score or re-draw those rows; do not average them into a rate.')
+    process.exit(1)
+  }
+  // The row is the authority on whether its ground truth is contested, at read time.
+  for (const o of results) {
+    const row = byId.get(o.row)
+    if (row) o.disputed = !!row.disputed
+  }
 }
 
 // WHICH COHORT DESCRIBES THE PROMPT THAT SHIPS.

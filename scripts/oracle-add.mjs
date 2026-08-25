@@ -185,7 +185,11 @@ const row = {
   // row silently resolved toward the expected label is the answer key again.
   disputed: arm === 'generator' ? disputed : false,
   evidence: arm === 'generator'
-    ? { method: 'agentic-execution', emission: emission, classified_by: 'a second agent, asked about the OUTPUT rather than the artifact — see oracle/generator-procedure.md' }
+    // THE EMISSION IS HASHED, like the artifact. It used to be a bare path, and a bare
+    // path is a promise rather than evidence: deleting the file outright changed nothing
+    // any tool could see. oracle-report re-checks both existence and this hash on every
+    // run, so a generator row's ground truth stops being something anyone has to remember.
+    ? { method: 'agentic-execution', emission: emission, emission_hash: 'sha256:' + createHash('sha256').update(readFileSync(existsSync(resolve(ROOT, emission)) ? resolve(ROOT, emission) : emission)).digest('hex'), classified_by: 'a second agent, asked about the OUTPUT rather than the artifact — see oracle/generator-procedure.md' }
     : {
         method: 'mechanical-execution',
         acceptance_command: acceptance,
