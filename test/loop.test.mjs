@@ -1030,6 +1030,11 @@ console.log('loop: required args throw, and the reference error explains why a b
      `and says why it could not check — got: ${r.result.split_check.why_not}`)
   ok(r.result.not_enforced.some(b => /THE SPLIT IS NOT CHECKED/.test(b)),
      'so the split is disclosed as unchecked rather than reported as verified')
+  // The pairing check ran on args.candidate/args.reference before the lead spawned,
+  // so it never saw these two pieces' own paths. Either of them could be a
+  // generator or a path that cannot be opened; the run would proceed regardless.
+  ok(r.result.not_enforced.some(b => /pairing check covered/.test(b) && /"render"/.test(b) && /"audio"/.test(b)),
+     `a piece judged against its OWN path carries no pairing guarantee, and the verdict must name which pieces — got: ${JSON.stringify(r.result.not_enforced.filter(b => /pairing/.test(b)))}`)
   console.log('loop: the split check refuses to judge a path the pieces never touched OK')
 }
 
@@ -1145,6 +1150,24 @@ console.log('loop: required args throw, and the reference error explains why a b
      'and does NOT diagnose a missing file as a category error — the operator would go looking for the wrong problem')
 
   console.log('loop: a generator, incomparable or unreadable pairing is refused before the lead spawns, and a dead probe is not a refusal OK')
+}
+
+// ...and a split whose pieces edit the SHARED candidate is covered by the pairing
+// check that already ran, so it must NOT carry that disclosure. A caveat printed
+// on every decomposed run is a caveat nobody reads — which is the whole reason
+// the pairing check refuses instead of warning.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'frontmatter and body', pieces: [
+      { name: 'front', observable: 'o' },
+      { name: 'body',  observable: 'o' }] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+    whole: { candidateWins: true, margin: 'clear' },
+  })
+  ok(!r.result.not_enforced.some(b => /pairing check covered/.test(b)),
+     'pieces that edit the shared candidate are covered by the check that already ran, so nothing is disclosed')
+  console.log('loop: a piece judged against its own path is disclosed as outside the pairing check, and one that is not is not OK')
 }
 
 // AND WHEN NOTHING IS MEASURABLE AT ALL, the verdict must say so.

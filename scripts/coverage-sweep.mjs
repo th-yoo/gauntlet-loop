@@ -100,6 +100,8 @@ const PROPERTIES = [
   ['a refused size measurement is reported, not dropped', L, '} else if (m) {', '} else if (false) {'],
   ['a run where nothing was measurable says so', L, 'if (sizeUnmeasured.length && !sizeByRound.length) {', 'if (false) {'],
 
+  ['a piece judged against its own path is disclosed as unchecked', L, "DECOMPOSED && PIECES.some(p => (p.candidate", "false && PIECES.some(p => (p.candidate"],
+  ['the pairing disclosure does not fire on every decomposed run', L, "DECOMPOSED && PIECES.some(p => (p.candidate", "DECOMPOSED || PIECES.some(p => (p.candidate"],
   ['an artifact that cannot be opened is refused', L, "comparability.verdict === 'unreadable'", "false"],
   ['a generator reference is refused, not judged against', L, "comparability.verdict === 'generator'", "false"],
   ['an incomparable pairing is refused', L, "comparability.verdict === 'not-comparable'", "false"],

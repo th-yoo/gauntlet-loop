@@ -1699,6 +1699,28 @@ return {
   ],
 
   not_enforced: [
+    // THE PAIRING CHECK COVERS args.candidate/args.reference AND NOTHING ELSE.
+    //
+    // It runs before decompose(), which is the only place it CAN run — refusing a
+    // hopeless pairing must not pay for the most expensive spawn in the run — and
+    // at that moment the pieces do not exist. A piece may then carry its own
+    // `candidate`/`reference` (see runPiece), and those pairings were never asked
+    // about: a piece can be judged against a generator, or against a path that
+    // cannot be opened, and the run proceeds.
+    //
+    // This is the class this repo keeps rediscovering rather than a new one. When
+    // the lead landed it made `round` per-piece and five whole-artifact assumptions
+    // elsewhere silently became false. This check was written afterwards and became
+    // the sixth, in the same session that recorded the lesson.
+    //
+    // Disclosed rather than fixed, deliberately: checking per piece costs one spawn
+    // per piece, and nothing has yet measured how often a lead assigns its own
+    // paths. Adding that width on a case nobody has observed would be structure
+    // added because the task seems to want it.
+    ...((DECOMPOSED && PIECES.some(p => (p.candidate && p.candidate !== CANDIDATE) || (p.reference && p.reference !== REFERENCE)))
+      ? [`the pairing check covered ${CANDIDATE} against ${REFERENCE} only. ${PIECES.filter(p => (p.candidate && p.candidate !== CANDIDATE) || (p.reference && p.reference !== REFERENCE)).map(p => `"${p.name}"`).join(', ')} ` +
+         `was judged against its own path, and NO comparability, generator or readability check was made for it — the probe runs before the lead spawns, so the pieces did not exist yet. Any verdict on those pieces carries none of the pairing guarantees the whole-artifact verdict does.`]
+      : []),
     CONTENT_LEAKS
       ? `this run's A/B was NOT blind on content: ${LEAKING_FILES.length ? `${LEAKING_FILES.join(', ')} identifies its own origin` : 'the blindness probe reported a leak but did not name which artifact carries it, so treat BOTH as compromised'}. ${selfid.reasoning} A critic holding Bash can resolve that evidence against the working tree and establish which artifact belongs to it without being told, which is what happened in wf_a0892913-ee6. Staging the files under neutral names does not touch this, and no verdict in this run should be read as one a blind judge reached.`
       : selfid
