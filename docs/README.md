@@ -4,6 +4,10 @@
 
 - `runs/` — a record per live run: what was compared, what the verdict was, and
   what it does *not* establish. Written after the fact, from the run's own output.
+  Also holds INCIDENTS — things that went wrong while building, recorded for the same
+  reason and to the same standard. `2026-08-25-oracle-fork-bomb/` is one: a mutation
+  test disabled a guard, the suite's canary for that guard was a live agent, and it
+  spawned to depth 13. The account was written by one of the bomb's own processes.
 - `superpowers/plans/` — **historical.** The implementation plan for the first
   gauntlet run, from 2026-08-23. It plans work that partly no longer exists: the
   gate sequence and `test/orchestration.test.mjs` were deleted on branch

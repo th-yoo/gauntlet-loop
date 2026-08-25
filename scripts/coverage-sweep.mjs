@@ -155,6 +155,10 @@ const PROPERTIES = [
   ['a generator row without its emission is refused', OA, '  if (!emission) {', '  if (false) {'],
   ['a disputed row is excluded from any rate', OP, '    const a = all.filter(r => !r.disputed)', '    const a = all'],
 
+  ['a small corpus refuses to state a rate', OP, 'if (distinct < 5) {', 'if (false) {'],
+  ['a stated rate carries its interval, not a point estimate', OP, 'console.log(`     per-side error    ${wrong.length}/${n}, 95% CI [${pct(ci[0])}, ${pct(ci[1])}]  <- PRIMARY`)', 'console.log(`     per-side error    ${pct(wrong.length/n)}  <- PRIMARY`)'],
+  ['the derived refusal figure states its assumption', OP, 'ASSUMING the two sides fail independently', 'assuming nothing in particular'],
+
   // --- the shipped tools refuse a wrong invocation (#98) --------------------
   // NOT listed: needleFrom's `!lines.length` guard. It sweeps NOT CAUGHT and that
   // is correct — removing it yields [].sort()[0] === undefined, which the !needle

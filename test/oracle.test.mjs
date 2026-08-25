@@ -159,6 +159,77 @@ function run(script, args) {
   console.log('oracle: a disputed observation is excluded from the rate and surfaced rather than averaged in OK')
 }
 
+// AND THE REFUSAL BELOW IT, which is this tool's central honesty property and was the
+// last thing here left unpinned: at a small corpus it must decline to state a rate at
+// all. Removing that guard makes it print a confident-looking interval over four
+// observations — the "figure that says more than it can support" this repository has
+// shipped before and now checks for.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'oracle-smalln-'))
+  const results = join(dir, 'results.jsonl')
+  const rows = []
+  for (let i = 0; i < 4; i++) {
+    rows.push(JSON.stringify({
+      row: 's' + i, arm: 'does-the-work', artifact: '/x/s' + i, expected_role: 'does-the-work',
+      predicted_role: 'does-the-work', correct: true, disputed: false,
+      prompt_hash: 'sha256:S' + i, template_hash: 'sha256:TPL', schema_fingerprint: 'sha256:fp', observer: 't',
+    }))
+  }
+  writeFileSync(results, rows.join('\n') + '\n')
+
+  const env = { ...process.env, ORACLE_CORPUS: join(dir, 'corpus.jsonl'), ORACLE_RESULTS: results }
+  let out = ''
+  try { out = execFileSync(process.execPath, [join(ROOT, 'scripts', 'oracle-report.mjs')], { encoding: 'utf8', cwd: ROOT, env }) }
+  catch (e) { out = String(e.stdout || '') + String(e.stderr || '') }
+
+  ok(/CANNOT BE POSED/.test(out), `four distinct artifacts must not yield a rate — got:\n${out}`)
+  ok(!/95% CI/.test(out), 'and no confidence interval, which would read as a measurement of accuracy')
+  ok(!/falsely refused/.test(out), 'and no derived refusal figure, which is downstream of a rate that does not exist')
+  ok(/Not evidence of accuracy/.test(out), 'and it says so in those words rather than leaving the reader to infer it')
+  rmSync(dir, { recursive: true, force: true })
+  console.log('oracle: a small corpus refuses to state a rate at all, rather than printing one that reads as measured OK')
+}
+
+// THE BRANCH THAT HAS NEVER RUN. Everything above exercises the small-n path, because
+// the real corpus is small. The Wilson interval and the derived false-refusal figure
+// only appear at 5+ distinct artifacts — so on the day someone adds a fifth row, that
+// arithmetic executes for the first time in production, having never been seen. This
+// runs it now, against a synthetic ledger.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'oracle-bign-'))
+  const results = join(dir, 'results.jsonl')
+  // 10 distinct artifacts, 1 wrong. Wilson 95% on 1/10 is about [0.018, 0.404],
+  // checked independently against published values, and 2p(1-p) at p=0.1 is 0.18.
+  const rows = []
+  for (let i = 0; i < 10; i++) {
+    const correct = i !== 3
+    rows.push(JSON.stringify({
+      row: 'r' + i, arm: 'does-the-work', artifact: '/x/art' + i, expected_role: 'does-the-work',
+      predicted_role: correct ? 'does-the-work' : 'produces-an-instruction', correct, disputed: false,
+      prompt_hash: 'sha256:P' + i, template_hash: 'sha256:TPL', schema_fingerprint: 'sha256:fp', observer: 't',
+    }))
+  }
+  writeFileSync(results, rows.join('\n') + '\n')
+
+  const env = { ...process.env, ORACLE_CORPUS: join(dir, 'corpus.jsonl'), ORACLE_RESULTS: results }
+  let out = ''
+  try { out = execFileSync(process.execPath, [join(ROOT, 'scripts', 'oracle-report.mjs')], { encoding: 'utf8', cwd: ROOT, env }) }
+  catch (e) { out = String(e.stdout || '') + String(e.stderr || '') }
+
+  ok(!/CANNOT BE POSED/.test(out), `at 10 distinct artifacts the rate IS posed — got:\n${out}`)
+  ok(/per-side error    1\/10/.test(out), 'the per-side count is reported')
+  ok(/95% CI \[2%, 40%\]/.test(out), `with the Wilson interval, which is the number that must not be a bare point estimate — got: ${(out.match(/95% CI.*/) || [''])[0]}`)
+  ok(/<- PRIMARY/.test(out), 'and per-side accuracy is marked PRIMARY, because the refusal rate is derived from it')
+  // 2p(1-p) at p = 1/10 is 0.18 -> 18%.
+  ok(/~18% of two-does-the-work pairings would be falsely refused/.test(out),
+     `the derived per-run figure is computed — got: ${(out.match(/~\d+% of two.*/) || [''])[0]}`)
+  ok(/ASSUMING the two sides fail independently/.test(out),
+     'and is labelled with the assumption it rests on, which is not measured anywhere')
+  ok(/Secondary/.test(out), 'and marked secondary to the per-side number')
+  rmSync(dir, { recursive: true, force: true })
+  console.log('oracle: at 5+ distinct artifacts the rate is posed with a Wilson interval, and the derived refusal figure carries its assumption OK')
+}
+
 // A path that does not exist cannot be an oracle row: the hash would pin an absence.
 {
   const r = run(EXTRACT, ['--artifact', '/oracle/definitely/not/here.md', '--goal', 'g', '--json'])
