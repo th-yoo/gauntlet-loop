@@ -113,6 +113,11 @@ const PROPERTIES = [
   ['the size measured this round goes out with it', L, "${sizeLive ? \` · ${sizeLive.bytes} bytes\` : ''}", "${''}"],
   ['a truncated gap says it was truncated', L, "gapLive.slice(0, 180) + '… (full text in the verdict)'", "gapLive.slice(0, 180)"],
 
+  ['a generator refusal keeps the findings already paid for', L, "'against a design document.' + probeFindings())", "'against a design document.')"],
+  ['an unreadable refusal keeps them too', L, "'against nothing. Check the path — a typo here costs a whole run.' + probeFindings())", "'against nothing. Check the path — a typo here costs a whole run.')"],
+  ['a not-comparable refusal keeps them too', L, "'that is the same kind of object as the candidate, or restate the goal so both are attempting the same thing.' + probeFindings())", "'that is the same kind of object as the candidate, or restate the goal so both are attempting the same thing.')"],
+  ['a probe that died is reported as unmeasured, not omitted', L, "    : 'goal_fairness: NOT MEASURED — the probe returned nothing, so whether the reference even attempts this goal is unknown')", "    : '')"],
+
   // --- the shipped tools refuse a wrong invocation (#98) --------------------
   // NOT listed: needleFrom's `!lines.length` guard. It sweeps NOT CAUGHT and that
   // is correct — removing it yields [].sort()[0] === undefined, which the !needle

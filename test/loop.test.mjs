@@ -1148,8 +1148,47 @@ console.log('loop: required args throw, and the reference error explains why a b
      `the refusal names the path that failed, since a typo is the usual cause — got: ${String(threw).slice(0, 160)}`)
   ok(!/GENERATOR/.test(threw),
      'and does NOT diagnose a missing file as a category error — the operator would go looking for the wrong problem')
+  // All THREE refusal paths must carry the findings, not two of them. This one was
+  // written last and left uncovered; the sweep caught it before it shipped.
+  ok(/goal_fairness:/.test(threw) && /content blindness:/.test(threw),
+     `the unreadable refusal carries the probe findings too — got: ${String(threw).slice(-260)}`)
 
   console.log('loop: a generator, incomparable or unreadable pairing is refused before the lead spawns, and a dead probe is not a refusal OK')
+
+  // A REFUSAL MUST NOT DISCARD WHAT WAS ALREADY PAID FOR.
+  //
+  // All four probes run in the same parallel(), so a refusal fires only after the
+  // operator has bought every one of them. In run wf_836738df-380 goal_fairness had
+  // returned 'does-not-attempt' and the blindness probe had found both artifacts
+  // byte-identical to files in the working tree — both actionable regardless of the
+  // pairing, both thrown away. A pairing refusal should cost the pairing.
+  threw = null
+  try {
+    await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [],
+      comparability: { verdict: 'generator', generator_side: REFERENCE, reasoning: 'it emits a prompt' },
+      fairness: { verdict: 'does-not-attempt', what_it_is_for: 'kicking off a different kind of run entirely', parts_not_attempted: null },
+      fitted: { verdict: 'fitted', reasoning: 'every clause maps onto the candidate' },
+      selfid: { verdict: 'self-identifying', self_identifying: [CANDIDATE], reasoning: 'it cites this tree' } })
+  } catch (e) { threw = e.message }
+  ok(threw, 'the run is still refused')
+  ok(/does-not-attempt/.test(threw) && /kicking off a different kind of run entirely/.test(threw),
+     `the fairness finding survives the refusal — it says the reference does not attempt the goal at all, which is actionable either way. Got: ${String(threw).slice(-400)}`)
+  ok(/goal_fitted: fitted/.test(threw), 'so does the fitted finding, which says the operator wrote a goal their own artifact wins by construction')
+  ok(/content blindness: self-identifying/.test(threw) && threw.includes(CANDIDATE),
+     'and the leak finding, naming the artifact that gave itself away')
+
+  // A probe that DIED must be reported as unmeasured, not omitted. An absent line
+  // reads as "nothing to report", which is the opposite of what a dead probe means.
+  threw = null
+  try {
+    await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [],
+      comparability: { verdict: 'not-comparable', generator_side: '', reasoning: 'different kinds' } })
+  } catch (e) { threw = e.message }
+  ok(threw, 'still refused with no other probe results available')
+  ok(/goal_fairness: NOT MEASURED/.test(threw) && /content blindness: NOT MEASURED/.test(threw),
+     `an unmeasured probe says so rather than vanishing from the report — got: ${String(threw).slice(-300)}`)
+
+  console.log('loop: a refusal carries the probe findings the operator already paid for, and says which were not measured OK')
 }
 
 // ...and a split whose pieces edit the SHARED candidate is covered by the pairing

@@ -965,6 +965,38 @@ comparability = probes[3]
 //
 // A probe that DIED costs a measurement, not the run — the same rule every other
 // component here follows. Only an answer refuses.
+// EVERYTHING THESE REFUSALS DISCARD WAS ALREADY BOUGHT.
+//
+// The three probes above run in the same parallel() as the pairing check, so by
+// the time a refusal fires the operator has paid for all four. Until this existed
+// they got a category error and nothing else — while in run wf_836738df-380
+// `goal_fairness` had independently returned `does-not-attempt` and the blindness
+// probe had found BOTH artifacts byte-identical to files in the working tree.
+// Both are actionable whether or not the pairing was comparable, and both were
+// thrown away.
+//
+// This repo's rule is that a component's failure costs exactly what that component
+// was buying. A pairing refusal should cost the pairing, not three unrelated
+// measurements. One helper for all three refusals rather than three copies: the
+// findings do not depend on WHY the run was refused.
+//
+// Reasoning strings are free prose and can run long, so they are truncated here;
+// nothing else records them on a refused run, which is why they appear at all.
+function probeFindings() {
+  const clip = t => { const x = String(t || '').replace(/\s+/g, ' ').trim(); return x.length > 220 ? x.slice(0, 220) + '…' : x }
+  const lines = []
+  lines.push(fairness
+    ? `goal_fairness: ${fairness.verdict}${fairness.verdict === 'attempts' ? '' : ` — the reference is for: ${clip(fairness.what_it_is_for)}`}`
+    : 'goal_fairness: NOT MEASURED — the probe returned nothing, so whether the reference even attempts this goal is unknown')
+  lines.push(fitted
+    ? `goal_fitted: ${fitted.verdict}${fitted.verdict === 'need' ? '' : ` — ${clip(fitted.reasoning)}`}`
+    : 'goal_fitted: NOT MEASURED — the probe returned nothing, so whether the goal describes the candidate is unknown')
+  lines.push(selfid
+    ? `content blindness: ${selfid.verdict}${selfid.verdict === 'clean' ? '' : ` — ${(selfid.self_identifying || []).join(', ')} identifies its own origin`}`
+    : 'content blindness: NOT MEASURED — the probe returned nothing, so a leak cannot be ruled out')
+  return '\n\nALREADY MEASURED on the way to this refusal, and worth reading before you retry:\n  - ' + lines.join('\n  - ')
+}
+
 // FETCHABLE. `loop.js` runs in a sandbox with no filesystem — `shapeOf` is a pure
 // string test, so a path that does not exist still reads as 'abs-path', SIDES_LOOK_ALIKE
 // still holds, and the run POSITIVELY ASSERTS its A/B was blind while one side was
@@ -981,7 +1013,7 @@ if (comparability && comparability.verdict === 'unreadable') {
     '. ' + comparability.reasoning + '\n\n' +
     'This does not fail loudly on its own. The path check is a string test, so a path that does not exist ' +
     'still looks like a path, the run still claims its A/B was blind, and a critic judges one real artifact ' +
-    'against nothing. Check the path — a typo here costs a whole run.')
+    'against nothing. Check the path — a typo here costs a whole run.' + probeFindings())
 }
 if (comparability && comparability.verdict === 'generator') {
   const side = comparability.generator_side || '(the probe did not name which side)'
@@ -994,14 +1026,14 @@ if (comparability && comparability.verdict === 'generator') {
     'THE FIX IS CHEAP AND THIS PAIRING IS PROBABLY FINE. Execute that side once — hand it to a fresh agent and ' +
     'keep what it produces — then pass the OUTPUT as the artifact. The same two sources come back comparable. ' +
     'This is what the source method already does: it judges rendered frames against real frames, not a prompt ' +
-    'against a design document.')
+    'against a design document.' + probeFindings())
 }
 if (comparability && comparability.verdict === 'not-comparable') {
   throw new Error(
     'REFUSED: these two artifacts are not comparable at this goal. ' + comparability.reasoning + '\n\n' +
     'A forced binary choice between two different kinds of thing produces a verdict, but not one about quality — ' +
     'and it produces it at round 1, with no build round, which is indistinguishable from winning. Pick a reference ' +
-    'that is the same kind of object as the candidate, or restate the goal so both are attempting the same thing.')
+    'that is the same kind of object as the candidate, or restate the goal so both are attempting the same thing.' + probeFindings())
 }
 const decomposition_ = pendingProbe ? await decompose() : null
 decomposition = decomposition_
