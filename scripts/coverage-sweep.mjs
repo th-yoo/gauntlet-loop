@@ -131,6 +131,9 @@ const PROPERTIES = [
   ['a dead critic says which of the two events it was', L, "        silenceNote('gauntlet-loop:gauntlet-ab-critic'),", "        '',"],
   ['the shared silence note reads the evidence', L, '  return typeProven(type)', '  return true ? ` — that agent type is registered and working this run` : typeProven(type)'],
 
+  ['a typo in a silence-check type name is caught', L, "typeProven('gauntlet-loop:gauntlet-breaker')", "typeProven('gauntlet-loop:gauntlet-breakr')"],
+  ['a typo in a critic silence-check name is caught', L, "silenceNote('gauntlet-loop:gauntlet-ab-critic')", "silenceNote('gauntlet-loop:gauntlet-critic')"],
+
   // --- the shipped tools refuse a wrong invocation (#98) --------------------
   // NOT listed: needleFrom's `!lines.length` guard. It sweeps NOT CAUGHT and that
   // is correct — removing it yields [].sort()[0] === undefined, which the !needle

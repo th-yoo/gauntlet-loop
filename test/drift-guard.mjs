@@ -506,6 +506,31 @@ console.log('drift-guard: the token root is resolved the same way everywhere it 
   }
 }
 
+// THE TYPE NAMES THE #14 FIX ASKS ABOUT MUST BE TYPES THE SCRIPT ACTUALLY SPAWNS.
+//
+// `typeProven(t)` and `silenceNote(t)` decide whether an empty result is blamed on
+// the agent or reported as possibly-a-missing-type. Both take a hand-written string.
+// A string that matches no spawned type can never be recorded, so `typeProven`
+// returns false forever and the loop permanently reports the ambiguity it was built
+// to resolve — while looking cautious and passing every test that only checks the
+// unproven branch.
+//
+// That is this fix's own failure mode: a hand-written name duplicating something
+// derivable. BOTH sides are derived here — the names asked about, and the names
+// spawned — so neither is a list anyone maintains.
+console.log('drift-guard: every agent type the silence check asks about is one the script spawns')
+{
+  const spawned = new Set([...loopCode.matchAll(/agentType:\s*'([^']+)'/g)].map(m => m[1]))
+  const asked = [...loopCode.matchAll(/(?:typeProven|silenceNote)\(\s*'([^']+)'/g)].map(m => m[1])
+  if (!spawned.size) fail('no agentType literals were found in loop.js — this scan has drifted from the code')
+  if (!asked.length) fail('nothing asks typeProven/silenceNote about any agent type — the #14 disambiguation is present but unused, which reads as fixed and is not')
+  for (const t of new Set(asked)) {
+    if (!spawned.has(t)) {
+      fail(`the silence check asks about "${t}", which loop.js never spawns. That name can never be recorded, so it is permanently unproven: every empty result from it would be reported as "possibly a missing agent type" forever. Spawned types are: ${[...spawned].sort().join(', ')}`)
+    }
+  }
+}
+
 console.log('drift-guard: every repo-relative path cited in a live file still exists')
 for (const rel of LIVE_SURFACES) {
   let text
