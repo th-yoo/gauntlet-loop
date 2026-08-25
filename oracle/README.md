@@ -124,6 +124,32 @@ every figure in it then describes an instrument nobody runs. If the live prompt 
 be read at all, the report prints no numbers: that is a broken extraction, not a stale
 corpus, and the two need opposite repairs.
 
+It also **re-establishes the ground truth rather than reading back what was written**.
+Every `does-the-work` and `could-not-open` row's acceptance command is re-run, every
+generator row's emission is checked for existence and hash, and `correct` and `disputed`
+are re-derived from the corpus row instead of being taken from the observation. A row
+whose command no longer exits 0, or an observation that disagrees with the corpus it was
+scored against, refuses the run. This is not belt-and-braces: a row's evidence used to be
+a stored exit code, so breaking a file the command read — one the row did not pin, because
+a row pins one artifact and a command reads whatever it likes — left the whole suite green.
+`scripts/staleness-trial.mjs` builds all four of those situations.
+
+Two figures say what the numbers rest on rather than what they are:
+
+- **`corroborated N/M`**, per arm. An observation either names a response on disk whose
+  fields were checked against it, or it does not. Neither says where the answer came from —
+  that is not recoverable here and is not claimed. It currently reads `0/25` on the live
+  cohort, because everything predating `oracle-draw.mjs` was recorded by hand and no
+  responses were kept. That cannot be improved retroactively.
+- **`answer stability`**, per arm. A row drawn twice that comes back differently is
+  unstable whether or not either draw was correct, and one draw per row cannot tell a
+  systematic bias from a coin landing the same way twice.
+
+Finally it lists **declared pairings** with the verdict `loop.js` derives for each, and —
+while it is still true — states plainly that none has been observed, so the per-run false
+refusal figure above it remains a derivation from the per-side rate rather than a
+measurement of the thing that actually refuses runs.
+
 ## What this cannot establish
 
 Selection bias and coverage of the artifact space. The report prints both every run,
