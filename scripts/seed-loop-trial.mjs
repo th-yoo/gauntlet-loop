@@ -15,10 +15,12 @@
 //    undegraded SKILL.md for this same plugin"
 //
 // The degraded copy was in /tmp; the original was in the working tree; the
-// builder holds Read. SKILL.md's gate 7 had already written the rule — "if the
+// builder holds Read. The rule was already written down — "if the
 // removed text is recoverable from public sources or the model's own prior, no
-// sandbox closes it and a tighter re-run yields a false pass" — and the trial was
-// designed anyway by someone who had read it that day.
+// sandbox closes it and a tighter re-run yields a false pass" — in the gate sequence
+// this repo deleted on branch `drop-judge-lane` (it was gate 7; SKILL.md no longer
+// carries it, so the rule lives here now). The trial was designed anyway, by someone
+// who had read that rule the same day.
 //
 // So the isolation is CHECKED here rather than asserted. The tool searches the
 // places a builder plausibly reaches for the text it just removed, and refuses to
@@ -36,22 +38,51 @@ import { execFileSync } from 'node:child_process'
 import { basename, join, resolve } from 'node:path'
 
 const argv = process.argv.slice(2)
-const arg = n => { const i = argv.indexOf(n); return i === -1 ? null : argv[i + 1] }
+const FLAGS = ['--artifact', '--section', '--to', '--check', '--sealed']
+// A value that is itself an option is a MISSING value, not a value.
+//
+// `--check --sealed <note>` used to bind degraded = "--sealed". Both reads came
+// back truthy, the arity guard below passed, and the leak search ran against a
+// filename nobody supplied — printing "ok: no reachable copy of the removed text".
+// A false pass, from the one tool in this repo whose entire job is to refuse false
+// passes, on the path an operator runs deliberately to verify isolation before
+// spending a run. One rule for all five options rather than a guard per option:
+// the seed path has the same hole and merely happens to die on ENOENT instead of
+// reporting success.
+const arg = n => {
+  const i = argv.indexOf(n)
+  if (i === -1) return null
+  const v = argv[i + 1]
+  return v === undefined || FLAGS.includes(v) ? null : v
+}
 const has = n => argv.includes(n)
 
 // Where a builder plausibly looks. Not "the whole machine" — a check that takes
 // ten minutes is a check nobody runs.
-const SEARCH_ROOTS = [
-  process.cwd(),
-  join(process.env.HOME || '', '.claude', 'plugins'),
-  '/tmp/gauntlet-loop',
-].filter(p => p && existsSync(p))
+// GAUNTLET_TRIAL_ROOTS replaces the default roots, colon-separated. It exists so
+// the failure path below can be tested: "grep could not search this root" has to
+// be distinguishable from "grep found nothing", and inducing a real search failure
+// needs a root the test controls. Not for normal use — the defaults are the places
+// a builder actually reaches.
+const SEARCH_ROOTS = (process.env.GAUNTLET_TRIAL_ROOTS
+  ? process.env.GAUNTLET_TRIAL_ROOTS.split(':')
+  : [
+      process.cwd(),
+      join(process.env.HOME || '', '.claude', 'plugins'),
+      '/tmp/gauntlet-loop',
+    ]).filter(p => p && existsSync(p))
 
 // A needle long and distinctive enough that finding it means finding the text,
 // not finding a coincidence. Shortest useful line over 40 chars, else the
 // longest line there is.
 function needleFrom(text) {
   const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 40 && !/^[#\-*|`\s]*$/.test(l))
+  // REDUNDANT BY CONSTRUCTION, and kept for readability rather than behaviour.
+  // Removing it yields [].sort()[0] === undefined, which every caller's `!needle`
+  // check refuses with the same message and the same exit code — verified by
+  // running a markup-only section both ways. So a mutation sweep reports it NOT
+  // CAUGHT and that is the right answer, not a coverage hole: there is no test
+  // that could distinguish the two, and writing one would pin nothing.
   if (!lines.length) return null
   return lines.sort((a, b) => b.length - a.length)[0]
 }
@@ -61,8 +92,23 @@ function copiesOf(needle, ignore) {
   for (const root of SEARCH_ROOTS) {
     let out = ''
     try {
-      out = execFileSync('grep', ['-rlF', '--binary-files=without-match', needle, root], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
-    } catch { continue }   // grep exits 1 when nothing matches
+      // `--` terminates options. Without it a needle that begins with a dash is
+      // read as flags: grep exits 2 with a usage error, and the old catch treated
+      // every non-zero exit as "nothing matched" — so the search that exists to
+      // find the leak silently found nothing and the trial was written as
+      // isolated. A Markdown list item over forty characters produces exactly such
+      // a needle, so it takes an ordinary document, not a crafted one.
+      out = execFileSync('grep', ['-rlF', '--binary-files=without-match', '--', needle, root], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+    } catch (e) {
+      // grep: 0 = matched, 1 = no match, >=2 = it could not do the search.
+      // Only 1 means clean. Anything else is an unanswered question, and this
+      // script exists to refuse those rather than guess at them.
+      if (e && e.status === 1) continue
+      console.error(`check: could not search ${root} (grep exited ${e && e.status}). A leak check that ` +
+                    'could not run is not a leak check that passed, so this trial is refused rather than ' +
+                    'recorded as isolated.')
+      process.exit(1)
+    }
     for (const f of out.split('\n').filter(Boolean)) {
       if (!ignore.some(i => resolve(f) === resolve(i))) found.push(f)
     }
@@ -73,7 +119,7 @@ function copiesOf(needle, ignore) {
 if (has('--check')) {
   const degraded = arg('--check')
   const sealedPath = arg('--sealed')
-  if (!degraded || !sealedPath) { console.error('usage: --check <degraded-file> --sealed <sealed-note>'); process.exit(2) }
+  if (!degraded || !sealedPath) { console.error('usage: node scripts/seed-loop-trial.mjs --check <degraded-file> --sealed <sealed-note>'); process.exit(2) }
   const sealed = readFileSync(sealedPath, 'utf8')
   const needle = needleFrom(sealed)
   if (!needle) { console.error('check: the sealed note has no line distinctive enough to search for — this trial is not leak-checkable, which is itself a reason not to run it'); process.exit(1) }
@@ -92,7 +138,11 @@ const artifact = arg('--artifact')
 const section = arg('--section')
 const to = arg('--to')
 if (!artifact || !section || !to) {
-  console.error('usage: --artifact <path> --section "## Heading" --to <dir>   |   --check <file> --sealed <note>')
+  // Names the script, like every other usage line here: this text is what an
+  // operator sees in a terminal or a log, and one that cannot be copied and run
+  // makes them go looking for the invocation instead of reading the message.
+  console.error('usage: node scripts/seed-loop-trial.mjs --artifact <path> --section "## Heading" --to <dir>')
+  console.error('   or: node scripts/seed-loop-trial.mjs --check <degraded-file> --sealed <sealed-note>')
   process.exit(2)
 }
 

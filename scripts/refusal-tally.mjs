@@ -1,3 +1,14 @@
+// HISTORICAL — the mechanism this reports on was deleted.
+//
+// The gate sequence (gates 0-7) that produced these records is gone: it was
+// removed on branch `drop-judge-lane`, and `SKILL.md` now contains the word
+// "gate" zero times. Nothing in the loop writes to this ledger any more.
+//
+// The script still runs, and its output still names gates, so it is easy to read
+// as a report on something current. It is not. See runs/README.md for why the
+// record is kept: the argument in it is about a gap the loop still has — no way
+// to score what a refusal bought — and whoever closes that should read it first.
+
 // Read runs/refusals.jsonl and report what it can support.
 //
 //   node scripts/refusal-tally.mjs [path]
@@ -44,6 +55,7 @@ lines.forEach((l, i) => {
   try { rows.push(JSON.parse(l)) } catch { malformed.push(i + 1) }
 })
 
+console.error('(HISTORICAL: the gate sequence these records describe was deleted on branch drop-judge-lane — nothing writes this ledger now)')
 console.log(`ledger: ${FILE}`)
 console.log(`records: ${rows.length}${malformed.length ? `  (malformed lines: ${malformed.join(', ')})` : ''}`)
 

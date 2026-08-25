@@ -1,4 +1,5 @@
 import { runLoop, ok, eq } from './harness.mjs'
+import { execFileSync } from 'node:child_process'
 
 // Deliberately do NOT spell "candidate" or "reference" inside these paths:
 // the critic-never-told-which-is-which test greps the prompt for the word
@@ -162,6 +163,12 @@ const GOAL = 'a goal worth looping over'
 {
   const r = await runLoop({
     args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    // The illegal value IS the experiment here: BREAKER_SCHEMA's enum is
+    // PRESENT|ABSENT, and this proves the loop stops on anything else rather than
+    // testing for ABSENT specifically. The harness would otherwise reject the stub
+    // as a shape production cannot deliver, which is the right default everywhere
+    // except a case built to survive a probe that ignored its schema.
+    illegalStubIsThePoint: true,
     breaker: r => (r === 1 ? true : { token: 'MAYBE', evidence: 'a probe that ignored its schema' }),
     rounds: [],
     runawayGuard: 5,
@@ -383,6 +390,1206 @@ console.log('loop: required args throw, and the reference error explains why a b
   ok(/\b2 separate critic spawn/.test(spawnBullet), 'the bullet reports the actual spawn count (2), not history.length (1)')
   ok(/1 produced a recorded verdict/.test(spawnBullet), 'the bullet also reports how many produced a recorded verdict')
   console.log('loop: spawn-count bullet counts actual spawns, not history.length OK')
+}
+
+// The same bullet, at k>1. The k=1 test above cannot discriminate: with one
+// critic per round, recorded verdicts and history.length are the same number,
+// so a bullet interpolating either one reads correctly. Escalation makes them
+// diverge — a losing round records 1 verdict, a winning round records k — and
+// that shape only ever appeared live for the first time in wf_dec93fe9-401,
+// which is where this was found. Mirrors that run exactly: round 1 loses (one
+// critic spawned, escalation declines to buy the second), round 2 wins on both.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 2 },
+    rounds: [
+      { candidateWins: false, gap: 'round 1 gap', margin: 'decisive' },
+      [
+        { candidateWins: true, margin: 'clear' },
+        { candidateWins: true, margin: 'clear' },
+      ],
+    ],
+  })
+  eq(r.result.outcome.status, 'WON', 'the candidate wins at round 2 with both critics')
+  eq(r.result.history.length, 2, 'two rounds ran')
+  const spawned = r.labels.filter(l => /:ab:\d+$/.test(l)).length
+  eq(spawned, 3, 'escalation spawned 1 critic on the losing round and 2 on the winning one')
+  const recorded = r.result.history.reduce((n, h) => n + h.split.positions.length, 0)
+  eq(recorded, 3, 'all three critics produced a recorded verdict')
+  const spawnBullet = r.result.enforced.find(b => /separate critic spawn/i.test(b))
+  ok(spawnBullet, 'a spawn-count bullet is present')
+  ok(/\b3 separate critic spawn/.test(spawnBullet), 'the bullet reports 3 spawns')
+  ok(/3 produced a recorded verdict/.test(spawnBullet),
+     'the bullet reports 3 recorded verdicts, not history.length (2) — understating them reads as if a critic returned nothing')
+  console.log('loop: the spawn bullet counts recorded VERDICTS, not rounds, when escalation fires OK')
+}
+
+// Content blindness. SIDES_LOOK_ALIKE already withholds the blindness claim when
+// the loop's own FORMATTING gives the sides away. Content is the second leak
+// class and was disclosed as a possibility until wf_a0892913-ee6 recorded it as
+// an event: a critic ran `git branch --show-current`, `ls skills/gauntlet-loop/`,
+// `git log --oneline --all` and read this repo's own run record, establishing
+// that one artifact lives in the tree it was standing in. Same remedy: the loop
+// stops claiming a blindness it does not have.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 1,
+    rounds: [],
+    selfid: {
+      verdict: 'self-identifying',
+      self_identifying: [CANDIDATE],
+      reasoning: 'it cites line numbers in loop.js and quotes a builder report from this working tree',
+    },
+  })
+  ok(!r.result.enforced.some(b => /never TOLD which artifact was the candidate/i.test(b)),
+     'the blindness bullet is WITHHELD when an artifact identifies its own origin')
+  const residual = r.result.not_enforced.find(b => /identifies its own origin/i.test(b))
+  ok(residual, 'not_enforced explains that content, not formatting, gave the side away')
+  ok(residual.includes(CANDIDATE), 'the residual names the artifact that leaks')
+  console.log('loop: a self-identifying artifact withholds the blindness claim OK')
+}
+
+// The probe clearing the run must not withhold anything — a check that always
+// fires is not a check.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 1,
+    rounds: [],
+    selfid: { verdict: 'clean', self_identifying: [], reasoning: 'neither artifact names where it came from' },
+  })
+  ok(r.result.enforced.some(b => /never TOLD which artifact was the candidate/i.test(b)),
+     'the blindness bullet STANDS when the probe finds no self-identification')
+  ok(!r.result.not_enforced.some(b => /identifies its own origin/i.test(b)),
+     'no leak residual is claimed when there is no leak')
+  console.log('loop: a clean blindness probe leaves the claim standing OK')
+}
+
+// Probe absent: the run is no worse off than before it existed, and says so
+// rather than silently inheriting a claim nothing checked.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 1,
+    rounds: [],
+  })
+  ok(r.result.enforced.some(b => /never TOLD which artifact was the candidate/i.test(b)),
+     'formatting blindness still holds when the content probe did not run')
+  ok(r.result.not_enforced.some(b => /content blindness was NOT checked/i.test(b)),
+     'not_enforced says content blindness went unchecked rather than implying it held')
+  ok(r.result.not_enforced.some(b => /indistinguishable from that agent type not being registered/i.test(b)),
+     'with no sibling probe returning either, the disclosure names the #14 ambiguity — an empty result cannot be told from a type that does not exist, which is exactly how this probe failed silently on its first live run (wf_fdbb326d-333)')
+  console.log('loop: an unrun blindness probe is disclosed, not assumed OK')
+}
+
+// THE SPLIT CHECK. `not_enforced` has always said a plausible observable is not a
+// correct seam and that "every piece can win while the artifact as a whole is
+// worse than the reference. Nothing in this run would notice that." These three
+// tests are that noticing. The whole-artifact A/B runs once, after every piece
+// has won, and is the only thing in the loop that can falsify the split.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'each subsystem renders alone', pieces: [
+      { name: 'render', observable: 'open the frame' },
+      { name: 'audio', observable: 'play it' }] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+    whole: { candidateWins: false, gap: 'the sections contradict each other across the seam', margin: 'clear' },
+  })
+  eq(r.result.outcome.status, 'SPLIT_UNSOUND', 'every piece won and the whole artifact still lost — the split hid something')
+  ok(/every piece beat the reference/.test(r.result.outcome.why), 'the verdict says both halves of the contradiction')
+  eq(r.result.split_check.candidateWon, false, 'the split check records the losing whole-artifact verdict')
+  ok(/contradict each other across the seam/.test(r.result.split_check.gap), 'the whole-artifact gap is reported — it is what the pieces could not see')
+  console.log('loop: pieces all winning while the whole loses is caught and named OK')
+}
+
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'render', observable: 'open the frame' },
+      { name: 'audio', observable: 'play it' }] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+    whole: { candidateWins: true, margin: 'clear' },
+  })
+  eq(r.result.outcome.status, 'WON', 'a split that survives the whole-artifact check still wins')
+  eq(r.result.split_check.candidateWon, true, 'the passing check is recorded rather than assumed')
+  console.log('loop: a split that survives the whole-artifact check wins normally OK')
+}
+
+// An undecomposed run must NOT pay for this: the artifact was already judged
+// whole every round, so a whole-artifact A/B is the same judgment twice.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [{ candidateWins: true }],
+    whole: { candidateWins: false },
+  })
+  eq(r.result.outcome.status, 'WON', 'an undecomposed run is unaffected by the split check')
+  ok(!r.labels.some(l => /:whole$/.test(l)), 'no whole-artifact critic is spawned when nothing was split')
+  eq(r.result.split_check.ran, false, 'the verdict says the check did not run, and why')
+  console.log('loop: the split check is not paid for when there was no split OK')
+}
+
+// #14 says an unregistered agent type and an agent that returned nothing are
+// indistinguishable from the verdict. That is true of a type used ONCE. It is not
+// true here: the blindness probe shares `gauntlet-goal-check` with the fairness
+// and fitted probes, so a result from either one proves the type is registered
+// and narrows a null from the third to a silent agent. Induced from a real
+// failure — wf_fdbb326d-333 ran a probe against a type added mid-session, got
+// null, and reported "not checked" while looking healthy.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 1,
+    rounds: [],
+    fairness: { verdict: 'attempts', what_it_is_for: 'a thing', parts_not_attempted: null },
+    // fitted and selfid both absent
+  })
+  const line = r.result.not_enforced.find(b => /content blindness was NOT checked/i.test(b))
+  ok(line, 'the unchecked disclosure is present')
+  ok(/agent type is registered and working this run/i.test(line),
+     'a sibling probe on the SAME agent type succeeded, so the null is narrowed to a silent agent rather than a missing type')
+  ok(!/not being registered at all/i.test(line),
+     'the run does not offer the registration explanation it just ruled out')
+  console.log('loop: a working sibling probe rules OUT the missing-agent-type explanation OK')
+}
+
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 1,
+    rounds: [],
+    // every gauntlet-goal-check call returns nothing
+  })
+  const line = r.result.not_enforced.find(b => /content blindness was NOT checked/i.test(b))
+  ok(line, 'the unchecked disclosure is present')
+  ok(/not being registered at all/i.test(line),
+     'when NO call to that agent type returned, the registration explanation is still live and is named')
+  console.log('loop: with no working sibling, the missing-agent-type explanation stands OK')
+}
+
+// A decomposed run that the operator STOPS must not pay for the whole-artifact
+// critic. The check exists to falsify a split that won; there is no winning split
+// to falsify here, and spending a critic after a cancel would break the promise
+// that a cancel costs one cheap probe.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      // No per-piece paths: these edit the WHOLE artifact, so the path-scoping rule
+      // is satisfied and the only thing left to skip the check is the run not
+      // having won. With separate paths the scoping skipped it first and the WON
+      // condition was never exercised.
+      { name: 'render', observable: 'open the frame' },
+      { name: 'audio', observable: 'play it' }] },
+    breaker: r => r <= 1,
+    rounds: [],
+    whole: { candidateWins: false },
+  })
+  ok(r.result.outcome.status !== 'WON', 'the run did not win — the operator stopped it')
+  ok(!r.labels.some(l => /:whole$/.test(l)), 'no whole-artifact critic was spawned for a run that never won')
+  eq(r.result.split_check.ran, false, 'the split check reports that it did not run')
+  const disc = r.result.not_enforced.find(b => /THE SPLIT IS NOT CHECKED/.test(b))
+  ok(disc, 'the split is disclosed as unchecked')
+  ok(!/did not run: null/.test(disc), 'the disclosure states a REASON — interpolating a null reads as a bug in the verdict itself')
+  ok(/never (won|reached)|did not (win|reach)/i.test(disc), 'and the reason given is the real one: the run never won, so there was no winning split to falsify')
+  console.log('loop: a stopped decomposed run does not pay for the split check OK')
+}
+
+// The split check spawns a REAL critic, and the spawn-count bullet has to say so.
+// It calls agent() directly rather than through spawnCritic, so it is exactly the
+// kind of caller that silently escapes a counter — the same defect as the
+// history.length-for-verdicts bug, in code written the same day it was fixed.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'render', observable: 'open the frame' },
+      { name: 'audio', observable: 'play it' }] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+    whole: { candidateWins: true, margin: 'clear' },
+  })
+  eq(r.result.outcome.status, 'WON', 'both pieces won and the whole artifact survived the check')
+  const perRound = r.labels.filter(l => /:ab(:\d+)?$/.test(l)).length
+  const wholeSpawns = r.labels.filter(l => /:whole$/.test(l)).length
+  eq(wholeSpawns, 1, 'exactly one whole-artifact critic ran')
+  const bullet = r.result.enforced.find(b => /separate critic spawn/i.test(b))
+  const claimed = Number(/(\d+) separate critic spawn/.exec(bullet)[1])
+  eq(claimed, perRound + wholeSpawns,
+     'the spawn count includes the whole-artifact critic — it is a critic that ran, and a bullet that omits it understates how many judges this run paid for')
+  const verdicts = Number(/(\d+) produced a recorded verdict/.exec(bullet)[1])
+  eq(verdicts, r.result.history.reduce((n, h) => n + h.split.positions.length, 0) + 1,
+     'and its verdict is counted too, since it produced one')
+  eq(r.result.position_balance, '1 as A / 2 as B',
+     'position_balance covers every critic position in the run, including the whole-artifact one — a balance that silently omits a judge misreports how position bias was spread')
+  console.log('loop: the whole-artifact critic is counted in the spawn bullet OK')
+}
+
+// The split check runs AFTER every piece has won, as a bare await outside
+// parallel(). parallel() converts a throw into null; a bare await does not. So an
+// agent runtime failure here would discard the verdict of a run that had already
+// finished all its work — the most expensive possible moment to lose it. The
+// check is allowed to fail; it is not allowed to take the run down with it.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'render', observable: 'open the frame' },
+      { name: 'audio', observable: 'play it' }] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+    whole: 'throw',
+  })
+  eq(r.result.outcome.status, 'WON', 'the pieces won and the run still reports its verdict')
+  eq(r.result.split_check.ran, false, 'the split check reports that it did not run')
+  ok(/threw/i.test(r.result.split_check.why_not || ''), 'and says it failed rather than implying there was nothing to check')
+  ok(r.result.not_enforced.some(b => /THE SPLIT IS NOT CHECKED/.test(b)),
+     'the split is disclosed as unchecked — a failed check must not leave the run claiming a checked split')
+  console.log('loop: a throwing split check does not destroy a completed run\'s verdict OK')
+}
+
+// The third way the split check can not-happen: the critic is spawned and returns
+// nothing. Distinct from throwing and from never running, and the verdict must not
+// blur them — a run whose check silently produced no answer is in the same
+// position as one that never checked, and has to say so.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'render', observable: 'open the frame' },
+      { name: 'audio', observable: 'play it' }] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+    // no `whole` — the critic spawns and returns nothing
+  })
+  eq(r.result.outcome.status, 'WON', 'the pieces won; a silent check does not change their verdict')
+  ok(r.labels.some(l => /:whole$/.test(l)), 'the critic WAS spawned — this is silence, not absence')
+  eq(r.result.split_check.ran, false, 'a spawned-but-silent check did not run')
+  ok(/returned nothing/.test(r.result.split_check.why_not || ''), 'and the reason distinguishes silence from the other two ways this check can be skipped')
+  ok(r.result.not_enforced.some(b => /THE SPLIT IS NOT CHECKED/.test(b)), 'the split is disclosed as unchecked')
+  const bullet = r.result.enforced.find(b => /separate critic spawn/i.test(b))
+  const claimed = Number(/(\d+) separate critic spawn/.exec(bullet)[1])
+  const verdicts = Number(/(\d+) produced a recorded verdict/.exec(bullet)[1])
+  eq(claimed, verdicts + 1, 'the silent critic is counted as a spawn but NOT as a verdict — that gap is the only trace it left')
+  console.log('loop: a spawned-but-silent split check is distinguished from one that never ran OK')
+}
+
+// The schema cannot enforce agreement BETWEEN fields, so both halves of the probe's
+// answer have to be reconciled in code. Two inconsistent shapes are reachable, and
+// they must resolve in opposite directions of the same rule: the blindness claim is
+// withdrawn whenever ANY part of the answer indicates a leak.
+{
+  // verdict says leak, list names nobody — the sentence must not render an empty list
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 1,
+    rounds: [],
+    selfid: { verdict: 'self-identifying', self_identifying: [], reasoning: 'one of them gives it away' },
+  })
+  ok(!r.result.enforced.some(b => /never TOLD which artifact was the candidate/i.test(b)),
+     'the claim is still withdrawn — the verdict field reported a leak')
+  const line = r.result.not_enforced.find(b => /NOT blind on content/.test(b))
+  ok(line, 'the leak is disclosed')
+  ok(!/content: {2,}identifies|content:\s+identifies/.test(line),
+     'the sentence does not render an empty file list, which would read as a formatting bug rather than a finding')
+  ok(/did not name which/i.test(line), 'it says the prober did not name a file instead of pretending it did')
+  console.log('loop: a leak verdict naming no file still withdraws the claim, without a malformed sentence OK')
+}
+
+{
+  // verdict says clean, list names a file — the conservative half wins
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: r => r <= 1,
+    rounds: [],
+    selfid: { verdict: 'clean', self_identifying: [CANDIDATE], reasoning: 'it cites this tree' },
+  })
+  ok(!r.result.enforced.some(b => /never TOLD which artifact was the candidate/i.test(b)),
+     'a named file outweighs a clean verdict — this check may only ever withdraw the claim, never grant it')
+  const line = r.result.not_enforced.find(b => /NOT blind on content/.test(b))
+  ok(line && line.includes(CANDIDATE), 'and the named file is reported')
+  console.log('loop: a clean verdict that still names a file is treated as a leak OK')
+}
+
+// The cancel message reads `round === 1` as "nothing had run yet", which is true
+// of an undecomposed run and false as soon as the artifact is split: round 1 is
+// per PIECE, so a later piece's first round can find the token gone after other
+// pieces have already completed rounds. Observed in wf_db83b3a5-a27, which
+// reported "already absent before round 1 ... or it was never created (check the
+// path)" for a run whose history held a completed round with a full verdict —
+// sending the operator to hunt a path bug that did not exist.
+{
+  let breakerCalls = 0
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'two parts of one file', pieces: [
+      { name: 'first', observable: 'read the head' },
+      { name: 'second', observable: 'read the tail' }] },
+    // present for the first piece, gone by the time the second piece starts
+    breaker: () => ++breakerCalls === 1,
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+  })
+  eq(r.result.outcome.status, 'CANCELLED', 'the run stopped when the token went away')
+  ok(r.result.history.length > 0, 'and rounds had already completed before it did')
+  ok(!/never created/.test(r.result.outcome.why),
+     'the verdict does not tell the operator the token may never have existed — rounds ran, so it plainly did')
+  ok(/completed round/.test(r.result.outcome.why),
+     'it reports this as an ordinary cancel, naming how much had already run')
+  console.log('loop: a cancel after a decomposed run has completed rounds is not reported as a bad token path OK')
+}
+
+// `enforced` is the list of properties a run CANNOT lose, so it has to keep pace
+// with what the run actually required. Adding the whole-artifact check changed the
+// exit condition for a decomposed run — every piece winning is no longer sufficient
+// — and a claim that still describes the old condition understates what was checked.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'render', observable: 'open the frame' },
+      { name: 'audio', observable: 'play it' }] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+    whole: { candidateWins: true, margin: 'clear' },
+  })
+  const claim = r.result.enforced.find(b => /EVERY one of the/.test(b))
+  ok(claim, 'the decomposed exit claim is present')
+  ok(/whole/i.test(claim),
+     'and it names the whole-artifact check as part of what the run had to clear — every piece winning is no longer the whole exit condition')
+  console.log('loop: the decomposed exit claim describes the exit condition that actually applied OK')
+}
+
+// size_note is #26's only detector, and it flattens sizeByRound across every
+// piece — discarding the `piece` field it just recorded. Once the lead can split,
+// that series interleaves DIFFERENT FILES, and the monotonic test becomes
+// meaningless in both directions. Same class as the per-piece round-number bug:
+// a whole-artifact assumption that decomposition invalidated.
+{
+  // one piece grows every round, the other shrinks. Flattened, nothing looks
+  // monotonic; per piece, one of them plainly is.
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'grower', observable: 'o', candidate: '/tmp/x/a.js', reference: '/tmp/x/ra.js' },
+      { name: 'shrinker', observable: 'o', candidate: '/tmp/x/b.js', reference: '/tmp/x/rb.js' }] },
+    breaker: rd => rd <= 3,
+    rounds: [],
+    sizes: (round, piece) => piece === 'grower' ? 1000 + round * 500 : 9000 - round * 500,
+  })
+  ok(r.result.size_note, 'a piece that grew every single round is reported')
+  ok(/grower/.test(r.result.size_note), 'and the note names WHICH piece grew — "the artifact grew" is not a statement about a split run')
+  ok(!/shrinker/.test(r.result.size_note), 'the piece that shrank is not accused of growing')
+  console.log('loop: growth in one piece is not masked by another piece shrinking OK')
+}
+
+{
+  // no piece grows, but the flattened series is monotonic because the second
+  // piece's file is simply bigger than the first's
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'small', observable: 'o', candidate: '/tmp/x/a.js', reference: '/tmp/x/ra.js' },
+      { name: 'big', observable: 'o', candidate: '/tmp/x/b.js', reference: '/tmp/x/rb.js' }] },
+    breaker: rd => rd <= 3,
+    rounds: [],
+    sizes: (round, piece) => piece === 'small' ? 1000 : 9000,
+  })
+  eq(r.result.size_note, null,
+     'a flat series per piece is not growth — two files of different sizes must not be read as one artifact getting bigger')
+  console.log('loop: two differently-sized pieces are not mistaken for one growing artifact OK')
+}
+
+// The budget ceiling is per ROUND but the pool is SHARED, and the DAG runs
+// independent pieces at once. Each piece checks `budgetLeft() < ROUND_RESERVE`
+// on its own, so with one round's worth left, every concurrent piece clears the
+// same check and they all spend. That contradicts the stated purpose of the
+// budget code three lines above it: "silently spending past a broken budget is
+// the one failure this file exists to prevent."
+//
+// The stub must model SPEND — a constant remaining() can never exhaust, so it
+// proves nothing about a ceiling.
+{
+  const RESERVE = 60000 + 1 * 60000 // BUILD_RESERVE + CRITICS * CRITIC_RESERVE at critics:1
+  let spent = 0
+  let low = Infinity
+  const budget = {
+    total: 10 * RESERVE,
+    remaining: () => { const left = RESERVE - spent; low = Math.min(low, left); return left },
+  }
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'separate files, so they run at once', pieces: [
+      { name: 'alpha', observable: 'o', candidate: '/tmp/x/a.js', reference: '/tmp/x/ra.js' },
+      { name: 'beta',  observable: 'o', candidate: '/tmp/x/b.js', reference: '/tmp/x/rb.js' }] },
+    budget,
+    // every critic/builder spawn draws on the shared pool
+    critic: (round, s) => { spent += 60000; return { winner: s.referenceSide, why: 'w', gap: 'g', inspected: 'i' } },
+    builder: () => { spent += 60000; return { changed: 'c', where: 'w' } },
+    runawayGuard: 8,
+  })
+  ok(spent <= RESERVE,
+     `the run spent ${spent} against a ${RESERVE} ceiling — concurrent pieces each cleared the same per-round check and overshot the operator's pre-committed target`)
+  console.log('loop: concurrent pieces cannot each spend the same last round of budget OK')
+}
+
+// The other half of that reservation: it must be RELEASED when the round ends.
+// A leaked reservation grows the requirement every round, so the loop stops with
+// budget still in the pool and reports a BUDGET stop that never happened. Caught
+// only by running several rounds — a single-round test cannot tell a released
+// reservation from a leaked one.
+{
+  const RESERVE = 60000 + 1 * 60000
+  let spent = 0
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    budget: { total: 5 * RESERVE, remaining: () => 5 * RESERVE - spent },
+    critic: (round, s) => { spent += 60000; return { winner: s.referenceSide, why: 'w', gap: 'g', inspected: 'i' } },
+    builder: () => { spent += 60000; return { changed: 'c', where: 'w' } },
+    runawayGuard: 12,
+  })
+  eq(r.result.outcome.status, 'BUDGET', 'the run ends on the budget, not on anything else')
+  ok(r.result.history.length >= 5,
+     `a pool holding 5 rounds must buy 5 rounds — only ${r.result.history.length} ran, so the in-flight reservation was never released and the requirement grew every round`)
+  console.log('loop: the in-flight reservation is released, so a 5-round pool buys 5 rounds OK')
+}
+
+// A piece whose run THROWS becomes null in the parallel() result, per the runtime
+// contract. The outcome loop skips nulls — so the run would report WON, claiming
+// "every one of the N pieces beat the reference", when one of them never
+// finished at all. A false WON is the worst verdict this loop can emit: it is the
+// one an operator acts on.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'ok-piece',    observable: 'o', candidate: '/tmp/x/a.js', reference: '/tmp/x/ra.js' },
+      { name: 'dying-piece', observable: 'o', candidate: '/tmp/x/b.js', reference: '/tmp/x/rb.js' }] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+    builder: () => ({ changed: 'c', where: 'w' }),
+    pieceThrows: 'dying-piece',
+    whole: { candidateWins: true },
+  })
+  ok(r.result.outcome.status !== 'WON',
+     `a piece that never finished must not produce a WON verdict — got ${r.result.outcome.status}: ${r.result.outcome.why}`)
+  ok(/dying-piece/.test(r.result.outcome.why || ''),
+     'and the verdict names the piece that failed, so the operator knows what was never judged')
+  console.log('loop: a piece whose run dies cannot be silently counted as a win OK')
+}
+
+// `critic_died` is set inside spawnCritic when the agent RETURNS nothing. A critic
+// that THROWS never reaches that line — parallel() turns it into a null that the
+// escalation loop drops with `if (p)`. So the round decides on a shorter line than
+// the operator asked for, and if the survivors all picked the candidate the run
+// exits claiming "all N critics picked the candidate over the reference". The exit
+// rule IS the mechanism; a short line silently satisfying it is a false WON.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 3 },
+    critic: (round, s) => {
+      if (s.criticIndex === 1) return { winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }
+      if (s.criticIndex === 2) throw new Error('simulated agent failure in the second critic')
+      return { winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }
+    },
+  })
+  ok(r.result.outcome.status !== 'WON',
+     `a round missing a critic must not win — got ${r.result.outcome.status}: ${r.result.outcome.why}`)
+  ok(/partial line|returned nothing/.test(r.result.outcome.why || ''),
+     'and it fails the same way a silent critic already does — a round is not decided on a partial line')
+  console.log('loop: a critic that THROWS cannot shorten the line into a win OK')
+}
+
+// The first breaker and the lead are awaited DIRECTLY at top level, outside any
+// parallel(), so a throw in either takes the whole run down — no verdict, no
+// gaps_in_order, no enforced/not_enforced. Everything the run already paid for is
+// lost at the moment something goes wrong. The trigger is not hypothetical: a live
+// run this session hit `agent type 'gauntlet-loop:gauntlet-blindness' not found`,
+// and it only survived because that call sat inside parallel().
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: () => 'throw',
+    rounds: [],
+  })
+  ok(r.result && r.result.outcome, 'a throwing breaker still yields a verdict rather than killing the run')
+  eq(r.result.outcome.status, 'CANCELLED',
+     'and it fails SAFE — a breaker that cannot be read is a breaker that cannot stop the run, so the run stops')
+  console.log('loop: a breaker that throws stops the run safely instead of destroying the verdict OK')
+}
+
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: 'throw',
+    rounds: [{ candidateWins: true }],
+  })
+  ok(r.result && r.result.outcome, 'a throwing lead still yields a verdict')
+  eq(r.result.outcome.status, 'WON', 'the run continues undecomposed rather than dying')
+  ok(/no lead|did not|failed/i.test((r.result.decomposition || {}).refused || ''),
+     'and the verdict says the split never happened, instead of implying the artifact was judged whole by choice')
+  console.log('loop: a lead that throws degrades to running the artifact whole OK')
+}
+
+// The size probe is DIAGNOSTIC — it records bytes so #26's growth pattern is
+// visible, and nothing depends on it. It already tolerates returning nothing, but
+// a throw propagated out of runPiece and killed the whole piece: a measurement
+// failing would fail the thing being measured. A probe that can take the run down
+// is worse than no probe.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [{ candidateWins: true }],
+    sizes: 'throw',
+  })
+  eq(r.result.outcome.status, 'WON', 'a failing measurement does not fail the run it was only observing')
+  eq(r.result.size_by_round.length, 0, 'and the measurement is simply absent rather than invented')
+  console.log('loop: a size probe that throws does not take the run down with it OK')
+}
+
+// Pieces are keyed by NAME in a Map, and nothing required the names to differ.
+// Two pieces sharing a name collapse: both runs start, the second overwrites the
+// first in `pieceRuns`, one outcome is discarded and the other is read twice — so
+// the verdict reports "every one of the 2 pieces beat the reference" on a single
+// piece's result, and a dependency naming that piece resolves to whichever won
+// the overwrite. A lead is a language model; two pieces called the same thing is
+// an ordinary output, not an exotic one.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'same-name', observable: 'first thing',  candidate: '/tmp/x/a.js', reference: '/tmp/x/ra.js' },
+      { name: 'same-name', observable: 'second thing', candidate: '/tmp/x/b.js', reference: '/tmp/x/rb.js' }] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+    whole: { candidateWins: true },
+  })
+  ok(!/every one of the 2 pieces/.test(r.result.outcome.why || ''),
+     `the run must not claim two pieces were judged when their names collapsed to one — got: ${r.result.outcome.why}`)
+  eq((r.result.decomposition || {}).pieces.length, 0,
+     'two identically-named pieces are not a decomposition — the artifact runs whole instead')
+  ok(/name/i.test((r.result.decomposition || {}).refused || ''),
+     'and the verdict says why the split was refused')
+  console.log('loop: pieces sharing a name are not counted as a decomposition OK')
+}
+
+// A SKIPPED piece and a DEAD piece both arrive as null, and they are different
+// events. Ordering decides which is seen first: with the skipped piece listed
+// before the piece that actually failed, a null-means-crashed rule reports the
+// INNOCENT piece as crashed and hides the real cause. Regression guard for the
+// dead-piece fix, which must not swallow the dependency path it sits in front of.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'depends', observable: 'o', candidate: '/tmp/x/b.js', reference: '/tmp/x/rb.js', depends_on: ['base'] },
+      { name: 'base',    observable: 'o', candidate: '/tmp/x/a.js', reference: '/tmp/x/ra.js' }] },
+    // base's critic returns nothing -> base ends ERROR -> "depends" is skipped
+    critic: () => null,
+  })
+  ok(!/piece "depends" never produced an outcome/.test(r.result.outcome.why || ''),
+     `the skipped piece must not be blamed for the failure — got: ${r.result.outcome.why}`)
+  ok(/critic returned nothing|depends on "base"/.test(r.result.outcome.why || ''),
+     'the verdict reports the real cause: the critic that died, or the dependency that did not win')
+  console.log('loop: a piece skipped for a lost dependency is not blamed as the crashed one OK')
+}
+
+// A file cannot beat itself. With candidate and reference set to the SAME path,
+// both ARTIFACT lines render identically, the critic picks a side arbitrarily,
+// and the run reports "the candidate beat the reference in a blind A/B" while
+// also asserting the blindness bullet. Every part of that verdict is empty, and
+// the run bills a builder and critics to produce it. This is an operator slip the
+// loop can refuse for free, before spending anything — the same class as the
+// missing-reference refusal it already makes.
+{
+  const P = '/tmp/x/only-one-file.md'
+  let threw = null
+  try {
+    await runLoop({ args: { goal: GOAL, candidate: P, reference: P, token: TOKEN }, rounds: [{ candidateWins: true }] })
+  } catch (e) { threw = e }
+  ok(threw, 'the loop refuses a run whose candidate and reference are the same file')
+  ok(/same file|same path|itself/i.test(threw.message),
+     'and says what is wrong, rather than failing on something downstream')
+  console.log('loop: a candidate compared against itself is refused before anything is spent OK')
+}
+
+// The split check compares the WHOLE candidate path. Pieces may name their own
+// candidate files — PIECE_SCHEMA invites it — and when they do, the builders
+// edited those files, not args.candidate. Judging args.candidate then examines a
+// file no builder touched and returns a reassuring pass that covers none of the
+// work. A check that cannot see what changed is worse than no check, because the
+// verdict reports it as one.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'each subsystem is its own file', pieces: [
+      { name: 'render', observable: 'o', candidate: '/tmp/x/render.js', reference: '/tmp/x/ref-render.js' },
+      { name: 'audio',  observable: 'o', candidate: '/tmp/x/audio.js',  reference: '/tmp/x/ref-audio.js' }] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+    whole: { candidateWins: true, margin: 'clear' },
+  })
+  eq(r.result.split_check.ran, false,
+     'the whole-artifact check does not run against a path the pieces never edited')
+  ok(/own file|own candidate|did not edit|different path/i.test(r.result.split_check.why_not || ''),
+     `and says why it could not check — got: ${r.result.split_check.why_not}`)
+  ok(r.result.not_enforced.some(b => /THE SPLIT IS NOT CHECKED/.test(b)),
+     'so the split is disclosed as unchecked rather than reported as verified')
+  console.log('loop: the split check refuses to judge a path the pieces never touched OK')
+}
+
+// An operator who passes a round cap gets it SILENTLY IGNORED. In a loop whose
+// defining property is that nothing stops it but them, that is the one
+// misunderstanding that ends with an unattended run spending all night: they
+// believe it is bounded, so they stop watching. loop.js explains at length why no
+// cap exists — in a comment, which the operator never sees. The refusal has to
+// reach the person who typed it.
+{
+  for (const cap of ['maxRounds', 'rounds', 'maxIterations']) {
+    let threw = null
+    try {
+      await runLoop({ args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, [cap]: 3 }, rounds: [{ candidateWins: true }] })
+    } catch (e) { threw = e }
+    ok(threw, `args.${cap} is refused rather than ignored`)
+    ok(/no round cap|not a round count/i.test(threw.message),
+       `and the refusal explains that this loop has no cap — args.${cap} said: ${threw && threw.message}`)
+    ok(/token|budget/i.test(threw.message),
+       'and names what DOES bound a run, so the operator has somewhere to go')
+  }
+  console.log('loop: a round-cap argument is refused with an explanation, not silently ignored OK')
+}
+
+// A measurement the probe could not take must not enter the series as if it were
+// one. It corrupts the only #26 detector in both directions: a bogus low value in
+// the middle breaks monotonicity and hides real growth, and one at the start
+// manufactures growth that never happened.
+//
+// The sentinel is -1, not 0. It used to be 0, which collided with the honest
+// measurement of an empty file and meant the loop discarded the most alarming
+// thing this probe can report — see the empty-artifact case above.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: rd => rd <= 4,
+    rounds: [],
+    // round 2's measurement fails and reports the sentinel
+    sizes: round => (round === 2 ? -1 : 1000 + round * 100),
+  })
+  ok(!r.result.size_by_round.some(x => x.bytes < 0),
+     `a failed measurement is not recorded as a size — got ${JSON.stringify(r.result.size_by_round.map(x => x.bytes))}`)
+  ok(r.result.size_note && /GREW EVERY ROUND/.test(r.result.size_note),
+     'and the rounds that DID measure still show the growth the failed one would have masked')
+  ok(r.result.size_unmeasured.length === 1 && r.result.size_unmeasured[0].round === 2,
+     `the round that could not be measured is REPORTED, not merely dropped — got ${JSON.stringify(r.result.size_unmeasured)}`)
+  console.log('loop: an unmeasurable size is absent rather than recorded as zero, and is still reported OK')
+}
+
+// COMPARABILITY. The pairing check, and the three answers it can give.
+//
+// Two live runs spent 419k tokens judging this plugin against a META-PROMPT — a
+// document whose output is a prompt for someone else to run. Both returned WON at
+// round 1 with no build round, which is indistinguishable from success. The
+// existing probes could not catch it: goal_fairness never sees the candidate (by
+// design, and pinned), and it answered 'attempts' both times, correctly by its own
+// definition. Attempting is a property of one side; comparability is a property of
+// the pair.
+{
+  const base = { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN }
+
+  // A GENERATOR refuses, and the refusal has to tell the operator the pairing is
+  // repairable — executing that side once makes the same two sources comparable.
+  let threw = null
+  try {
+    await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [],
+      comparability: { verdict: 'generator', generator_side: REFERENCE, reasoning: 'it emits a prompt rather than attempting the goal' } })
+  } catch (e) { threw = e.message }
+  ok(threw, 'a generator reference stops the run instead of being judged against')
+  ok(/GENERATOR/.test(threw), `the refusal names the class — got: ${String(threw).slice(0, 160)}`)
+  ok(threw.includes(REFERENCE), 'and names WHICH side must be executed, since the operator has to act on it')
+  ok(/Execute that side once|execute/i.test(threw),
+     'and says the pairing is repairable rather than only that it is refused — a refusal with no remedy sends an operator away from a run they could have had')
+
+  // NOT-COMPARABLE refuses too, and must NOT promise the execute remedy.
+  threw = null
+  try {
+    await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [],
+      comparability: { verdict: 'not-comparable', generator_side: '', reasoning: 'a spreadsheet against a sonnet' } })
+  } catch (e) { threw = e.message }
+  ok(threw, 'an incomparable pairing stops the run')
+  ok(/not comparable/i.test(threw) && /a spreadsheet against a sonnet/.test(threw),
+     `the refusal carries the probe's own reason, not a generic message — got: ${String(threw).slice(0, 160)}`)
+  ok(!/Execute that side once/.test(threw),
+     'and does NOT offer the generator remedy, which would send the operator to execute something that fixes nothing')
+
+  // COMPARABLE proceeds, and the verdict records it.
+  const good = await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [],
+    comparability: { verdict: 'comparable', generator_side: '', reasoning: 'both are runbooks at the same level' } })
+  eq(good.result.comparability.verdict, 'comparable', 'a comparable pairing runs and the verdict carries the answer')
+
+  // A DEAD probe costs its measurement, not the run. It runs inside parallel(),
+  // whose contract turns a throw into null — so a refusal raised inside the probe
+  // would be swallowed and the run would continue with the check silently absent.
+  const died = await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], comparability: 'throw' })
+  eq(died.result.comparability, null, 'a probe that threw leaves no verdict rather than inventing one')
+  ok(died.result.outcome.status, 'and the run still reaches an outcome — a diagnostic costs a measurement, not the run')
+  // UNREADABLE. A path that does not exist is not a bad artifact, and until this
+  // existed nothing told them apart: shapeOf is a pure string test, so a missing
+  // path still reads as 'abs-path', SIDES_LOOK_ALIKE still holds, and the run
+  // asserts its A/B was blind while one side was never there. Confirmed by
+  // building it — two full rounds and a verdict against a reference that did not
+  // exist.
+  threw = null
+  try {
+    await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [],
+      comparability: { verdict: 'unreadable', generator_side: '/tmp/gaunlet-loop/reference.md', reasoning: 'no such file' } })
+  } catch (e) { threw = e.message }
+  ok(threw, 'an artifact that could not be opened stops the run')
+  ok(threw.includes('/tmp/gaunlet-loop/reference.md'),
+     `the refusal names the path that failed, since a typo is the usual cause — got: ${String(threw).slice(0, 160)}`)
+  ok(!/GENERATOR/.test(threw),
+     'and does NOT diagnose a missing file as a category error — the operator would go looking for the wrong problem')
+
+  console.log('loop: a generator, incomparable or unreadable pairing is refused before the lead spawns, and a dead probe is not a refusal OK')
+}
+
+// AND WHEN NOTHING IS MEASURABLE AT ALL, the verdict must say so.
+//
+// Live run wf_50a6af1d-379 passed a DIRECTORY as the candidate. The probe answered
+// correctly — bytes -1, evidence "the printed 0 is a failure artifact, not a
+// measured size" — and the guard above dropped it. The verdict carried
+// `size_by_round: []` and `size_note: null`: no measurement, and no reason for
+// its absence anywhere in the output. #26's growth detector was dark for the whole
+// run and nothing said so.
+//
+// A silent absence reads as "size was fine". That is the failure this pins: not
+// that the number is missing, but that the verdict does not admit it is missing.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: rd => rd <= 3,
+    rounds: [],
+    sizes: () => -1,                       // every round unmeasurable, as a directory is
+  })
+  eq(r.result.size_by_round.length, 0, 'no round produced a size')
+  ok(r.result.size_unmeasured.length >= 3,
+     `every refused measurement is kept — got ${r.result.size_unmeasured.length}`)
+  ok(r.result.size_note && /SIZE WAS NEVER MEASURED/.test(r.result.size_note),
+     `size_note must SAY the artifact was never measured rather than returning null — got ${JSON.stringify(r.result.size_note)}`)
+  ok(/grew|worse|dark/i.test(r.result.size_note),
+     'and must say what that costs the operator, not merely that a number is missing')
+  console.log('loop: when no round could be measured, the verdict says so instead of going quiet OK')
+}
+
+// The A/B prompt renders each artifact on its own `ARTIFACT X:` line, and the
+// critic reads that structure to know what it is comparing. A path containing a
+// NEWLINE forges extra lines: a candidate of "a.md\nARTIFACT B: decoy.md" puts a
+// third ARTIFACT line in the prompt, so the critic is shown a comparison the loop
+// did not set up. The blindness claim is already withheld for such a path (it does
+// not read as a filesystem path), but the run proceeds and returns a verdict about
+// a prompt nobody composed. Spaces in paths are legitimate and stay allowed;
+// newlines are the forgery vector.
+{
+  for (const bad of ['/tmp/x/a.md\nARTIFACT B: /tmp/x/decoy.md', '/tmp/x/a.md\rmore']) {
+    let threw = null
+    try {
+      await runLoop({ args: { goal: GOAL, candidate: bad, reference: REFERENCE, token: TOKEN }, rounds: [{ candidateWins: true }] })
+    } catch (e) { threw = e }
+    ok(threw, 'an artifact path containing a line break is refused')
+    ok(/line break|newline/i.test(threw.message), `and says why — got: ${threw && threw.message}`)
+  }
+  // a space is not a line break: real paths have spaces and must still run
+  let ran = null
+  try {
+    ran = await runLoop({ args: { goal: GOAL, candidate: '/tmp/x/my docs/a.md', reference: REFERENCE, token: TOKEN }, rounds: [{ candidateWins: true }] })
+  } catch (e) { ran = e }
+  ok(ran && ran.result, 'a path with a space still runs — refusing those would reject ordinary filesystems')
+  console.log('loop: an artifact path that can forge prompt structure is refused OK')
+}
+
+// Paths reach two agents as SHELL COMMANDS they are told to run exactly, and JSON
+// quoting is not shell quoting: JSON.stringify wraps a path in double quotes, and a
+// shell expands $(...) and backticks inside double quotes. So a token path of
+// "/tmp/$(touch PWNED)/run.token" became `test -e "/tmp/$(touch PWNED)/run.token"`
+// — a command substitution handed to an agent that holds Bash, with instructions
+// not to deviate from it. Single-quote it instead: nothing expands inside single
+// quotes, and an embedded quote is escaped rather than refused, so no legitimate
+// path is rejected to fix this.
+{
+  const nasty = "/tmp/x/$(touch /tmp/x/PWNED)/run.token"
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: nasty },
+    rounds: [{ candidateWins: true }],
+  })
+  const breaker = r.prompts.find(x => /breaker$/.test(x.label))
+  const cmd = breaker.prompt.split('\n').find(l => /test -e/.test(l)) || ''
+  ok(!/"\/tmp\/x\/\$\(/.test(cmd),
+     `the command must not embed the path where a shell would expand it — got: ${cmd.trim()}`)
+  ok(/'/.test(cmd), 'it is single-quoted, which suppresses substitution entirely')
+
+  // a path with an apostrophe still works — escaped, not refused
+  const quoted = "/tmp/x/it's/run.token"
+  const r2 = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: quoted },
+    rounds: [{ candidateWins: true }],
+  })
+  const cmd2 = (r2.prompts.find(x => /breaker$/.test(x.label)).prompt.split('\n').find(l => /test -e/.test(l)) || '')
+  // The property that matters is not which characters appear, it is that a shell
+  // reading the command recovers the path EXACTLY. Asserted by round-tripping it.
+  const quotedArg = (cmd2.match(/test -e (.*?) && echo/) || [])[1] || ''
+  const roundTripped = execFileSync('sh', ['-c', `printf %s ${quotedArg}`], { encoding: 'utf8' })
+  eq(roundTripped, quoted, 'a shell recovers a path containing an apostrophe exactly, so no legitimate path is refused for this')
+  console.log('loop: paths reach shell-running agents single-quoted, not shell-expandable OK')
+}
+
+// Once any piece stops the run, nothing further may be spawned. COUPLED pieces
+// share a path lock and run one at a time, so the second is sitting in a queue
+// when the operator cancels — and releasing it would spend a builder and critics
+// after the stop. loop.js says exactly this in a comment ("a cancel releases the
+// next coupled piece and the run keeps spending after the operator has said
+// stop") and nothing tested it: the check could be deleted and every suite stayed
+// green. Cancellation is the operator's only control in a loop with no round cap.
+{
+  let breakerCalls = 0
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    // no per-piece candidate: both resolve to the same path, so they are coupled
+    lead: { decomposes: true, split_criterion: 'two parts of one file', pieces: [
+      { name: 'first',  observable: 'read the head' },
+      { name: 'second', observable: 'read the tail' }] },
+    // present while `first` runs, gone by the time `second` would be released
+    breaker: () => ++breakerCalls <= 1,
+    rounds: [],
+  })
+  const secondSpawns = r.labels.filter(l => l.startsWith('second-round-'))
+  eq(secondSpawns.length, 0,
+     `the queued coupled piece must not be released after the stop — it spawned ${JSON.stringify(secondSpawns)}`)
+  const skipped = (r.result.dependency_graph || {}).skipped || []
+  ok(skipped.some(x => x.piece === 'second'),
+     `and the run records that it was skipped and why — got ${JSON.stringify(skipped)}`)
+  ok(/stopped|cancel/i.test((skipped.find(x => x.piece === 'second') || {}).because || ''),
+     'naming the stop as the reason, not a dependency')
+  console.log('loop: a cancel does not release the next coupled piece OK')
+}
+
+// The other stop check: a piece whose DEPENDENCIES have all won, released into a
+// run that has since stopped for an unrelated reason. It is not blocked by its
+// dependency and it does not share a path lock, so nothing else would hold it —
+// this check is the only thing between an operator's cancel and a fresh builder.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'independent files', pieces: [
+      { name: 'faller', observable: 'o', candidate: '/tmp/x/b.js', reference: '/tmp/x/rb.js' },
+      { name: 'base',   observable: 'o', candidate: '/tmp/x/a.js', reference: '/tmp/x/ra.js' },
+      { name: 'waiter', observable: 'o', candidate: '/tmp/x/c.js', reference: '/tmp/x/rc.js', depends_on: ['base'] }] },
+    // Ordering made deterministic: `faller` dies on its first round, so the run is
+    // already stopped long before `base` — which must lose a round and build before
+    // winning — releases `waiter`. Without that, which of the two stop checks fires
+    // is a race, and a test that passes when either one fires pins neither.
+    critic: (round, s) => {
+      if (s.piece === 'faller') return null
+      if (s.piece === 'base' && round === 1) return { winner: s.referenceSide, why: 'w', gap: 'g', inspected: 'i', margin: 'clear' }
+      return { winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i', margin: 'clear' }
+    },
+    builder: () => ({ changed: 'c', where: 'w' }),
+  })
+  ok(r.result.outcome.status !== 'WON', 'the run stopped on the failing piece')
+  const skipped = (r.result.dependency_graph || {}).skipped || []
+  const waiterBuilt = r.labels.some(l => l === 'waiter-round-1:build')
+  ok(!waiterBuilt,
+     `a piece released after the run stopped must not reach a builder — labels: ${JSON.stringify(r.labels.filter(l => l.startsWith('waiter')))}`)
+  console.log('loop: a piece released after the run stopped does not reach a builder OK')
+}
+
+// `enforced` states how many times the token was actually checked. That number is
+// the operator's evidence that the run was interruptible at every round boundary,
+// so it has to match the breaker spawns that really happened — the same defect as
+// the critic spawn count, which reported one fewer judge than ran. Nothing pinned
+// it: the counter could be deleted and every suite stayed green.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: rd => rd <= 3,
+    rounds: [],
+  })
+  const actual = r.labels.filter(l => l.endsWith(':breaker')).length
+  const claim = r.result.enforced.find(b => /was checked \d+ time/.test(b))
+  ok(claim, 'the verdict states how many times the token was checked')
+  const claimed = Number(/was checked (\d+) time/.exec(claim)[1])
+  eq(claimed, actual,
+     `the count must match the breaker probes that ran — claimed ${claimed}, actually spawned ${actual}. An interruptibility claim is only worth the number attached to it.`)
+  console.log('loop: the token-check count matches the breaker probes that actually ran OK')
+}
+
+// Five things the verdict promises an operator, none of them pinned: each could be
+// deleted and the suite stayed green.
+{
+  // 1. The `partly` note. This is the warning that mattered most in practice —
+  // a reference attempting only part of the goal decides the comparison on the
+  // part it never entered, and the note is the only place `parts_not_attempted`
+  // is surfaced. A run was launched past exactly this today.
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [{ candidateWins: true }],
+    fairness: { verdict: 'partly', what_it_is_for: 'something else', parts_not_attempted: 'the cost-if-wrong clause' },
+  })
+  ok(r.logs.some(l => /the cost-if-wrong clause/.test(l)),
+     'a `partly` fairness verdict names WHICH parts the reference does not attempt')
+  ok(r.logs.some(l => /measure the goal, not the work/.test(l)),
+     'and says what a verdict on those parts is actually measuring')
+}
+{
+  // 2. args.inspect is the operator's instruction for how to look at the two
+  // artifacts. Silently dropping it is the same defect as a silently ignored
+  // round cap: they set something and it does nothing.
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN,
+            inspect: 'run the suite and diff the rendered output' },
+    rounds: [{ candidateWins: true }],
+  })
+  const critic = r.prompts.find(x => /:ab$/.test(x.label))
+  ok(/run the suite and diff the rendered output/.test(critic.prompt),
+     'args.inspect reaches the critic prompt — an instruction that never arrives is worse than none')
+  // The lead gets it too, and for a different reason: it decides the split, and
+  // every piece it proposes must name what would be inspected to judge that piece
+  // alone. Telling the operator how to look at the artifacts and then withholding
+  // that from the agent choosing the observables is the same silent drop.
+  const r2 = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN,
+            inspect: 'run the suite and diff the rendered output' },
+    lead: { decomposes: false, split_criterion: 'no seam', pieces: [] },
+    rounds: [{ candidateWins: true }],
+  })
+  const lead = r2.prompts.find(x => x.label === 'decompose')
+  ok(lead && /run the suite and diff the rendered output/.test(lead.prompt),
+     'args.inspect also reaches the lead, which is choosing what each piece would be judged by')
+}
+{
+  // 3. gaps_in_order is the field SKILL.md tells the operator to read FIRST, and
+  // in a decomposed run an unlabelled gap cannot be attributed to a piece: the
+  // reader cannot tell a piece iterating from two pieces alternating.
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'alpha', observable: 'o', candidate: '/tmp/x/a.js', reference: '/tmp/x/ra.js' },
+      { name: 'beta',  observable: 'o', candidate: '/tmp/x/b.js', reference: '/tmp/x/rb.js' }] },
+    breaker: rd => rd <= 1,
+    rounds: [],
+  })
+  ok(r.result.gaps_in_order.every(g => /^(alpha|beta) round/.test(g)),
+     `every gap in a split run names its piece — got ${JSON.stringify(r.result.gaps_in_order)}`)
+}
+{
+  // 4 and 5. Two reported facts an operator reads a verdict by: how many pieces
+  // the lead proposed but could not justify, and how to read a CANCELLED run.
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'alpha', observable: 'o' },
+      { name: 'beta',  observable: 'o' },
+      { name: 'ghost', observable: '   ' }] },
+    breaker: rd => rd <= 1,
+    rounds: [],
+  })
+  eq(r.result.decomposition.dropped_for_no_observable, 1,
+     'the verdict reports how many proposed pieces were dropped for naming no observable')
+  ok(/stopping on cancelled or budget is not failure/i.test(r.result.reading_note || ''),
+     'and carries the note that stops a cancel being read as a failure — the source stopped its own run')
+  console.log('loop: five reported facts an operator reads a verdict by are pinned OK')
+}
+
+// Four things the round record carries, none pinned.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: rd => rd <= 1,
+    rounds: [{ candidateWins: false, gap: 'the exact gap the critic named', inspected: 'ran the suite and read lines 1-40', margin: 'decisive' }],
+    // `ambiguity` is how a builder says it resolved a gap in a way the loop should
+    // know about. Both times builder RETRIEVAL has ever been caught, it was caught
+    // because the builder volunteered it here — "I used the wording that appears in
+    // the real, undegraded file" — and nothing else in the loop would have noticed.
+    builder: () => ({ changed: 'added a section', where: '/tmp/x/c.md',
+                      ambiguity: 'I took the wording from the undegraded original rather than composing it' }),
+  })
+  const e = r.result.history[0]
+  eq(e.gap, 'the exact gap the critic named',
+     'the gap is recorded verbatim — gaps_in_order is the field SKILL.md says to read first, and a paraphrase would hide a gap being restated round after round')
+  eq(e.inspected, 'ran the suite and read lines 1-40',
+     "the critic's account of what it actually opened is kept — it is the only evidence a critic inspected rather than skimmed")
+  ok(e.built && /undegraded original/.test(e.built.ambiguity || ''),
+     `the builder's ambiguity note survives into the record — got ${JSON.stringify(e.built)}`)
+  console.log('loop: the round record keeps the gap, the inspection and the builder\'s own caveat OK')
+}
+
+// A candidate that does not exist yet is built from nothing on round 1 — SKILL.md
+// documents exactly that ("absolute path to your artifact; built from nothing if
+// absent"), and the only thing implementing it is one conditional line in the
+// build prompt.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: rd => rd <= 2,
+    rounds: [],
+  })
+  const first = r.prompts.find(x => x.label === 'round-1:build')
+  const second = r.prompts.find(x => x.label === 'round-2:build')
+  ok(/does not exist yet, build the first version/.test(first.prompt),
+     'round 1 tells the builder to create the artifact if it is absent')
+  ok(!/does not exist yet, build the first version/.test(second.prompt),
+     'and later rounds do not — by then it exists, and inviting a rebuild would discard the work')
+  console.log('loop: round 1 offers to build from nothing, later rounds do not OK')
+}
+
+// BUILD_SCHEMA asks the builder for four things and the record kept three:
+// `failed` — "anything you tried that did not work" — was demanded by the schema,
+// asked for in the agent's own report section, produced every round, and dropped.
+// It is the one place a builder can say a fix was attempted and did not take, and
+// without it the next round's builder retries the same dead end with nothing in
+// the verdict showing the operator that it happened twice.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: rd => rd <= 1,
+    rounds: [],
+    builder: () => ({ changed: 'added a section', where: '/tmp/x/c.md',
+                      failed: 'tried reordering the existing sections first; it did not close the gap' }),
+  })
+  const built = r.result.history[0].built
+  ok(built && /reordering the existing sections/.test(built.failed || ''),
+     `what the builder tried and abandoned is kept — got ${JSON.stringify(built)}`)
+  console.log("loop: the builder's account of what did not work survives into the record OK")
+}
+
+// Both probes are asked for "the command plus its literal output", and both had
+// their evidence thrown away. That is the only proof either one ran a command
+// rather than reporting a plausible number — and this repo's whole standard is
+// that an assertion without an artifact behind it is not a check. The verdict says
+// a run was cancelled because a probe saw the token gone; the evidence is what
+// makes that a fact rather than a claim.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: rd => (rd <= 1 ? true : { token: 'ABSENT', evidence: "test -e '/tmp/x/run.token' && echo PRESENT || echo ABSENT\nABSENT" }),
+    rounds: [],
+    sizes: 1234,
+  })
+  eq(r.result.outcome.status, 'CANCELLED', 'the run ended on the operator removing the token')
+  ok(/ABSENT/.test(r.result.stopped_by_evidence || ''),
+     `the verdict carries the probe output that ended the run — got ${JSON.stringify(r.result.stopped_by_evidence)}`)
+  ok(r.result.size_by_round.every(x => typeof x.evidence === 'string' && x.evidence.length),
+     `each size carries the command that produced it — got ${JSON.stringify(r.result.size_by_round)}`)
+  console.log('loop: the probe output behind a cancel and behind each size is kept OK')
+}
+
+// 0 meant two different things: "the command could not be run" (what the prompt
+// tells the probe to return) and "this file is empty" (a real measurement). The
+// guard dropped both — so the single most alarming thing the size probe could
+// report, a builder that emptied the artifact, was the one reading it threw away.
+// #26 exists because an artifact can degrade while every round looks correct;
+// going to zero is that failure at its most extreme.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: rd => rd <= 3,
+    rounds: [],
+    // round 2 truncates the artifact to nothing; round 3 measures normally
+    sizes: round => (round === 2 ? 0 : 1000 + round * 100),
+  })
+  const bytes = r.result.size_by_round.map(x => x.bytes)
+  ok(bytes.includes(0),
+     `an artifact measured at zero bytes is recorded, not discarded — got ${JSON.stringify(bytes)}`)
+  ok(r.result.size_by_round.length === 3, 'every round that measured is present')
+  console.log('loop: an empty artifact is a measurement, not a failed measurement OK')
+}
+
+// ...and a measurement that genuinely could not be taken is still absent.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: rd => rd <= 3,
+    rounds: [],
+    sizes: round => (round === 2 ? -1 : 1000 + round * 100),
+  })
+  ok(!r.result.size_by_round.some(x => x.bytes < 0),
+     `a failed measurement is not recorded as a negative size — got ${JSON.stringify(r.result.size_by_round.map(x => x.bytes))}`)
+  eq(r.result.size_by_round.length, 2, 'the round that could not be measured simply has no entry')
+  console.log('loop: a measurement that could not be taken is still absent OK')
+}
+
+// A BROKEN budget must stop the run, not license it. loop.js says so where it
+// handles this — "fail SAFE (treat as exhausted) rather than fail open (treat as
+// infinite), because silently spending past a broken budget is the one failure
+// this file exists to prevent" — and only the not-crashing half was tested.
+// Flipping both branches to Infinity, which is precisely fail-open, passed
+// everything. In a loop with no round cap, "unlimited" is not a safe default for
+// "I could not read the limit".
+{
+  for (const [name, remaining] of [
+    ['throws',            () => { throw new Error('budget backend unavailable') }],
+    ['returns NaN',       () => NaN],
+    ['returns undefined', () => undefined],
+    ['returns a string',  () => 'lots'],
+  ]) {
+    const r = await runLoop({
+      args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+      budget: { total: 500000, remaining },
+      rounds: [],
+      runawayGuard: 6,
+    })
+    eq(r.result.outcome.status, 'BUDGET',
+       `a budget that ${name} stops the run — got ${r.result.outcome.status}. Treating an unreadable limit as no limit is the failure this code exists to prevent.`)
+    eq(r.result.history.length, 0, `and it stops BEFORE spending a round (budget that ${name})`)
+  }
+  console.log('loop: an unreadable budget stops the run rather than licensing it OK')
+}
+
+// A builder that returns NOTHING built nothing. The round cannot be treated as
+// complete: the next critic would judge an unchanged artifact against the same
+// reference, lose again, and hand back the same gap — a loop with no round cap
+// spending forever on a builder that is not working. There was no test for this
+// at all, on the one agent whose whole job is to change the artifact.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [],
+    breaker: rd => rd <= 3,
+    builder: () => null,
+  })
+  eq(r.result.outcome.status, 'ERROR', 'a builder that returns nothing ends the run rather than looping on an unchanged artifact')
+  ok(/builder returned nothing/.test(r.result.outcome.why || ''),
+     `and the verdict says which agent failed — got: ${r.result.outcome.why}`)
+  eq(r.result.history.length, 1, 'it stops at that round instead of spending another')
+  console.log('loop: a builder that returns nothing stops the run OK')
+}
+
+// The `mixed` fitted verdict. Same shape as the `partly` fairness note: the probe
+// has three answers and only the extreme one was pinned, so the middle one — the
+// case where PART of the goal reads as a description of the candidate — could stop
+// being surfaced with nothing failing.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [{ candidateWins: true }],
+    fitted: { verdict: 'mixed', reasoning: 'the second clause names a section the candidate already has' },
+  })
+  ok(r.logs.some(l => /the second clause names a section the candidate already has/.test(l)),
+     'a `mixed` fitted verdict still reaches the operator with its reasoning')
+  console.log('loop: a partly-fitted goal is reported, not just a wholly fitted one OK')
+}
+
+// Skipped pieces must never leave the run reporting success. What ENFORCES that
+// today is the failing piece's own outcome, not the skipped-piece fallback beneath
+// it — that fallback is an unreachable backstop (see its comment in loop.js). This
+// pins the property; the backstop covers a future where skipping stops implying a
+// failure somewhere else.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'base',    observable: 'o', candidate: '/tmp/x/a.js', reference: '/tmp/x/ra.js' },
+      { name: 'depends', observable: 'o', candidate: '/tmp/x/b.js', reference: '/tmp/x/rb.js', depends_on: ['base'] }] },
+    // base never finishes a round: its critic dies, so `depends` is skipped
+    critic: (round, s) => (s.piece === 'base' ? null : { winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i', margin: 'clear' }),
+  })
+  ok(r.result.outcome.status !== 'WON', 'a run with skipped pieces does not report success')
+  const skipped = (r.result.dependency_graph || {}).skipped || []
+  ok(skipped.length > 0, 'and the skipped piece is recorded with its reason')
+  console.log('loop: pieces that never ran keep the run from reporting a win OK')
 }
 
 // #4: the schema enforces one gap SLOT (a required string field), not one gap
@@ -849,7 +2056,7 @@ console.log('loop: args.critics is validated OK')
     rounds: [{ candidateWins: true, gap: 'unused' }],
   })
   eq(r.result.history[0].piece, null, 'one surviving piece is not a decomposition — the run went whole')
-  ok(r.logs.some(l => /fewer than two pieces carried an observable/.test(l)), 'and it says why, naming the guard that fired')
+  ok(r.logs.some(l => /fewer than two pieces survived/.test(l)), 'and it says why, naming the guard that fired')
   console.log('loop: pieces without an observable are dropped, and one survivor is not a split OK')
 }
 

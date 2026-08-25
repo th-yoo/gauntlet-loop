@@ -15,16 +15,44 @@ the same method.
 - `skills/gauntlet-loop/loop.js` — the loop. A builder plus **k** fresh blind A/B
   critics per round, judged against a required reference exemplar, one gap handed
   back each round. The candidate must get past **every** critic in a single round
-  to end the run.
+  to end the run — and where a lead split the goal into pieces, every piece must
+  win *and* the whole artifact must then beat the whole reference in one further
+  blind A/B. A split whose parts all won while the whole loses is reported
+  `SPLIT_UNSOUND`, not `WON`: the seam hid a gap no piece could see.
 - `skills/gauntlet-loop/SKILL.md` — when to reach for it, how to run it, how to
   choose the line length, and what it does not do.
 - `skills/gauntlet-loop/references.md` — both source prompts in full.
-- `agents/` — the three restricted agent types the loop spawns. This is where
+- `agents/` — the five restricted agent types the loop spawns. This is where
   independence stops being a promise.
 - `commands/` — `/gauntlet-loop:loop` to start, `/gauntlet-loop:cancel-loop` to stop.
 - `scripts/canary.mjs` — generates a provably false anchor from a true one, so a
   reviewer's specificity can be measured without a human writing the fake.
-- `test/` — drift guard, the offline loop harness, and the canary tests.
+- `scripts/mutate.mjs` — applies one mutation, runs the suite, and reports whether
+  anything noticed. Deciding whether a check *can fail* is how this repo decides
+  whether it is a check at all, and doing that by hand went wrong repeatedly: a
+  find string that never matched, a mutant that failed for a syntax error instead
+  of the reason under test, and a grep for one failure message reported as a pass.
+  The script refuses the first two and answers on the exit code.
+- `scripts/coverage-sweep.mjs` — breaks each property a test is supposed to pin
+  and reports anything nothing notices. A passing suite says the code is right; it
+  does not say the tests would catch it going wrong, and those are different
+  claims. A structural edit once removed four cases beyond the one being rewritten
+  and the suite stayed green at a lower count — this is what sees that. Slow, so
+  it is not part of `run-all`: run it after touching tests.
+- `scripts/seed-loop-trial.mjs` — sets up a seeded-defect trial of the loop, and
+  **refuses** to set one up whose answer is still readable from somewhere the
+  builder can reach.
+- `scripts/refusal-log.mjs`, `scripts/refusal-tally.mjs`, `runs/` — **historical.**
+  They write and score a ledger keyed on the gate sequence (`gate0`, `gate1`,
+  `gate4_number`), and the gates were deleted on this branch. Nothing in the loop
+  calls them. Kept for the recorded data and for the argument in `runs/README.md`,
+  which is about a gap the loop still has.
+- `test/` — drift guard, the offline loop harness, and the canary and trial tests.
+- `docs/runs/` — a record per live run: what was compared, what the verdict was,
+  and what it does **not** establish. This is the only evidence here about whether
+  the method works, and it is written to be read against the claims above rather
+  than in place of them — including the runs that invalidated things this repo
+  had previously asserted.
 
 ## What is actually enforced
 
@@ -45,6 +73,14 @@ promise while the verdict keeps printing the old claim.
 have used it to identify which artifact is ours by diffing against the filesystem.
 The property above is real and narrow.
 
+Closing `Bash` is not the answer — it is the same capability that makes these
+critics run test suites and resolve citations instead of skimming. So the leak is
+measured rather than prevented: a blindness probe (a `gauntlet-goal-check` spawn)
+reads both artifacts before any critic spawns and reports whether either one says where it came from. When it does,
+the run **withholds** its blindness claim rather than asserting a property it does
+not have — the same thing already done when the two `ARTIFACT` lines render in
+different shapes. A clean probe result can withdraw that claim, never strengthen it.
+
 ## What every run reports about itself
 
 `enforced` and `not_enforced`, computed from that run rather than written once.
@@ -55,8 +91,8 @@ deleted.
 
 ## What it does not do
 
-- **No decomposition.** His width comes from splitting the goal into pieces, each
-  with its own builder and critic; this judges one artifact whole.
+- **No live progress page.** His meta-prompt asks the lead to maintain one as the
+  work evolves; this reports once, at the end, in the verdict.
 - **No ratchet.** The builder edits in place. A bad round is permanent and the
   loop holds no prior version — a Workflow script has no filesystem, so both the
   snapshot and the restore would be spawned-agent actions it cannot verify.

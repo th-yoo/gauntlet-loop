@@ -98,6 +98,58 @@ export async function runLoop(opts) {
   // as a failure with a name instead of a hung suite. Raise it per test with
   // opts.runawayGuard when a test legitimately needs more rounds.
   const RUNAWAY_GUARD = opts.runawayGuard || 50
+  let runaway = null
+  let schemaViolation = null
+
+  // The real runtime VALIDATES a schema'd result and makes the model retry until
+  // it conforms, so a stub missing a required field is an input production can
+  // never deliver — and a test asserting on it is asserting about nothing. This
+  // repo has already been bitten by that exact shape once ("margin: asserted the
+  // stub, not the schema"). Enforced here so unrealistic stubs fail loudly
+  // instead of quietly exercising dead branches.
+  // Recorded as well as thrown, exactly like the runaway guard. loop.js now
+  // legitimately catches agent errors — a size probe or lead that throws must
+  // degrade rather than kill the verdict — and those handlers swallow this one
+  // too, so a stub feeding the loop an impossible shape passed silently. The
+  // script under test cannot be allowed to suppress the harness's own guards.
+  function enforceSchema(label, o, value) {
+    // opts.illegalStubIsThePoint opts a test out. A few cases exist to prove the
+    // loop survives an agent that IGNORED its schema — the breaker check is
+    // `!== 'PRESENT'` rather than `=== 'ABSENT'` exactly so an out-of-enum answer
+    // still stops the run — and for those the impossible shape is the experiment,
+    // not an oversight. Enforcement stays on by default so the distinction has to
+    // be stated rather than assumed.
+    if (opts.illegalStubIsThePoint) return value
+    const violate = m => { schemaViolation = schemaViolation || m; return Object.assign(new Error(m), { __harness: true }) }
+    const req = o && o.schema && o.schema.required
+    if (!req || value === null || value === undefined) return value
+    // Enums too: the runtime rejects a value outside the declared set exactly as it
+    // rejects a missing field, so a stub returning one is another shape production
+    // cannot deliver.
+    const props = (o.schema && o.schema.properties) || {}
+    for (const [k, spec] of Object.entries(props)) {
+      if (spec && spec.enum && value[k] !== undefined && !spec.enum.includes(value[k])) {
+        throw violate(`harness: the stub for "${label}" returned ${k}="${value[k]}", which is not in the schema's enum [${spec.enum.join(', ')}]. The runtime rejects that and retries, so this input cannot occur in production.`)
+      }
+    }
+    // Types, for the same reason as enums: the runtime validates against the
+    // schema and retries, so a stub whose field is the wrong type is a shape
+    // production cannot deliver — `bytes: "1000"` would be rejected there and was
+    // accepted here.
+    for (const [k, spec] of Object.entries(props)) {
+      if (!spec || !spec.type || value[k] === undefined || value[k] === null) continue
+      const actual = Array.isArray(value[k]) ? 'array' : typeof value[k]
+      const want = spec.type === 'integer' ? 'number' : spec.type
+      if (actual !== want) {
+        throw violate(`harness: the stub for "${label}" returned ${k} as ${actual}, and the schema declares ${spec.type}. The runtime rejects that and retries, so this input cannot occur in production.`)
+      }
+    }
+    const missing = req.filter(k => value[k] === undefined)
+    if (missing.length) {
+      throw violate(`harness: the stub for "${label}" returned an object missing required field(s) ${missing.join(', ')}. The real runtime rejects that and retries the model, so this input cannot occur in production — a test built on it exercises a branch the loop never reaches. Add the field to the stub.`)
+    }
+    return value
+  }
 
   async function agent(prompt, o) {
     const label = (o && o.label) || '(unlabeled)'
@@ -105,11 +157,17 @@ export async function runLoop(opts) {
 
     const guardRound = roundOf(label)
     if (guardRound != null && guardRound > RUNAWAY_GUARD) {
-      throw new Error(
+      // Recorded as well as thrown. loop.js legitimately catches agent errors now
+      // (a breaker or lead that throws must degrade rather than kill the verdict),
+      // and a guard the script under test can swallow is not a guard — a runaway
+      // would come back as a quiet CANCELLED. The flag is checked after the script
+      // returns, where nothing can intercept it.
+      runaway = runaway || `the loop reached round ${guardRound} (> ${RUNAWAY_GUARD})`
+      throw Object.assign(new Error(
         `harness runaway guard: the loop reached round ${guardRound} (> ${RUNAWAY_GUARD}) without stopping. ` +
         'Either the test forgot to bound the run with opts.breaker/opts.budget/a winning round, or loop.js ' +
         'stopped honouring one of its terminators.'
-      )
+      ), { __harness: true })
     }
 
     // The circuit breaker. Default: the token is always present, so a test that
@@ -120,28 +178,94 @@ export async function runLoop(opts) {
     // null, so every existing test runs the artifact whole exactly as before.
     // opts.fairness -> FAIRNESS_SCHEMA object, or null (unchecked). Default
     // null, so an existing test's run reports verdict 'unchecked'.
-    if (label === 'goal-fairness') return opts.fairness || null
-    if (label === 'goal-fitted') return opts.fitted || null
+    if (label === 'goal-fairness') return enforceSchema(label, o, opts.fairness || null)
+    if (label === 'goal-fitted') return enforceSchema(label, o, opts.fitted || null)
+    // opts.selfid -> SELFID_SCHEMA object, or null (unchecked). Default null,
+    // so every existing test runs with content-blindness unchecked exactly as before.
+    // opts.selfid === 'throw' models the agent ERRORING rather than returning
+    // nothing — the real shape of an unregistered agent type. parallel() turns
+    // that into null, so the loop must degrade, not crash.
+    // opts.comparability -> COMPARABILITY_SCHEMA object, or null (unchecked).
+    // Default null, so every existing test runs with the pairing unchecked and
+    // the refusal dormant, exactly as before. 'throw' models the agent ERRORING;
+    // it runs inside parallel(), so the loop must degrade rather than refuse — a
+    // probe that died measured nothing and must not be read as a verdict.
+    if (label === 'comparability') {
+      if (opts.comparability === 'throw') throw new Error("agent type 'gauntlet-loop:gauntlet-goal-check' not found")
+      return enforceSchema(label, o, opts.comparability || null)
+    }
+    if (label === 'blindness') {
+      if (opts.selfid === 'throw') throw new Error("agent type 'gauntlet-loop:gauntlet-blindness' not found")
+      return enforceSchema(label, o, opts.selfid || null)
+    }
 
-    if (label === 'decompose') return opts.lead || null
+    // 'throw' models the agent ERRORING rather than returning nothing. These two
+    // are awaited directly at top level, outside any parallel(), so a throw there
+    // destroys the run's whole verdict rather than degrading.
+    if (label === 'decompose') {
+      if (opts.lead === 'throw') throw new Error("agent type 'gauntlet-loop:gauntlet-lead' not found")
+      return enforceSchema(label, o, opts.lead || null)
+    }
+
+    // opts.pieceThrows: <piece name> — that piece's run raises, modelling an
+    // agent error inside the per-piece parallel(). The runtime turns it into a
+    // null piece outcome; the loop must not read that as a win.
+    // Fires on that piece's CRITIC, not its breaker: a throwing breaker now fails
+    // safe to CANCELLED by design, which is a different event from a piece whose
+    // run dies mid-round.
+    if (opts.pieceThrows && label.startsWith(`${opts.pieceThrows}-round-`) && /:ab(:\d+)?$/.test(label)) {
+      throw new Error(`simulated agent failure in piece ${opts.pieceThrows}`)
+    }
 
     // opts.sizes -> function(round) -> bytes, or a fixed number. Default: no
     // measurement, so a test that says nothing about size records none.
     if (label.endsWith(':size')) {
       const round = roundOf(label)
+      if (opts.sizes === 'throw') throw new Error("agent type 'gauntlet-loop:gauntlet-breaker' not found")
       if (opts.sizes === undefined) return null
-      const b = typeof opts.sizes === 'function' ? opts.sizes(round) : opts.sizes
-      return b == null ? null : { bytes: b, evidence: 'stub size probe' }
+      // The piece name is the label prefix (`${piece.name}-round-N:size`), so a
+      // test can give each piece its own size series — which is the only way to
+      // exercise size accounting across a decomposition.
+      const pm = /^(.*)-round-\d+:size$/.exec(label)
+      const pieceName = pm ? pm[1] : null
+      const b = typeof opts.sizes === 'function' ? opts.sizes(round, pieceName) : opts.sizes
+      return b == null ? null : enforceSchema(label, o, { bytes: b, evidence: 'stub size probe' })
     }
 
     if (label.endsWith(':breaker')) {
       const round = roundOf(label)
       if (typeof opts.breaker !== 'function') return { token: 'PRESENT', evidence: 'stub: token present' }
       const v = opts.breaker(round)
+      if (v === 'throw') throw new Error("agent type 'gauntlet-loop:gauntlet-breaker' not found")
       if (v === null) return null
-      if (v && typeof v === 'object') return v
+      if (v && typeof v === 'object') return enforceSchema(label, o, v)
       const token = (v === true || v === 'PRESENT') ? 'PRESENT' : 'ABSENT'
-      return { token, evidence: `stub: ${token} at round ${round}` }
+      return enforceSchema(label, o, { token, evidence: `stub: ${token} at round ${round}` })
+    }
+
+    // The whole-artifact split check. Runs once, after every piece has won, and
+    // is judged on the WHOLE candidate against the WHOLE reference — so its side
+    // is resolved from the real prompt exactly as the per-round critics' is.
+    // opts.whole -> { candidateWins | winner, why, gap, margin }, or null (probe
+    // did not return). Default undefined, so tests that say nothing get null.
+    if (/:whole$/.test(label)) {
+      // opts.whole === 'throw' simulates the agent runtime raising rather than
+      // returning null. This call is a bare await outside parallel(), so an
+      // uncaught throw would discard a completed run's entire verdict.
+      if (opts.whole === 'throw') throw new Error('simulated agent runtime failure')
+      if (!opts.whole) return null
+      const spec = opts.whole
+      const candidateIsA = prompt.includes(`ARTIFACT A: ${CANDIDATE}`)
+      const winner = spec.winner !== undefined
+        ? spec.winner
+        : (spec.candidateWins ? (candidateIsA ? 'A' : 'B') : (candidateIsA ? 'B' : 'A'))
+      return enforceSchema(label, o, {
+        winner,
+        why: spec.why !== undefined ? spec.why : 'whole-artifact why',
+        gap: spec.gap !== undefined ? spec.gap : 'whole-artifact gap',
+        inspected: spec.inspected !== undefined ? spec.inspected : 'read both whole artifacts',
+        margin: spec.margin !== undefined ? spec.margin : 'clear',
+      })
     }
 
     if (/:ab(:\d+)?$/.test(label)) {
@@ -159,7 +283,11 @@ export async function runLoop(opts) {
       const referenceSide = candidateIsA ? 'B' : 'A'
 
       if (typeof opts.critic === 'function') {
-        const spec = opts.critic(round, { candidateSide, referenceSide, criticIndex })
+        // The piece name comes from the label prefix. Without it a test cannot make
+        // ONE piece behave differently, so anything about per-piece interaction —
+        // which piece stops a run, which is released afterwards — was unreachable.
+        const pm = /^(.*)-round-\d+:/.exec(label)
+        const spec = await opts.critic(round, { candidateSide, referenceSide, criticIndex, piece: pm ? pm[1] : null })
         return spec
       }
 
@@ -170,25 +298,44 @@ export async function runLoop(opts) {
       if (Array.isArray(spec)) spec = spec[criticIndex - 1]
       if (spec === null || spec === undefined) return spec
       const winner = spec.winner !== undefined ? spec.winner : (spec.candidateWins ? candidateSide : referenceSide)
-      return {
+      return enforceSchema(label, o, {
         winner,
         why: spec.why !== undefined ? spec.why : 'why',
         gap: spec.gap !== undefined ? spec.gap : `gap-round-${round}`,
         inspected: spec.inspected !== undefined ? spec.inspected : 'inspected',
-        margin: spec.margin,
-      }
+        // Defaulted, not omitted: AB_SCHEMA requires `margin`, so a verdict without
+        // one cannot reach the loop in production. A test that does not care about
+        // margin should still hand the loop a shape the runtime could produce.
+        margin: spec.margin !== undefined ? spec.margin : 'clear',
+      })
     }
 
     if (label.endsWith(':build')) {
       const round = roundOf(label)
-      if (typeof opts.builder === 'function') return opts.builder(round, prompt)
-      return { changed: `did round ${round}`, where: 'candidate.js' }
+      // AWAITED. A stub may be async — one deliberately is, to make concurrent
+      // pieces interleave — and validating the Promise instead of what it resolves
+      // to fails every time, on a stub that is perfectly correct.
+      if (typeof opts.builder === 'function') return enforceSchema(label, o, await opts.builder(round, prompt))
+      return enforceSchema(label, o, { changed: `did round ${round}`, where: 'candidate.js' })
     }
 
     return null
   }
 
-  const parallel = async thunks => Promise.all(thunks.map(t => t()))
+  // The Workflow runtime's contract: "A thunk that throws (or whose agent errors)
+  // resolves to null in the result array — the call itself never rejects."
+  // Promise.all REJECTS instead, which diverged from the runtime on exactly the
+  // failure that matters: an agent erroring inside parallel(). The real runtime
+  // hands loop.js a null it already handles; this used to crash the test, so the
+  // whole class was untestable — and it is the class that produced a silent
+  // "content blindness was NOT checked" on a live run (agent type not found).
+  // The harness's OWN runaway guard must still escape — it is a test-rig failure,
+  // not an agent error, and swallowing it would turn a hung loop into a quiet
+  // pass. Everything else follows the runtime contract.
+  const parallel = async thunks =>
+    Promise.all(thunks.map(async t => {
+      try { return await t() } catch (e) { if (e && e.__harness) throw e; return null }
+    }))
   const pipeline = async () => []
   const logs = []
   const log = m => logs.push(m)
@@ -197,6 +344,16 @@ export async function runLoop(opts) {
 
   const fn = loadWorkflowScript('loop.js')
   const result = await fn(agent, parallel, pipeline, log, phase, opts.args, budget)
+
+  if (schemaViolation) throw Object.assign(new Error(schemaViolation + ' (raised after the script returned: the script caught the in-flight throw.)'), { __harness: true })
+
+  if (runaway) {
+    throw Object.assign(new Error(
+      `harness runaway guard: ${runaway} without stopping. Either the test forgot to bound the run ` +
+      'with opts.breaker/opts.budget/a winning round, or loop.js stopped honouring one of its terminators. ' +
+      '(Raised after the script returned: the script caught the in-flight throw.)'
+    ), { __harness: true })
+  }
 
   return { result, prompts, labels: prompts.map(p => p.label), logs }
 }

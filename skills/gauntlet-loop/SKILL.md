@@ -32,6 +32,11 @@ existing product can be compared against, and breaks down where nothing
 comparable exists. If you have no reference artifact, you do not have a gauntlet
 loop — you have a builder.
 
+That is a fact about the METHOD, not an instruction to refuse the operator. When
+no reference is supplied, `/gauntlet-loop:loop` proposes two or three and stops
+for a pick; each must be Named, Fetchable and Comparable, and the run refuses on
+the last two rather than judging a pairing that cannot produce a verdict.
+
 A hard bar does not have to be reachable. Shumer's own run never beat Call of
 Duty; he stopped it while it was still improving. That is a normal ending.
 
@@ -61,7 +66,7 @@ Arguments the script takes:
 
 A lead agent looks at both artifacts and proposes the smallest pieces that can be
 improved and judged **independently** — then each piece gets its own rounds, its
-own builder and its own critic, run one piece at a time. The run ends when every
+own builder and its own critic, dispatched as a graph — see below. The run ends when every
 piece has beaten the reference.
 
 **A piece is a piece only if the lead can name what would be inspected to judge it
@@ -90,23 +95,115 @@ concerns", not the mode it worked in.
 Where pieces exist you rarely need `critics` above 1: width comes from the split,
 which is where the source gets it.
 
+**A split that wins is checked once more, whole.** After every piece has beaten
+the reference, one more blind A/B judges the WHOLE candidate against the WHOLE
+reference. If the parts all won and the whole loses, the split hid something —
+a gap living between the pieces, in their ordering, or in a region no piece
+claimed — and the run ends `SPLIT_UNSOUND` instead of `WON`.
+
+**It only runs when the pieces edited the artifact it judges.** Pieces may name
+their own candidate files, and then the builders never touched `args.candidate` —
+judging that path would examine an untouched file and return a pass covering none
+of the work, which is worse than not checking, because the verdict would report it
+as verified. The loop has no filesystem, so it cannot tell whether separate files
+*compose into* `args.candidate`, only whether they *are* it. Where they are not,
+the check declines and the verdict names the paths the pieces actually edited.
+
+The check is asymmetric on purpose. A loss is a positive detection. A win is
+consistency and **not** proof the seam was correct, and the verdict says so. It
+is also an addition: neither source text describes a whole-artifact round, and
+runs that were never split do not pay for one.
+
+## Before the first round: is the comparison even blind?
+
+Staging the two files under neutral names handles the obvious tell. It does
+nothing about what the files *say*. A critic holding `Bash` can resolve an
+artifact's own citations against the working tree and establish which side
+belongs to it — observed, not hypothesised: one critic ran `git branch`,
+`git log --all` and read the project's run record, because one artifact cited
+that project's source by line number.
+
+So a probe reads both artifacts before any critic spawns and reports whether
+either one says where it came from. **If either does, the run withholds its
+blindness claim** rather than asserting a property it does not have — the same
+thing already done when the two `ARTIFACT` lines render in different shapes.
+
+The leak is measured, not prevented. Closing `Bash` on the critic would remove
+the capability that makes it run test suites and resolve citations instead of
+skimming. And a clean probe result is one prober finding nothing, not proof: the
+check can withdraw the blindness claim, never strengthen it.
+
+**It searches this disk, and two agents can reach the network.** The critic and
+the builder both hold `WebSearch` and `WebFetch`. So `clean` means neither
+artifact gives itself away *to a reader of this filesystem* — it says nothing
+about a critic fetching a reference's published copy and diffing it, which
+identifies the shipped side at once, or a builder retrieving a fix from the web
+instead of composing one. That last is a live retrieval channel, distinct from
+the model's own prior and from anything on disk. Neither agent needs the network
+for its stated job; removing those two tools is a real narrowing and it is your
+call, not the loop's.
+
 ## What a round does
 
 1. **Budget, then the breaker.** A Bash-only agent reports whether the run token
    still exists. Removing it stops the run at the next round boundary, so a
    cancel costs one cheap probe and never a critic.
-2. **One critic.** A fresh blind A/B: two artifacts, A and B, never told which is
+2. **A size probe.** The same Bash-only agent type measures the candidate's byte
+   count and nothing else. It is diagnostic: a builder that answers every absence
+   by appending grows the artifact while every individual round is locally
+   correct, and `size_by_round` is the only thing that would show you. If it
+   fails, the round continues without a measurement.
+3. **One critic.** A fresh blind A/B: two artifacts, A and B, never told which is
    yours. It must pick one — a tie is a critic declining to look closely enough —
    and name the single largest gap.
-3. **The rest of the line, only if that one let yours through.** A round yours
+4. **The rest of the line, only if that one let yours through.** A round yours
    loses cannot end the run, so the other critics could not have changed it and
    are never spawned. When they do run, positions are split across the line so
    half see yours as A.
-4. **Exit only on unanimity.** Every critic picks yours, or the round is a loss
+5. **Exit only on unanimity.** Every critic picks yours, or the round is a loss
    and one gap goes back.
-5. **The builder fixes that one gap.** In place, on the real artifact. It never
+6. **The builder fixes that one gap.** In place, on the real artifact. It never
    learns the sides, the critics, or the run's history, and it never grades its
    own work.
+
+## How a run ends
+
+`outcome.status` is one of five, and only one of them is a failure of the loop
+itself:
+
+| status | what happened |
+|---|---|
+| `WON` | every critic in one round picked yours — and where the goal was split, every piece won *and* the whole artifact then beat the whole reference |
+| `SPLIT_UNSOUND` | every piece beat the reference and the whole artifact did not. The seam hid a gap no piece could see, so the pieces' wins do not add up to a win |
+| `CANCELLED` | you removed the token. The source stopped his own run this way and his bar was never reached; this is a normal ending, not a failure |
+| `BUDGET` | the run hit the target you pre-committed in the launch message. Also a normal ending — a ceiling you chose rather than a round count the script chose |
+| `ERROR` | an agent returned nothing or died: a critic with no verdict, a builder that built nothing, a piece whose run failed. The run stops rather than deciding a round on a short line |
+
+Read `gaps_in_order` before any of them. A `CANCELLED` run whose gaps got smaller
+and more specific taught you more than a `WON` run that never iterated.
+
+## What the verdict carries
+
+Beyond `outcome` and `history`, the fields worth knowing before you read one:
+
+| field | what it tells you |
+|---|---|
+| `rounds` | how many rounds ran in total. In a split run this is the sum across pieces, not the round any one piece won at |
+| `decomposition` | what the lead decided: the criterion it split on and the pieces it kept, or `refused` and why. Also how many proposed pieces were dropped for naming no observable |
+| `gaps_in_order` | every gap in the order it came back, each naming its piece. **Read this first.** Gaps getting smaller and more specific mean the loop is working; round 5 restating round 1 means it is not |
+| `enforced` | properties this run could not lose — each one a tool restriction or a structural fact, not a promise someone remembered to keep |
+| `not_enforced` | what it did **not** check, and what a clean result there does and does not mean. The most important field in the verdict |
+| `goal_fairness` | whether the reference even attempts the goal. `partly` names the clauses it does not — verdicts on those measure your goal, not the work |
+| `goal_fitted` | whether the goal reads as a description of the candidate rather than a need. `fitted` means the candidate clears it by construction |
+| `split_check` | the whole-artifact comparison after a split won, or why it did not run |
+| `dependency_graph` | the edges the lead named, edges dropped as unknown, whether a cycle was broken, and every piece skipped with its reason |
+| `comparability` | the pairing check, run before the lead spawns: `comparable`, or `generator` when one side is a recipe for the thing rather than the thing, or `not-comparable`. The last two REFUSE the run. Distinct from `goal_fairness`, which asks whether the reference attempts the goal and never sees the candidate — attempting is a property of one side, comparability is a property of the pair. A reference can attempt the goal and still be incomparable, which is how two runs spent 419k tokens returning `WON` at round 1 against a meta-prompt |
+| `size_by_round` | the candidate's byte count each round, with the command that produced it. `size_note` fires when a piece grew every single round — usually a builder answering absence by appending |
+| `size_unmeasured` | rounds where the probe RAN and reported it could not measure — a directory passed as the candidate, an unreadable path, a probe that threw. Kept out of `size_by_round` because these are not sizes, and reported here because a silent absence reads as "size was fine". When nothing was measurable at all, `size_note` says so outright |
+| `position_balance` | how often yours was shown as A and as B, across every critic including the whole-artifact one. Position bias is measured here, not removed |
+| `rounds_with_a_build` / `won_without_building` | whether anything was actually built. A run that won without building tested your judges, not your method |
+| `stopped_by_evidence` | the literal probe output that ended a cancelled run — the proof the token was really gone, rather than an assertion about an agent |
+| `reading_note` | how to read a `CANCELLED` or `BUDGET` ending, which is not failure |
 
 ## Choosing the line length
 

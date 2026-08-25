@@ -30,8 +30,17 @@ If you cannot name that for a candidate piece, it is not a piece. Drop it.
 The loop gives each piece its own builder and its own critic, and it stops when
 every piece has beaten the reference. If a "piece" has no separate observable,
 its critic ends up judging the whole artifact through a keyhole: it will pass
-things that are locally fine and globally wrong, and the run will report that
-every piece won while the artifact as a whole is worse than the reference.
+things that are locally fine and globally wrong, and the run reports that every
+piece won while the artifact as a whole is worse than the reference.
+
+One check stands behind you, and it is narrow enough that you cannot lean on it.
+When every piece has won, the loop runs ONE more blind comparison of the whole
+candidate against the whole reference; if the parts all won and the whole loses,
+the run ends `SPLIT_UNSOUND`. But it only runs when the pieces edited the artifact
+it judges — name separate files for your pieces and it declines, because judging
+`args.candidate` would examine a file no builder touched. And a whole-artifact
+win is consistency, not proof the seam was right. A bad split still gets through;
+the check just makes one shape of it visible.
 
 Splitting badly is worse than not splitting. **Refusing is a correct answer and
 it is not a failure.** Say so plainly and the loop will run the artifact whole.
