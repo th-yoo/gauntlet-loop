@@ -1,0 +1,3 @@
+```json
+{"verdict": "does-the-work", "reasoning": "BUILD.md is the operating manual for a counter that already sits beside it: counter.c is present, and the two commands it gives (`cc -O2 -o counter counter.c`; `./counter`) run as written — the build succeeded and printing 3, the line count of the 3-line data.txt in the same directory. No further party is named or implied; following the artifact to its end reaches the goal in this session, so it is instructions for operating something that does the thing right now.", "what_it_is": "A four-line build/run README for a small C program shipped next to it — build command, run command, and a statement of what gets printed, with the source, data file and .gitignore all in the same directory."}
+```
