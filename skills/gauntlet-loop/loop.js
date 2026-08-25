@@ -706,6 +706,15 @@ Being short, incomplete, badly written, or bad at the goal does not change the a
 attempt at the goal is still does-the-work. The question is only what an agent would END UP DOING,
 not how well.
 
+WHEN AN ARTIFACT DOES SOME OF THE WORK AND HANDS OFF THE REST, the goal settles it, not the amount
+of work. Ask whether following this artifact to its end REACHES the goal:
+
+  - It stops short BY DESIGN and names or implies a further party for the remainder
+    -> produces-an-instruction, however much real work it does first. Scaffolding that provisions
+       everything except the part that meets the goal is still a handoff.
+  - It aims at the goal itself and merely falls short — buggy, partial, unfinished, wrong
+    -> does-the-work. Failing at the goal is not the same as delegating it.
+
 Say what kind of object it is in your own words, and what in it settles the answer.`,
     { label: `comparability:${n}`, phase: 'Loop', schema: ARTIFACT_ROLE_SCHEMA, agentType: 'gauntlet-loop:gauntlet-goal-check' }
   )
