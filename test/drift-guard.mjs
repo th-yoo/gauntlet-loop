@@ -432,8 +432,14 @@ console.log('drift-guard: every reported test case has an assertion behind it')
     let prev = 0
     lines.forEach((line, i) => {
       if (!/console\.log\(['"`].*OK/.test(line)) return
-      const between = lines.slice(prev, i).join('\n')
-      if (!/\b(ok|eq)\(/.test(between)) {
+      // COMMENTS ARE STRIPPED FIRST. Without this the scan counted an `eq(` written
+      // inside a comment as an assertion — test/corpus-portability.test.mjs passed
+      // this very check on the strength of the sentence "oracle.test.mjs:371 asserts
+      // `eq(r.code, 1)`", which asserts nothing. A guard against a figure that says
+      // more than it can support was itself satisfied by prose, which is the same
+      // defect one level up. Same fix as 65fc73f made in containment.
+      const between = stripLineComments(lines.slice(prev, i).join('\n'))
+      if (!/\b(ok|eq|fail)\(/.test(between)) {
         fail(`test/${f}:${i + 1} reports a passing case with no assertion between it and the previous one — it inflates the count with a check that never ran`)
       }
       prev = i

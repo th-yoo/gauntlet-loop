@@ -1,0 +1,53 @@
+#!/bin/sh
+# Refuse a push whose suite does not pass.
+#
+# Activate once per clone:  git config core.hooksPath .githooks
+#
+# WHY THIS EXISTS, precisely. The failure it prevents is recorded in #42: d0450ca
+# was green, a header edit made `containment` fail, and the `&&` chain pushed anyway
+# because the failure was in an earlier line of the same command's output. The suite
+# WAS run. What was missing is anything that made the result binding. So this gate
+# reads `run-all`'s exit status and nothing else — not its output, not a count, not
+# a pattern in the log. Output is what got misread the first time.
+#
+# WHY IT IS HERE AND NOT IN .git/hooks. A hook under .git/ is untracked: it cannot be
+# reviewed in a diff, does not survive a clone, and is absent on the next machine.
+# That is the same works-here-only shape as the corpus defect in ebb630a, where 14
+# rows were readable on exactly one machine and every check passed there. A gate with
+# that property would be a gate exactly where it is never needed.
+#
+# WHAT THIS CANNOT DO. It runs on the machine that wrote the code, so it cannot catch
+# a defect that only appears elsewhere — ebb630a is that class and no local hook of
+# any diligence would have caught it. #44 covers that and this does not subsume it.
+#
+# Bypass is `git push --no-verify`, and it is deliberately left available: a gate with
+# no exit turns a bad five minutes into a fight with the tooling, and the honest record
+# of a bypass is better than a gate someone deletes.
+
+set -e
+
+# git runs hooks from the repository root, so the suite path is relative to here.
+if [ ! -f test/run-all.mjs ]; then
+  echo "pre-push: test/run-all.mjs not found — refusing rather than assuming a pass." >&2
+  echo "          A gate that cannot find the suite has not checked anything, and" >&2
+  echo "          silently allowing here is what makes an absent guard read as a green one." >&2
+  exit 1
+fi
+
+echo "pre-push: running the suite before publishing…" >&2
+
+if node test/run-all.mjs; then
+  exit 0
+fi
+
+# The suite's own output is above. This says what happened to the push, because the
+# thing that failed the first time was noticing that a failure had scrolled past.
+cat >&2 <<'MSG'
+
+pre-push: REFUSED — the suite exited nonzero, so nothing was pushed.
+
+  Fix it, or push with --no-verify if you are deliberately publishing a red tree
+  (a rerun, a bisect, a branch you are handing someone). Using --no-verify is a
+  decision; not noticing is what this gate exists to prevent.
+MSG
+exit 1
