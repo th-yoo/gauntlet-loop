@@ -655,3 +655,16 @@ function run(script, args, extraEnv) {
   rmSync(dir, { recursive: true, force: true })
   console.log('oracle: an observation must agree with the response it names, and attested ones are marked as such OK')
 }
+
+// THE ROW MODEL — what the corpus can and cannot express, run as a suite gate.
+//
+// Two verdicts can refuse a run, and each had zero observations because the corpus could
+// not hold the row: `could-not-open`, whose ground truth is an absence, and the pairing
+// verdict itself, which is a property of two artifacts under one goal rather than of one
+// artifact. scripts/rowmodel-trial.mjs builds both situations rather than describing them.
+{
+  const r = run(join(ROOT, 'scripts', 'rowmodel-trial.mjs'), [])
+  eq(r.code, 0, `the corpus can express an absence and a pairing — got exit ${r.code}\n${r.out}`)
+  ok(/Both expressible/.test(r.out), 'and the trial says so in its own terms')
+  console.log('oracle: the corpus can express an absence row and a pairing, so both refusing verdicts can be measured OK')
+}

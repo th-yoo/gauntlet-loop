@@ -24,17 +24,19 @@ import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { liveInstrument } from './oracle-instrument.mjs'
+import { verdictFor } from './oracle-derive.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // ORACLE_CORPUS / ORACLE_RESULTS, same as the other two tools — a test asserting on
 // cohort grouping needs ledgers it can construct, and must never write the real ones.
-const LEDGER = { 'corpus.jsonl': process.env.ORACLE_CORPUS, 'results.jsonl': process.env.ORACLE_RESULTS }
+const LEDGER = { 'corpus.jsonl': process.env.ORACLE_CORPUS, 'results.jsonl': process.env.ORACLE_RESULTS, 'pairings.jsonl': process.env.ORACLE_PAIRINGS }
 const read = f => {
   const p = LEDGER[f] || join(ROOT, 'oracle', f)
   return existsSync(p) ? readFileSync(p, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)) : []
 }
 
 const corpus = read('corpus.jsonl')
+const pairings = read('pairings.jsonl')
 const results = read('results.jsonl')
 
 console.log('oracle report — the pairing check\'s roleOf classifier')
@@ -350,6 +352,42 @@ for (const [k, rs] of cohorts) {
         console.log(`                       nothing here measures, and probably false: same model, same run. Secondary.`)
       }
     }
+  }
+}
+
+// THE PAIRING ARM — the thing that actually refuses a run, and the one this corpus could
+// not express until it had somewhere to say two rows form a pair.
+//
+// Everything above measures roleOf: one artifact, one role. A refusal fires when exactly
+// one SIDE of a pair is an instruction-writer, so the only route to a FALSE refusal is a
+// does-the-work artifact read as a writer — and that is a property of two artifacts under
+// one goal. Until a pairing could be declared, the false-refusal rate was 2q(1-q) carried
+// through the per-side interval under an independence assumption this report itself calls
+// probably false.
+//
+// The expected verdict is DERIVED here, every run, by executing loop.js with the two rows'
+// expected roles — never stored, and never retyped. Storing it would be #40 again.
+if (pairings.length) {
+  console.log('')
+  console.log(`── pairings ── ${pairings.length} declared`)
+  let posable = 0
+  for (const p of pairings) {
+    const [ra, rb] = p.sides.map(id => byId.get(id))
+    if (!ra || !rb) { console.log(`   ${p.id}: names a row the corpus does not have — ${p.sides.join(', ')}`); continue }
+    let expected
+    try { expected = await verdictFor(ra.expected_role, rb.expected_role) }
+    catch (e) { console.log(`   ${p.id}: the verdict could not be derived — ${String(e.message).split('\n')[0]}`); continue }
+    const obs = results.filter(o => o.pairing === p.id)
+    posable++
+    console.log(`   ${p.id.padEnd(20)} ${ra.expected_role} + ${rb.expected_role} -> ${expected}   ${obs.length} observation(s)`)
+    if (expected === 'comparable') console.log(`   ${' '.repeat(20)} a refusal on this pairing would be FALSE — this is the cell the rate comes from`)
+  }
+  const observed = results.filter(o => o.pairing).length
+  if (!observed) {
+    console.log('')
+    console.log('   NO PAIRING HAS BEEN OBSERVED. The verdict that refuses runs has zero draws behind it, so the')
+    console.log('   per-run false refusal figure above remains a derivation from the per-side rate and not a')
+    console.log('   measurement of the thing itself.')
   }
 }
 

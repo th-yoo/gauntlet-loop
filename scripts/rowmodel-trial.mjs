@@ -64,16 +64,24 @@ function sandbox() {
                       '--acceptance', `make -C ${join(dir, 'b')} count | grep -q 3`, '--id', 'pair-mk', '--note', 'row model trial'])
   const bothAdded = a.code === 0 && b.code === 0
 
-  // Both sides are grounded and share a goal. Is there anywhere to say they form a pair,
-  // and does anything derive the verdict loop.js would reach for them?
-  const rows = bothAdded ? readFileSync(env.ORACLE_CORPUS, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)) : []
-  const pairingExpressed = rows.some(r => r.arm === 'pairing' || r.sides || r.pair_with)
-  const rep = run(REPORT, [], env)
-  const pairingScored = /pairing|two-sided|comparable/i.test(rep.out) && !/would be falsely refused/i.test(rep.out)
+  // BEHAVIOUR, NOT SHAPE. The first version of this case looked for a corpus row carrying
+  // `arm: 'pairing'` or a `sides` field — a guess at a data layout, written before any
+  // design existed. Checking the layout you happen to have built is not a test of the
+  // claim. The claim is that two grounded rows sharing a goal can be declared a pairing and
+  // yield the verdict loop.js derives, and that is what this asks for.
+  const env2 = { ...env, ORACLE_PAIRINGS: join(dir, 'pairings.jsonl') }
+  const paired = spawnSync(process.execPath, [join(ROOT, 'scripts', 'oracle-pair.mjs'),
+    '--sides', 'pair-sh,pair-mk', '--id', 'trial-pair', '--note', 'row model trial'],
+    { encoding: 'utf8', cwd: ROOT, env: env2, timeout: 60_000 })
+  const out = String(paired.stdout || '') + String(paired.stderr || '')
+  const declared = paired.status === 0
+  // Both sides are does-the-work, so the rule in loop.js answers `comparable` — and a
+  // refusal on this pairing would be a FALSE one, which is the rate #37 exists to produce.
+  const derived = /loop\.js would answer: comparable/.test(out)
 
   verdict('A. express a pairing — two grounded artifacts under one goal, with the verdict loop.js derives',
-    bothAdded && pairingExpressed && pairingScored,
-    `both sides add and share a goal (${bothAdded ? 'yes' : 'NO'}), but no row says they form a pair and nothing composes their verdict. The false-refusal rate stays a derivation — 2q(1-q) under an independence assumption the report itself calls probably false — instead of an observation.`)
+    bothAdded && declared && derived,
+    `both sides add and share a goal (${bothAdded ? 'yes' : 'NO'}); declaring the pairing ${declared ? 'succeeded' : 'FAILED'}; the derived verdict ${derived ? 'came back' : 'did NOT come back'}. Without it the false-refusal rate stays a derivation — 2q(1-q) under an independence assumption the report itself calls probably false — instead of an observation.`)
   rmSync(dir, { recursive: true, force: true })
 }
 
