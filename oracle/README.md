@@ -77,7 +77,23 @@ refusal rate as secondary, under a stated independence assumption. It reports di
 artifacts beside observations, refuses to pool across prompt hashes, and says "cannot
 be posed" rather than printing a rate a single-digit sample cannot support.
 
+Before it prints any number it reads the prompt **loop.js sends today** — out of the
+script, through `oracle-instrument.mjs`, never out of the ledger — and labels every
+cohort `LIVE`, `SUPERSEDED` or `UNKNOWN INSTRUMENT` against it. A run whose
+observations all belong to a superseded prompt says so and **exits non-zero**, because
+every figure in it then describes an instrument nobody runs. If the live prompt cannot
+be read at all, the report prints no numbers: that is a broken extraction, not a stale
+corpus, and the two need opposite repairs.
+
 ## What this cannot establish
 
-Selection bias, answer stability under repeated draws, and coverage of the artifact
-space. The report prints all three every run.
+Selection bias and coverage of the artifact space. The report prints both every run,
+along with the part of answer stability that repeat draws do not reach — a redraw is
+the same model asked again, not an independent draw.
+
+Selection bias is the one that cannot be fixed by adding rows, and adding rows can hide
+it: see #38, which holds that as a permanent disclosure rather than as work.
+
+The corpus also cannot express the **pairing** verdict — the thing that actually refuses
+a run. A row is one artifact under its own goal; a pairing is two artifacts under one
+shared goal, so no set of rows here composes into one. See #37.

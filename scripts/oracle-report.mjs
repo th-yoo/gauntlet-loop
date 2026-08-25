@@ -21,6 +21,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { liveInstrument } from './oracle-instrument.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // ORACLE_CORPUS / ORACLE_RESULTS, same as the other two tools — a test asserting on
@@ -44,6 +45,35 @@ if (!results.length) {
   console.log('This question cannot be posed yet — and that is the honest reading, not a rate of zero.')
   process.exit(0)
 }
+
+// WHICH COHORT DESCRIBES THE PROMPT THAT SHIPS.
+//
+// The report already refuses to pool cohorts, which stops a superseded instrument from
+// being blended into a current rate. It did not say which one IS current: two anonymous
+// hashes were printed and the answer lived in someone's notes — the same
+// remembered-not-enforced shape that let five of seven observations be quoted against a
+// prompt that had already changed. The roleOf fix at 5741f5e moved the template hash and
+// stranded 15 of 38 observations, and nothing in this output said so.
+//
+// So the live instrument is read out of loop.js on every run and every cohort is labelled
+// against it. If it cannot be read, nothing below is printed: unlabelled numbers are the
+// hazard this exists to remove, and printing them with an apology attached leaves them
+// quotable.
+let live = null
+try {
+  live = liveInstrument()
+} catch (e) {
+  console.log('')
+  console.log('CANNOT DETERMINE WHICH INSTRUMENT SHIPS — no numbers are printed below.')
+  console.log(`  ${String(e.message).split('\n').join('\n  ')}`)
+  console.log('')
+  console.log('  This is NOT a finding that every cohort is stale. It is a finding that the question')
+  console.log('  "which prompt does loop.js send today" could not be answered, so no cohort can be')
+  console.log('  labelled at all. Fix the extraction; do not re-draw the corpus on the strength of this.')
+  process.exit(1)
+}
+const liveKey = `${live.template_hash}|${live.schema_fingerprint}`
+console.log(`instrument that ships: ${live.template_hash.slice(0, 23)}…   (read from loop.js, never from the ledger)`)
 
 // Group by instrument, then by arm. A cohort is (prompt_hash, schema_fingerprint).
 const cohorts = new Map()
@@ -69,10 +99,19 @@ function wilson(k, n, z = 1.96) {
 }
 const pct = x => `${(x * 100).toFixed(0)}%`
 
+let liveObservations = 0
 for (const [k, rs] of cohorts) {
   const [ph] = k.split('|')
+  // THREE states, and the third is not the second. An observation predating the template
+  // hash belongs to an instrument nobody recorded, which is a different fact from an
+  // instrument that has been replaced — and the repair differs: one needs its prompt
+  // identified, the other needs re-drawing.
+  const label = k === liveKey ? 'LIVE — the prompt loop.js sends today'
+    : ph.startsWith('template-unknown') ? 'UNKNOWN INSTRUMENT — recorded before the template hash existed'
+    : 'SUPERSEDED — no run sends this prompt any more'
+  if (k === liveKey) liveObservations += rs.length
   console.log('')
-  console.log(`── instrument ${ph.slice(0, 23)}… ─────────────────────────`)
+  console.log(`── instrument ${ph.slice(0, 23)}… ── ${label}`)
   if (cohorts.size > 1) console.log('   (cohorts are reported separately: a different prompt is a different instrument)')
 
   for (const arm of ['does-the-work', 'generator']) {
@@ -178,7 +217,24 @@ console.log('WHAT THIS DOES NOT ESTABLISH')
 console.log('  - Selection bias is not corrected. The corpus is whatever its builder chose to add;')
 console.log('    the RELATION in each row is mechanical, the SELECTION of rows is not. Adding more')
 console.log('    rows of the same kind does not fix this and can hide it.')
-console.log('  - Answer stability. One observation per row is one draw. A wrong answer may be a')
-console.log('    fluke rather than a bias, and nothing here separates them without repeat draws.')
+console.log('  - Answer stability beyond the rows that were actually redrawn. Two draws bound')
+console.log('    instability loosely, and a redraw is the same model asked again — not an')
+console.log('    independent draw.')
 console.log('  - Coverage. The classification rule is one rule, but which artifacts were put in')
 console.log('    front of it is exactly the corpus and nothing more.')
+
+// THE NUMBERS ABOVE ARE ALL STALE. Printed last because it is the last thing a reader
+// should carry away, and it is the only state in which every figure in this report is
+// about a prompt nobody runs.
+if (!liveObservations) {
+  console.log('')
+  console.log('NO COHORT DESCRIBES THE PROMPT THAT SHIPS.')
+  console.log(`  loop.js sends ${live.template_hash.slice(0, 23)}… today, and every observation above was`)
+  console.log('  made against a different prompt. Every number above therefore describes an instrument')
+  console.log('  that no longer runs, however good it looks. Re-draw under the live prompt — #34 — before')
+  console.log('  quoting any of it.')
+  // The exit code fires for the REAL ledger only. A run pointed at a constructed
+  // ORACLE_RESULTS is a test of the labelling, not someone about to quote these numbers,
+  // and failing there would make the seam that tests this branch untestable.
+  if (!process.env.ORACLE_RESULTS) process.exit(1)
+}

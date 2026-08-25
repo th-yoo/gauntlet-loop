@@ -428,3 +428,107 @@ function run(script, args, extraEnv) {
   }
   console.log(`oracle: all ${rows.length} corpus row(s) carry goal, expected role and grounding evidence OK`)
 }
+
+// ── WHICH INSTRUMENT SHIPS ────────────────────────────────────────────────────────
+//
+// The report refuses to pool cohorts, which stops a superseded prompt from being blended
+// into a current rate. It did not say which cohort was current, so the answer lived in a
+// notes file — and "remembered, not enforced" is the shape that let five of seven early
+// observations be quoted against a prompt that had already changed. `5741f5e` moved the
+// template hash again and stranded 15 of 38 observations with nothing in the output
+// saying so. These three cases pin the label, its failure, and its independence.
+
+// THE GUARD ITSELF. If someone edits the roleOf prompt and does not re-draw, this is
+// what fails. It runs against the TRACKED ledger on purpose — that is the only ledger
+// anyone quotes — and reads it, never writes it.
+{
+  let out = '', code = 0
+  try { out = execFileSync(process.execPath, [join(ROOT, 'scripts', 'oracle-report.mjs')], { encoding: 'utf8', cwd: ROOT, env: process.env, timeout: 30_000 }) }
+  catch (e) { code = e.status; out = String(e.stdout || '') + String(e.stderr || '') }
+
+  eq(code, 0, `the tracked corpus has observations under the prompt that ships — got exit ${code}.\n${out.slice(-600)}`)
+  ok(/── instrument \S+ ── LIVE/.test(out), `some cohort is labelled LIVE\n${out.slice(0, 400)}`)
+  ok(/instrument that ships: sha256:/.test(out), 'the report names the shipping instrument before printing any number')
+  console.log('oracle: the shipping prompt has a cohort behind it, and the report labels which one OK')
+}
+
+// AND IT CAN FAIL. Observations carrying a template hash that is not the live one leave
+// every number in the report describing a prompt nobody runs, which is exactly when the
+// numbers are most quotable and least true.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'oracle-stale-'))
+  const results = join(dir, 'results.jsonl')
+  writeFileSync(results, JSON.stringify({
+    row: 'a', arm: 'does-the-work', artifact: '/x/a', expected_role: 'does-the-work',
+    predicted_role: 'does-the-work', correct: true, prompt_hash: 'sha256:P',
+    template_hash: 'sha256:NOT-THE-LIVE-TEMPLATE', schema_fingerprint: 'sha256:fp', observer: 't',
+  }) + '\n')
+
+  const env = { ...process.env, ORACLE_CORPUS: join(dir, 'corpus.jsonl'), ORACLE_RESULTS: results }
+  let out = '', code = 0
+  try { out = execFileSync(process.execPath, [join(ROOT, 'scripts', 'oracle-report.mjs')], { encoding: 'utf8', cwd: ROOT, env, timeout: 30_000 }) }
+  catch (e) { code = e.status; out = String(e.stdout || '') + String(e.stderr || '') }
+
+  ok(/NO COHORT DESCRIBES THE PROMPT THAT SHIPS/.test(out), `a ledger with no live cohort says so, loudly\n${out}`)
+  ok(/── instrument \S+ ── SUPERSEDED/.test(out), 'and the cohort itself is labelled, not just summarised at the end')
+  ok(!/── instrument \S+ ── LIVE/.test(out), 'nothing is labelled LIVE when nothing is')
+  // THE SEAM, PINNED. The exit code fires for the tracked ledger only: a constructed one
+  // is a test of the labelling, not someone about to quote the numbers, and a failing
+  // exit here would make this very branch unreachable by a test. Asserted so that the
+  // asymmetry stays deliberate rather than becoming a thing someone "fixes".
+  eq(code, 0, 'a constructed ledger reports the staleness without failing the run')
+  rmSync(dir, { recursive: true, force: true })
+  console.log('oracle: a ledger with no cohort under the shipping prompt is reported as stale rather than as a rate OK')
+}
+
+// AND IT IS NOT READ OUT OF THE LEDGER. A quantity derived downstream of the decision
+// under test cannot audit that decision: if the "live" hash came from the observations,
+// it would agree with whatever was recorded and could never disagree. Two runs over two
+// completely different ledgers must name the SAME shipping instrument, because both read
+// loop.js and neither reads the data.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'oracle-indep-'))
+  const results = join(dir, 'results.jsonl')
+  writeFileSync(results, JSON.stringify({
+    row: 'a', arm: 'does-the-work', artifact: '/x/a', expected_role: 'does-the-work',
+    predicted_role: 'does-the-work', correct: true, prompt_hash: 'sha256:P',
+    template_hash: 'sha256:INVENTED', schema_fingerprint: 'sha256:fp', observer: 't',
+  }) + '\n')
+  const named = env => {
+    let out = ''
+    try { out = execFileSync(process.execPath, [join(ROOT, 'scripts', 'oracle-report.mjs')], { encoding: 'utf8', cwd: ROOT, env, timeout: 30_000 }) }
+    catch (e) { out = String(e.stdout || '') + String(e.stderr || '') }
+    return (out.match(/instrument that ships: (\S+)/) || [])[1]
+  }
+  const real = named(process.env)
+  const fake = named({ ...process.env, ORACLE_CORPUS: join(dir, 'corpus.jsonl'), ORACLE_RESULTS: results })
+  ok(real && real.startsWith('sha256:'), 'the shipping instrument is named at all')
+  eq(fake, real, 'the shipping instrument is the same whatever the ledger says — it is read from loop.js')
+  rmSync(dir, { recursive: true, force: true })
+  console.log('oracle: the shipping instrument is read from loop.js and not from the observations it audits OK')
+}
+
+// AND "UNKNOWN" IS NOT "SUPERSEDED". An observation recorded before the template hash
+// existed belongs to an instrument nobody wrote down. That is a different fact from an
+// instrument that has been replaced, and it needs the opposite repair: the first has to
+// have its prompt identified, the second has to be re-drawn. Built as a third label, so
+// it is tested as one — an unexecuted branch is where this repo keeps finding its bugs.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'oracle-unknown-'))
+  const results = join(dir, 'results.jsonl')
+  writeFileSync(results, JSON.stringify({
+    row: 'a', arm: 'does-the-work', artifact: '/x/a', expected_role: 'does-the-work',
+    predicted_role: 'does-the-work', correct: true, prompt_hash: 'sha256:P',
+    schema_fingerprint: 'sha256:fp', observer: 't',   // no template_hash at all
+  }) + '\n')
+
+  const env = { ...process.env, ORACLE_CORPUS: join(dir, 'corpus.jsonl'), ORACLE_RESULTS: results }
+  let out = ''
+  try { out = execFileSync(process.execPath, [join(ROOT, 'scripts', 'oracle-report.mjs')], { encoding: 'utf8', cwd: ROOT, env, timeout: 30_000 }) }
+  catch (e) { out = String(e.stdout || '') + String(e.stderr || '') }
+
+  ok(/── instrument \S+ ── UNKNOWN INSTRUMENT/.test(out), `an observation with no template hash is labelled unknown, not superseded\n${out}`)
+  ok(!/── instrument \S+ ── SUPERSEDED/.test(out), 'and it is not reported as a prompt that was replaced, which it is not')
+  rmSync(dir, { recursive: true, force: true })
+  console.log('oracle: an observation predating the template hash is labelled UNKNOWN INSTRUMENT, not SUPERSEDED OK')
+}
