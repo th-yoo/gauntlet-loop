@@ -107,6 +107,8 @@ const PROPERTIES = [
   ['an incomparable pairing is refused', L, "comparability.verdict === 'not-comparable'", "false"],
   ['the verdict carries the pairing check', L, "  comparability,\n  size_by_round: sizeByRound,", "  comparability: null,\n  size_by_round: sizeByRound,"],
 
+  ['the JS side resolves the temp root through the full chain', S, "process.env.TMPDIR || process.env.TMP || process.env.TEMP || '/tmp'", "'/tmp'"],
+
   // --- the shipped tools refuse a wrong invocation (#98) --------------------
   // NOT listed: needleFrom's `!lines.length` guard. It sweeps NOT CAUGHT and that
   // is correct — removing it yields [].sort()[0] === undefined, which the !needle

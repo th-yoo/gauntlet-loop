@@ -19,7 +19,8 @@ wins or I stop the run."*
 If `$ARGUMENTS` names a path, use it. Otherwise list the default location:
 
 ```bash
-ls -1t /tmp/gauntlet-loop/*.token 2>/dev/null
+TMPROOT="${TMPDIR:-${TMP:-${TEMP:-/tmp}}}"
+ls -1t "$TMPROOT"/gauntlet-loop/*.token 2>/dev/null
 ```
 
 **A token does not mean a run is alive.** Only *cancelling* removes one: a run

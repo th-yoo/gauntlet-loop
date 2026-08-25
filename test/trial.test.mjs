@@ -259,9 +259,11 @@ function fixture() {
   // run whose leak voided the first real trial.
   const src = readFileSync(join(ROOT, 'scripts', 'seed-loop-trial.mjs'), 'utf8')
   const defaults = src.slice(src.indexOf('GAUNTLET_TRIAL_ROOTS'), src.indexOf('].filter'))
-  for (const root of ['process.cwd()', "'.claude', 'plugins'", "'/tmp/gauntlet-loop'"]) {
+  for (const root of ['process.cwd()', "'.claude', 'plugins'", "join(TMPROOT, 'gauntlet-loop')"]) {
     ok(defaults.includes(root), `the default search roots still include ${root} — dropping one narrows the check with nothing else changing`)
   }
+  ok(/const TMPROOT = process\.env\.TMPDIR \|\| process\.env\.TMP \|\| process\.env\.TEMP \|\| '\/tmp'/.test(src),
+     'and TMPROOT resolves through the full chain — pinning the roots list alone would let the root it is built from change underneath it')
   console.log('trial: the default search roots are still the three a builder reaches OK')
 }
 

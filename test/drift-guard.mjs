@@ -466,6 +466,39 @@ console.log('drift-guard: every verdict field is explained in the docs')
   }
 }
 
+// THE TOKEN'S HOME IS AGREED BY THREE FILES OR IT IS AGREED BY NONE.
+//
+// `commands/loop.md` WRITES the run token, `commands/cancel-loop.md` LOOKS for it,
+// and `scripts/seed-loop-trial.mjs` SEARCHES there for leaked answers. All three
+// used a hardcoded /tmp, which agreed by accident rather than by construction.
+// Resolve the root in one of them and not the others and the circuit breaker stops
+// working SILENTLY: the token lands somewhere the cancel command never lists, so
+// cancel reports "No gauntlet loop token found" while the run keeps going.
+//
+// Matched as the whole chain, not as "TMPDIR". A file that fell back to a shorter
+// form — `${TMPDIR:-/tmp}` — resolves differently from the others on a machine
+// where only TEMP is set, which is exactly the machine this change exists for.
+console.log('drift-guard: the token root is resolved the same way everywhere it is used')
+{
+  const SH_CHAIN = '${TMPDIR:-${TMP:-${TEMP:-/tmp}}}'
+  const JS_CHAIN = "process.env.TMPDIR || process.env.TMP || process.env.TEMP || '/tmp'"
+  const users = [
+    { file: join('commands', 'loop.md'), needle: SH_CHAIN, does: 'writes the run token' },
+    { file: join('commands', 'cancel-loop.md'), needle: SH_CHAIN, does: 'lists tokens to cancel one' },
+    { file: join('scripts', 'seed-loop-trial.mjs'), needle: JS_CHAIN, does: 'searches there for a leaked answer' },
+  ]
+  for (const u of users) {
+    let text = ''
+    try { text = readFileSync(join(ROOT, u.file), 'utf8') } catch { fail(`${u.file} could not be read, and it ${u.does}`); continue }
+    if (!text.includes(u.needle)) {
+      fail(`${u.file} ${u.does}, but does not resolve the temp root through the full chain. All three must agree; a token written where the cancel command does not look is a circuit breaker that silently does nothing.`)
+    }
+    if (/["'\s]\/tmp\/gauntlet-loop/.test(text)) {
+      fail(`${u.file} still hardcodes /tmp/gauntlet-loop somewhere. That agrees with the others only by accident, and stops agreeing on any machine where the temp root is elsewhere.`)
+    }
+  }
+}
+
 console.log('drift-guard: every repo-relative path cited in a live file still exists')
 for (const rel of LIVE_SURFACES) {
   let text

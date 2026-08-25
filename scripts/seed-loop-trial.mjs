@@ -64,12 +64,20 @@ const has = n => argv.includes(n)
 // be distinguishable from "grep found nothing", and inducing a real search failure
 // needs a root the test controls. Not for normal use — the defaults are the places
 // a builder actually reaches.
+// The same resolution the two command files use, and it has to stay the same: this
+// searches where a run's tokens and degraded copies actually land, and `/tmp` is
+// neither writable everywhere nor where a Windows shell puts scratch files. A
+// drift-guard scan pins all three surfaces together, because a token written
+// somewhere the cancel command does not look is a circuit breaker that silently
+// does nothing.
+const TMPROOT = process.env.TMPDIR || process.env.TMP || process.env.TEMP || '/tmp'
+
 const SEARCH_ROOTS = (process.env.GAUNTLET_TRIAL_ROOTS
   ? process.env.GAUNTLET_TRIAL_ROOTS.split(':')
   : [
       process.cwd(),
       join(process.env.HOME || '', '.claude', 'plugins'),
-      '/tmp/gauntlet-loop',
+      join(TMPROOT, 'gauntlet-loop'),
     ]).filter(p => p && existsSync(p))
 
 // A needle long and distinctive enough that finding it means finding the text,

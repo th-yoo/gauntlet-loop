@@ -136,9 +136,16 @@ produce a verdict worth reading:
 The token is the circuit breaker. Its existence means "keep looping"; removing
 it stops the run at the next round boundary.
 
+The temp root is resolved, not assumed. `/tmp` is not writable everywhere and is
+not where a Windows shell puts scratch files, and the same chain has to appear in
+`/gauntlet-loop:cancel-loop` and in `scripts/seed-loop-trial.mjs` — a token written
+somewhere the cancel command does not look is a circuit breaker that silently does
+nothing. A drift-guard scan pins the three together.
+
 ```bash
-mkdir -p /tmp/gauntlet-loop
-TOKEN="/tmp/gauntlet-loop/$(date +%s).token"
+TMPROOT="${TMPDIR:-${TMP:-${TEMP:-/tmp}}}"
+mkdir -p "$TMPROOT/gauntlet-loop"
+TOKEN="$TMPROOT/gauntlet-loop/$(date +%s).token"
 printf 'goal: %s\ncandidate: %s\nreference: %s\nstarted: %s\n' \
   "<goal>" "<candidate>" "<reference>" "$(date -Is)" | tee "$TOKEN"
 ```
