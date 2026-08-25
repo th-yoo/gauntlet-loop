@@ -92,6 +92,21 @@ function addWorker(dir, env, { id, goal }) {
   return script
 }
 
+// An instruction-writer row, grounded the way the corpus grounds one: not by anyone
+// saying so, but by the file the artifact PRODUCED when it was executed.
+function addWriter(dir, env, { id, goal }) {
+  const f = join(dir, id)
+  mkdirSync(f, { recursive: true })
+  const artifact = join(f, 'request.md')
+  const emission = join(f, 'OUTPUT.md')
+  writeFileSync(artifact, `# Please write the thing\n\nSomeone should do this and send it back.\n`)
+  writeFileSync(emission, `# A request addressed to a further party\n`)
+  const add = run(ADD, ['--arm', 'generator', '--artifact', artifact, '--goal', goal,
+    '--emission', emission, '--id', id, '--note', 'pairing exit test'], env)
+  if (add.code !== 0) throw new Error(`setup: could not add writer row ${id}: ${add.out.slice(0, 400)}`)
+  return artifact
+}
+
 function declarePair(env, { id, sides }) {
   const p = run(PAIR, ['--sides', sides.join(','), '--id', id, '--note', 'pairing exit test'], env)
   if (p.code !== 0) throw new Error(`setup: could not declare pairing ${id}: ${p.out.slice(0, 400)}`)
@@ -329,6 +344,35 @@ const GOAL = 'the deliverable prints its own name'
     ok(/MEASURED by drawing the pairing/.test(rep.out),
        'the rate is not marked as measured rather than derived, so a reader cannot tell it from the 2q(1-q) figure above it')
       mark('below the threshold no rate is posed; at five distinct pairings a measured rate with an interval is printed')
+  } catch (e) { fail(String(e.message)) }
+  rmSync(dir, { recursive: true, force: true })
+}
+
+// ── I. THE CELL WHERE A REFUSAL IS CORRECT GETS THE SAME THRESHOLD ──────────────────
+//
+// Found by the rule rather than by an incident, again: the false-refusal cell refuses to
+// pose a rate below five distinct pairings, and the cell beside it printed a bare `1/1`.
+// A reader takes that for 100%, which is the bare point estimate this report exists to
+// refuse — and it is the same defect in the same output, one branch over, because the
+// threshold was written where the number was being watched.
+//
+// A MISSED REFUSAL is different and must print at any n: a run that proceeded on a pairing
+// the corpus says is not comparable is an event, not a rate.
+{
+  start()
+  const { dir, env } = sandbox('i')
+  try {
+    const w = addWriter(dir, env, { id: 'writer', goal: GOAL })
+    const b = addWorker(dir, env, { id: 'worker', goal: GOAL })
+    declarePair(env, { id: 'gen-pair', sides: ['writer', 'worker'] })
+    recordSide(env, { row: 'writer', artifact: w, goal: GOAL, predicted: 'produces-an-instruction', pairing: 'gen-pair', draw: 'd1' })
+    recordSide(env, { row: 'worker', artifact: b, goal: GOAL, predicted: 'does-the-work', pairing: 'gen-pair', draw: 'd1' })
+
+    const rep = run(REPORT, [], env)
+    ok(!crashed(rep.out), `the report did not run: ${String(rep.out).split('\n').find(l => /Error/.test(l)) || 'crashed'}`)
+    ok(/fired correctly\s+1 of 1 draw\(s\) — NO RATE/.test(rep.out),
+       'the refusal-fires cell prints a bare fraction at one draw — the false-refusal cell beside it refuses to pose a rate below five distinct pairings, and a reader reads 1/1 as 100% either way')
+    mark('the refusal-fires cell refuses a rate below the same threshold')
   } catch (e) { fail(String(e.message)) }
   rmSync(dir, { recursive: true, force: true })
 }

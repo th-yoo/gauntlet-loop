@@ -514,11 +514,25 @@ if (pairings.length) {
       console.log(`                       The number #33 calls the one that decides whether an automatic refusal is`)
       console.log(`                       safe to keep, over ${distinctPairings} distinct pairing(s).`)
     }
+    // THE SAME THRESHOLD, and it was missing here first time out. This cell printed a
+    // bare `1/1`, which a reader takes for 100% — the bare point estimate this report
+    // refuses everywhere else, one branch over from the guard that refuses it. The
+    // threshold had been written where the number was being watched.
+    //
+    // A MISSED REFUSAL prints at any n regardless: a run that would have proceeded on a
+    // pairing the corpus says is not comparable is an event, not a rate.
     if (trueCell.length) {
       const fired = trueCell.filter(s => s.observed === s.expected).length
       const missed = trueCell.filter(s => s.observed === 'comparable').length
-      console.log(`   ── the refusal-fires cell ── ${trueCell.length} draw(s) whose true verdict is a refusal`)
-      console.log(`     fired correctly   ${fired}/${trueCell.length}${missed ? `, ${missed} MISSED — the run would have proceeded on a pairing the corpus says is not comparable` : ''}`)
+      const distinctTrue = new Set(trueCell.map(s => s.pairing)).size
+      console.log(`   ── the refusal-fires cell ── ${distinctTrue} distinct pairing(s), ${trueCell.length} draw(s) whose true verdict is a refusal`)
+      if (distinctTrue < 5) {
+        console.log(`     fired correctly   ${fired} of ${trueCell.length} draw(s) — NO RATE: ${distinctTrue} distinct pairing(s) supports no rate.`)
+      } else {
+        const ci = wilson(trueCell.length - fired, trueCell.length)
+        console.log(`     fired correctly   ${fired}/${trueCell.length}, 95% CI on the miss rate [${pct(ci[0])}, ${pct(ci[1])}]`)
+      }
+      if (missed) console.log(`     MISSED            ${missed} draw(s) — the run would have proceeded on a pairing the corpus says is not comparable`)
     }
 
     // WHAT THESE DRAWS DO NOT ESTABLISH, on the branch that carries the number.
