@@ -48,6 +48,19 @@ function done(code) {
   process.exit(code)
 }
 process.on('exit', () => { if (!restored) writeFileSync(file, original) })
+// AND ON A SIGNAL, because 'exit' does not fire for one. A coverage sweep that runs
+// past a harness timeout is SIGTERMed mid-mutation, and the mutation stays in the
+// working tree looking like source — observed on 2026-08-25, an "&&" left as "||" in
+// loop.js, caught only because the suite went red and `git diff` was read. SIGKILL
+// still cannot be caught; nothing in a process can cover that, which is why the
+// timeout in the check command matters more than this handler.
+for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
+  process.on(sig, () => {
+    if (!restored) { writeFileSync(file, original); restored = true }
+    console.error(`mutate: ${sig} received — the mutation was restored before exiting. The check result is void.`)
+    process.exit(2)
+  })
+}
 const mutated = original.replace(find, replace)
 
 if (mutated === original) {

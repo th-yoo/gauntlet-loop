@@ -126,7 +126,11 @@ if (arm === 'does-the-work' && MODEL_SHAPED.test(acceptance)) {
 // to remove that guard and see what happens. It once did, and the canary it reached was
 // a live agent that re-entered this repo. Note what the timeout does NOT do: killing the
 // shell does not kill what the shell spawned, so this bounds the wait, not the blast.
-const ACCEPTANCE_TIMEOUT_MS = 120_000
+// Overridable ONLY so a test can reach this branch. Hardcoded at 120s, a test that
+// exercised the timeout would have to wait 120s, so it never would — and this is the
+// load-bearing safety property added after the fork bomb, which makes an unverified
+// timeout the worst thing in this file to leave unverified. The default is unchanged.
+const ACCEPTANCE_TIMEOUT_MS = Number(process.env.ORACLE_ACCEPTANCE_TIMEOUT_MS || 120_000)
 const res = arm === 'generator' ? { status: 0, stdout: '' } : spawnSync(acceptance, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: ACCEPTANCE_TIMEOUT_MS, killSignal: 'SIGKILL' })
 if (res.error?.code === 'ETIMEDOUT' || res.signal === 'SIGKILL') {
   console.error(`add: the acceptance command did not finish within ${ACCEPTANCE_TIMEOUT_MS / 1000}s and was killed.`)

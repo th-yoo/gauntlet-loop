@@ -159,6 +159,10 @@ const PROPERTIES = [
   ['a stated rate carries its interval, not a point estimate', OP, 'console.log(`     per-side error    ${wrong.length}/${n}, 95% CI [${pct(ci[0])}, ${pct(ci[1])}]  <- PRIMARY`)', 'console.log(`     per-side error    ${pct(wrong.length/n)}  <- PRIMARY`)'],
   ['the derived refusal figure states its assumption', OP, 'ASSUMING the two sides fail independently', 'assuming nothing in particular'],
 
+  ['a hanging acceptance command is killed', OA, "if (res.error?.code === 'ETIMEDOUT' || res.signal === 'SIGKILL') {", 'if (false) {'],
+  ['a row whose artifact was deleted takes no observation', OR, 'if (!existsSync(abs)) {', 'if (false) {'],
+  ['an all-disputed arm reports the disagreement', OP, '    if (!a.length) {', '    if (false) {'],
+
   // --- the shipped tools refuse a wrong invocation (#98) --------------------
   // NOT listed: needleFrom's `!lines.length` guard. It sweeps NOT CAUGHT and that
   // is correct — removing it yields [].sort()[0] === undefined, which the !needle

@@ -34,7 +34,7 @@ const SANDBOX_ENV = { ...process.env, ORACLE_CORPUS: join(SANDBOX, 'corpus.jsonl
 // starts as a copy of the tracked one — read, never written.
 writeFileSync(join(SANDBOX, 'corpus.jsonl'), readFileSync(join(ROOT, 'oracle', 'corpus.jsonl')))
 
-function run(script, args) {
+function run(script, args, extraEnv) {
   // timeout, because a refusal that fails to fire can HANG rather than exit non-zero,
   // and a wedged suite reports nothing at all, which reads as "not run" not "broken".
   // The timeout is NOT containment: it kills this child, and any grandchild the child
@@ -43,7 +43,7 @@ function run(script, args) {
   // it says what it is, so anything that does execute it can recognise it rather than
   // get to work. It was once a live `claude -p "did this work?"`, and the agents that
   // spawned re-entered this repo and re-ran this suite. See ORACLE-MUTATION-INCIDENT.md.
-  try { return { code: 0, out: execFileSync(process.execPath, [script, ...args], { encoding: 'utf8', cwd: ROOT, env: SANDBOX_ENV, stdio: ['ignore', 'pipe', 'pipe'], timeout: 20_000 }) } }
+  try { return { code: 0, out: execFileSync(process.execPath, [script, ...args], { encoding: 'utf8', cwd: ROOT, env: { ...SANDBOX_ENV, ...(extraEnv || {}) }, stdio: ['ignore', 'pipe', 'pipe'], timeout: 20_000 }) } }
   catch (e) { return { code: e.status, out: String(e.stdout || '') + String(e.stderr || '') } }
 }
 
@@ -188,6 +188,71 @@ function run(script, args) {
   ok(/Not evidence of accuracy/.test(out), 'and it says so in those words rather than leaving the reader to infer it')
   rmSync(dir, { recursive: true, force: true })
   console.log('oracle: a small corpus refuses to state a rate at all, rather than printing one that reads as measured OK')
+}
+
+// THE FORK-BOMB FIX ITSELF, which was the least-verified thing in this directory.
+//
+// oracle-add.mjs executes a caller-supplied string. The MODEL_SHAPED guard in front of
+// it is evadable by construction and a mutation test removes it on purpose; the wall
+// clock is what actually bounds the damage. It was hardcoded at 120s, which meant no
+// test could reach it without waiting two minutes, which meant it never had. A safety
+// property nobody has watched fire is a safety property nobody has.
+{
+  const r = run(ADD, ['--arm', 'does-the-work', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
+                      '--goal', 'g', '--acceptance', 'sleep 60', '--id', 'should-not-exist'],
+                { ORACLE_ACCEPTANCE_TIMEOUT_MS: '1500' })
+  eq(r.code, 1, `a hanging acceptance command is killed and refused rather than waited on — got ${r.code}`)
+  ok(/did not finish within/.test(r.out), 'and the refusal says it was a timeout, not a failure of the command')
+  ok(/may still be running/.test(r.out),
+     'and warns that killing the shell does not kill what the shell spawned — the timeout bounds the wait, not the blast')
+  console.log('oracle: a hanging acceptance command is killed and refused, and the refusal admits what the kill does not cover OK')
+}
+
+// A ROW WHOSE ARTIFACT HAS BEEN DELETED. Its ground truth cannot be re-established, so
+// an observation against it means nothing — distinct from the artifact having CHANGED,
+// which is tested above.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'oracle-gone-'))
+  const gone = join(dir, 'vanished.md')
+  writeFileSync(gone, 'placeholder\n')
+  const corpus = join(dir, 'corpus.jsonl')
+  writeFileSync(corpus, JSON.stringify({
+    id: 'vanished', arm: 'does-the-work', artifact: gone, artifact_hash: 'sha256:whatever',
+    goal: 'g', inspect: null, expected_role: 'does-the-work',
+    evidence: { method: 'mechanical-execution', acceptance_command: 'true', exit_code: 0 },
+  }) + '\n')
+  rmSync(gone)
+
+  const r = run(RECORD, ['--row', 'vanished', '--predicted', 'does-the-work',
+                         '--prompt-hash', 'sha256:x', '--schema-fingerprint', 'sha256:y'],
+                { ORACLE_CORPUS: corpus, ORACLE_RESULTS: join(dir, 'results.jsonl') })
+  eq(r.code, 1, 'an observation against a row whose artifact is gone is refused')
+  ok(/no longer exists/.test(r.out), 'and says the ground truth cannot be re-established')
+  rmSync(dir, { recursive: true, force: true })
+  console.log('oracle: a row whose artifact was deleted cannot take an observation OK')
+}
+
+// AN ARM WHERE EVERY OBSERVATION IS DISPUTED. There is no rate to report and no clean
+// observation to fall back on, and the report has to say that rather than print an
+// empty arm or silently omit it.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'oracle-alldisp-'))
+  const results = join(dir, 'results.jsonl')
+  writeFileSync(results, [0, 1].map(i => JSON.stringify({
+    row: 'd' + i, arm: 'generator', artifact: '/x/d' + i, expected_role: 'produces-an-instruction',
+    predicted_role: 'does-the-work', correct: false, disputed: true,
+    prompt_hash: 'sha256:D' + i, template_hash: 'sha256:TPL', schema_fingerprint: 'sha256:fp', observer: 't',
+  })).join('\n') + '\n')
+
+  const env = { ...process.env, ORACLE_CORPUS: join(dir, 'corpus.jsonl'), ORACLE_RESULTS: results }
+  let out = ''
+  try { out = execFileSync(process.execPath, [join(ROOT, 'scripts', 'oracle-report.mjs')], { encoding: 'utf8', cwd: ROOT, env }) }
+  catch (e) { out = String(e.stdout || '') + String(e.stderr || '') }
+  ok(/ALL DISPUTED/.test(out), `an arm with nothing but disputed rows says so — got:\n${out}`)
+  ok(/that is the finding/.test(out), 'and frames the disagreement as the result rather than as missing data')
+  ok(!/misclassified/.test(out), 'and reports no accuracy figure at all, since every ground truth in it is contested')
+  rmSync(dir, { recursive: true, force: true })
+  console.log('oracle: an arm where every observation is disputed reports the disagreement instead of a rate OK')
 }
 
 // THE BRANCH THAT HAS NEVER RUN. Everything above exercises the small-n path, because
