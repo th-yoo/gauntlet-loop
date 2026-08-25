@@ -752,7 +752,7 @@ const LOOP_DISCLOSURES = [
   // pinned: the reference-side finding, and the candidate-side hole nothing checks.
   // Both goal probes read TEXT. Neither can see when the goal was written or by
   // whom, which is the failure that actually decided the first live run.
-  'nothing here can see when it was written',
+  'can see when the goal was written or by whom',
   'not independent judgments',
   // The judge and the judged are the same model. This is the deepest limitation
   // the method has — a critic cannot be counted on to catch the mistakes it would

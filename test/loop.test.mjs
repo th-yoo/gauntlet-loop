@@ -1259,12 +1259,12 @@ console.log('loop: required args throw, and the reference error explains why a b
   try {
     await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: [WORKER, WRITER],
       fairness: { verdict: 'does-not-attempt', what_it_is_for: 'kicking off a different kind of run entirely', parts_not_attempted: null },
-      fitted: { verdict: 'fitted', reasoning: 'every clause maps onto the candidate' },
+      fitted: { verdict: 'coupled', reasoning: 'every clause of the goal and a heading of the candidate share the same words' },
       selfid: { verdict: 'self-identifying', self_identifying: [CANDIDATE], reasoning: 'it cites this tree' } })
   } catch (e) { threw = e.message }
   ok(/does-not-attempt/.test(threw) && /kicking off a different kind of run entirely/.test(threw),
      `the fairness finding survives the refusal — actionable either way. Got: ${String(threw).slice(-360)}`)
-  ok(/goal_fitted: fitted/.test(threw), 'so does the fitted finding, which says the goal describes the candidate')
+  ok(/goal_coupling: coupled/.test(threw), 'so does the coupling finding, which says the goal and the candidate share distinctive wording')
   ok(/content blindness: self-identifying/.test(threw) && threw.includes(CANDIDATE), 'and the leak finding, naming the artifact')
 
   threw = null
@@ -1756,19 +1756,19 @@ console.log('loop: required args throw, and the reference error explains why a b
   console.log('loop: a builder that returns nothing stops the run OK')
 }
 
-// The `mixed` fitted verdict. Same shape as the `partly` fairness note: the probe
-// has three answers and only the extreme one was pinned, so the middle one — the
-// case where PART of the goal reads as a description of the candidate — could stop
-// being surfaced with nothing failing.
+// The `partial` coupling verdict. Same shape as the `partly` fairness note: the probe
+// has three answers and only the extreme one was pinned, so the middle one — the case
+// where SOME clauses of the goal share the candidate's distinctive wording and some do
+// not — could stop being surfaced with nothing failing.
 {
   const r = await runLoop({
     args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
     rounds: [{ candidateWins: true }],
-    fitted: { verdict: 'mixed', reasoning: 'the second clause names a section the candidate already has' },
+    fitted: { verdict: 'partial', reasoning: 'the second clause and a heading of the candidate share the same words; the others share nothing' },
   })
-  ok(r.logs.some(l => /the second clause names a section the candidate already has/.test(l)),
-     'a `mixed` fitted verdict still reaches the operator with its reasoning')
-  console.log('loop: a partly-fitted goal is reported, not just a wholly fitted one OK')
+  ok(r.logs.some(l => /the second clause and a heading of the candidate share the same words/.test(l)),
+     'a `partial` coupling verdict still reaches the operator with its reasoning')
+  console.log('loop: a partly-coupled goal is reported, not just a wholly coupled one OK')
 }
 
 // Skipped pieces must never leave the run reporting success. What ENFORCES that
@@ -2376,7 +2376,7 @@ console.log('loop: args.critics is validated OK')
     rounds: [{ candidateWins: true, gap: 'unused', margin: 'clear' }],
   })
   ok(!fair.result.not_enforced.some(b => /DOES NOT ATTEMPT/.test(b)), 'a fair goal draws no such disclosure')
-  ok(fair.result.not_enforced.some(b => /nothing here can see when it was written/.test(b)), 'but the residual both probes share remains: they read the text, not the provenance')
+  ok(fair.result.not_enforced.some(b => /can see when the goal was written or by whom/.test(b)), 'but the residual both probes share remains: they read the text, not the provenance')
 
   const none = await runLoop({
     args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
@@ -2393,12 +2393,23 @@ console.log('loop: args.critics is validated OK')
 {
   const r = await runLoop({
     args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
-    fitted: { verdict: 'fitted', reasoning: 'every clause maps onto a section heading of the artifact' },
+    fitted: { verdict: 'coupled', reasoning: 'every clause of the goal and a heading of the artifact share the same words' },
     rounds: [{ candidateWins: true, gap: 'unused', margin: 'decisive' }],
   })
-  eq(r.result.goal_fitted.verdict, 'fitted', 'the verdict carries the fitting finding')
-  ok(r.logs.some(l => /reads as a DESCRIPTION of the candidate/.test(l)), 'warned while the run is still cheap to stop')
-  ok(r.result.not_enforced.some(b => /FITTED TO THE CANDIDATE/.test(b)), 'and disclosed as voiding the comparison')
+  eq(r.result.goal_coupling.verdict, 'coupled', 'the verdict carries the coupling finding')
+  ok(r.logs.some(l => /not textually independent/.test(l)), 'warned while the run is still cheap to stop')
+  ok(r.result.not_enforced.some(b => /NOT TEXTUALLY INDEPENDENT/.test(b)), 'and disclosed as voiding the comparison on the overlapping clauses')
+  // AND IT NAMES NO AUTHOR. The old disclosure said the goal was fitted TO the candidate,
+  // which is a claim about who wrote which first. scripts/fitted-trial.mjs measured that
+  // claim against ground truth built by construction: the verdict tracked lexical overlap
+  // 8 draws out of 8 and authorship 4 out of 8, chance. The disclosure must state the
+  // overlap and hand the direction to the one party who knows it.
+  const coupledBullet = r.result.not_enforced.find(b => /NOT TEXTUALLY INDEPENDENT/.test(b))
+  ok(!/\bfitted to\b/i.test(coupledBullet), 'the disclosure does not say the goal was fitted to the candidate')
+  ok(/If you wrote this goal with the candidate in front of you/.test(coupledBullet),
+     'it routes the direction question to the operator, who is the only party that can answer it')
+  ok(/can see when the goal was written or by whom/.test(coupledBullet),
+     'and it carries the unknowability caveat on the branch that used to drop it — that sentence was the ELSE branch, printed only when nothing was being asserted')
   eq(r.result.outcome.status, 'WON', 'but not halted — the operator may know better')
 
   const probe = r.prompts.find(p => p.label === 'goal-fitted')
@@ -2410,19 +2421,19 @@ console.log('loop: args.critics is validated OK')
 
   const clean = await runLoop({
     args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
-    fitted: { verdict: 'need', reasoning: 'states an outcome, names no structure of the artifact' },
+    fitted: { verdict: 'independent', reasoning: 'the goal and the artifact share no distinctive wording' },
     fairness: { verdict: 'attempts', what_it_is_for: 'the same job' },
     rounds: [{ candidateWins: true, gap: 'unused', margin: 'clear' }],
   })
-  ok(!clean.result.not_enforced.some(b => /FITTED TO THE CANDIDATE/.test(b)), 'a need-shaped goal draws no fitting disclosure')
+  ok(!clean.result.not_enforced.some(b => /NOT TEXTUALLY INDEPENDENT/.test(b)), 'an independent goal draws no coupling disclosure')
   ok(!clean.result.not_enforced.some(b => /DOES NOT ATTEMPT/.test(b)), 'and a reference that attempts it draws no fairness disclosure')
-  ok(clean.result.not_enforced.some(b => /nothing here can see when it was written/.test(b)), 'but the residual both probes share remains: they read text, not provenance')
+  ok(clean.result.not_enforced.some(b => /can see when the goal was written or by whom/.test(b)), 'but the residual both probes share remains: they read text, not provenance')
 
   const none = await runLoop({
     args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
     rounds: [{ candidateWins: true, gap: 'unused', margin: 'clear' }],
   })
-  eq(none.result.goal_fitted.verdict, 'unchecked', 'a probe returning nothing reports unchecked, never clean')
+  eq(none.result.goal_coupling.verdict, 'unchecked', 'a probe returning nothing reports unchecked, never clean')
   console.log('loop: the goal is checked from both sides, by two probers with opposite blindnesses OK')
 }
 

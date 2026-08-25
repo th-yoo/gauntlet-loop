@@ -546,8 +546,15 @@ const FITTED_SCHEMA = {
   type: 'object',
   required: ['verdict', 'reasoning'],
   properties: {
-    verdict: { type: 'string', enum: ['need', 'mixed', 'fitted'], description: 'does the goal read as a need stated independently of this artifact, or as a description of what this artifact already does' },
-    reasoning: { type: 'string', description: 'which clauses of the goal map onto which structures of the artifact, quoted' },
+    // COUPLING, NOT AUTHORSHIP. The old enum was need|mixed|fitted, and every value in it
+    // asserted who wrote which from which. A 2x2 trial (scripts/fitted-trial.mjs, eight
+    // draws, no flips) measured what the probe actually answers: lexical overlap between
+    // goal and artifact predicted its verdict 8/8, and the authorship it reported was
+    // right 4/8 — chance. It said `fitted` on a goal written before its artifact existed,
+    // and `need` on a goal written by reading one. There was no value it could return for
+    // the true state of either.
+    verdict: { type: 'string', enum: ['independent', 'partial', 'coupled'], description: 'how much of the goal is traceable to this artifact\'s visible features and vocabulary: independent = the goal stands on its own, coupled = it reads as an inventory of this artifact, partial = some clauses do and some do not. This is about the TEXTS, not about who wrote them first' },
+    reasoning: { type: 'string', description: 'which clauses of the goal and which parts of the artifact share text, quoted, and where each sits. Symmetric wording only: say both texts use a phrase, never that one lifted, borrowed, reproduced, restated, echoed or derived it from the other — that says which came first, which these two texts cannot show' },
   },
 }
 
@@ -579,30 +586,68 @@ let selfid = null
 // both is the last party who will notice.
 async function checkGoalFitted() {
   const f = await spawn(
-    `You are asked the FITTED question. Here is one artifact and one goal.
+    `You are asked the COUPLING question. Here is one artifact and one goal.
 
-Does this goal read as a NEED — something a person would state before seeing any artifact, in
-terms of what they want to be true — or as a DESCRIPTION of this artifact's visible features,
-restated as a requirement?
+How much of this goal is traceable to the artifact's own visible features and vocabulary?
+
+  independent  the goal stands on its own, and shares no wording distinctive to this artifact.
+  coupled      the goal's clauses map onto the artifact's parts and share wording distinctive
+               to it — most of the goal, not one clause of it.
+  partial      some clauses share distinctive wording and some do not.
+
+WHAT COUNTS AS DISTINCTIVE, because most of the disagreement lives here. Distinctive means
+this artifact could have said it another way and did not: a coined phrase, an unusual verb, a
+specific number, a named tool, a heading someone chose. It does NOT include the subject
+itself, or the words any document on this subject would use, or the section names the genre
+always uses — a document about session state saying "session state", or a decision record
+with a "Drivers" or "Context" or "Decision" heading, is the genre talking and not this
+artifact. Sharing only those is "independent".
 
 THE GOAL:
 ${GOAL}
 
 THE ARTIFACT: ${CANDIDATE}
 
-You are not told what this will be compared against and must not go looking. You are NOT
-judging whether the artifact meets the goal — an artifact can be terrible at a goal written
-to describe it. You are judging where the goal came from, as far as the text can show.`,
+Open the artifact and read it before answering. Read ONLY that file — not its neighbours, not
+its history, not anything it links to. What sits beside it on disk is not part of this
+question, and a probe that reads the directory is answering from the setup rather than from
+the artifact.
+
+You are not told what this will be compared against, and must not go looking for it.
+
+You are NOT judging whether the artifact meets the goal — an artifact can be terrible at a
+goal that describes it exactly.
+
+You are NOT judging WHO WROTE WHICH FIRST, and must not say. Coupling has more than one
+cause: a goal written by reading the artifact produces it, an artifact written to satisfy the
+goal produces it, and so do a shared author and a shared house vocabulary. Two texts cannot
+tell those apart. Report the overlap you can see and stop there.
+
+THAT APPLIES TO YOUR WORDING TOO, and it is the part that is easy to miss. Write the overlap
+SYMMETRICALLY — "both use the phrase X", "the goal's third clause and the heading on line 18
+are the same words". Do not use lift, borrow, copy, take, derive, reproduce, restate,
+paraphrase or reverse-engineer about these two texts IN ANY FORM — not reproduces, not
+reproducing, and not negated either, because "the goal does not reproduce X" still casts the
+goal as the party that might have copied. Do not contrast what you see against what an
+AUTHOR would have written or could have stated before seeing the file. Every one of those
+says which text came first, which is the thing you cannot see.
+
+Saying the artifact's wording is unusual is fine and is the test above — "an ADR would more
+often say Decision" is about the artifact's vocabulary, not about anybody's authorship. Name
+the shared text and where it sits in each.`,
     { label: 'goal-fitted', phase: 'Loop', schema: FITTED_SCHEMA, agentType: 'gauntlet-loop:gauntlet-goal-check' }
   )
   if (!f) return null
-  if (f.verdict === 'fitted') {
-    log('WARNING: this goal reads as a DESCRIPTION of the candidate rather than a need stated ' +
-        `independently of it. ${f.reasoning} A goal fitted to the artifact cannot discriminate: the ` +
-        'candidate clears it by construction and the reference is marked down for being different ' +
-        'rather than worse. No verdict from this run is evidence that the candidate is better.')
-  } else if (f.verdict === 'mixed') {
-    log(`NOTE: parts of this goal read as a description of the candidate. ${f.reasoning}`)
+  if (f.verdict === 'coupled') {
+    log('WARNING: this goal and this candidate are not textually independent. ' +
+        `${f.reasoning} The candidate answers a goal like that by construction, so verdicts on the ` +
+        'coupled clauses measure the overlap and not the work. WHY they are coupled is not visible ' +
+        'from here — a goal written after reading the candidate does this, and so does a candidate ' +
+        'built to the goal, which is what a build round is for. You are the only party who knows ' +
+        'which: if you wrote this goal with the candidate in front of you, nothing in this run is ' +
+        'evidence that the candidate is better.')
+  } else if (f.verdict === 'partial') {
+    log(`NOTE: some clauses of this goal are traceable to the candidate's own wording. ${f.reasoning} Verdicts on those clauses measure the overlap, not the work.`)
   }
   return f
 }
@@ -1075,8 +1120,8 @@ function probeFindings() {
     ? `goal_fairness: ${fairness.verdict}${fairness.verdict === 'attempts' ? '' : ` — the reference is for: ${clip(fairness.what_it_is_for)}`}`
     : 'goal_fairness: NOT MEASURED — the probe returned nothing, so whether the reference even attempts this goal is unknown')
   lines.push(fitted
-    ? `goal_fitted: ${fitted.verdict}${fitted.verdict === 'need' ? '' : ` — ${clip(fitted.reasoning)}`}`
-    : 'goal_fitted: NOT MEASURED — the probe returned nothing, so whether the goal describes the candidate is unknown')
+    ? `goal_coupling: ${fitted.verdict}${fitted.verdict === 'independent' ? '' : ` — ${clip(fitted.reasoning)}`}`
+    : 'goal_coupling: NOT MEASURED — the probe returned nothing, so whether the goal restates the candidate is unknown')
   lines.push(selfid
     ? `content blindness: ${selfid.verdict}${selfid.verdict === 'clean' ? '' : ` — ${(selfid.self_identifying || []).join(', ')} identifies its own origin`}`
     : 'content blindness: NOT MEASURED — the probe returned nothing, so a leak cannot be ruled out')
@@ -1810,7 +1855,7 @@ return {
     return `GREW EVERY ROUND — ${what}. Each gap may have been real and each fix may have addressed it; an artifact that only ever gets bigger is usually losing anyway. Check whether the builder is answering absences by appending.`
   })(),
 
-  goal_fitted: fitted
+  goal_coupling: fitted
     ? { verdict: fitted.verdict, reasoning: fitted.reasoning }
     : { verdict: 'unchecked', reasoning: null },
 
@@ -1903,11 +1948,19 @@ return {
     fairness && fairness.verdict === 'does-not-attempt'
       ? `THE REFERENCE DOES NOT ATTEMPT THIS GOAL — it is for: ${fairness.what_it_is_for}. Every verdict in this run is about the choice of goal, not about the work: the reference was marked down on a dimension it never entered. Nothing here is evidence that the candidate is better than the reference at what the reference is for.`
       : null,
-    fitted && fitted.verdict === 'fitted'
-      ? `THE GOAL IS FITTED TO THE CANDIDATE — it reads as a description of the artifact rather than a need stated independently of it. ${fitted.reasoning} The candidate clears such a goal by construction; the reference is marked down for being different rather than worse. No verdict here is evidence that the candidate is better.`
-      : fitted && fitted.verdict === 'mixed'
-        ? `PARTS OF THE GOAL ARE FITTED TO THE CANDIDATE. ${fitted.reasoning} Verdicts on those clauses measure the goal's provenance, not the work.`
-        : 'The goal is operator-supplied. Both probes read the text only: a goal written after looking at the candidate can still be phrased as a need, and nothing here can see when it was written or by whom.',
+    // WHY THIS SAYS COUPLED AND NOT FITTED. It used to assert that the operator wrote the
+    // goal from the candidate. scripts/fitted-trial.mjs measured that claim against ground
+    // truth established by construction: eight draws, no flips, lexical overlap predicting
+    // the verdict 8/8 and authorship 4/8. It called a goal written BEFORE its artifact
+    // `fitted`, and cleared as a `need` a goal written by reading one. The overlap it sees
+    // is real; the direction it inferred from it was chance. The last clause of each branch
+    // is the same sentence the else-branch used to carry alone — the loop knew direction was
+    // unknowable and stopped saying so exactly when it started asserting it.
+    fitted && fitted.verdict === 'coupled'
+      ? `THE GOAL AND THE CANDIDATE ARE NOT TEXTUALLY INDEPENDENT. ${fitted.reasoning} The candidate answers a goal like that by construction, so no verdict here is evidence that the candidate is better ON THE CLAUSES THAT OVERLAP. Nothing here can see when the goal was written or by whom, and coupling has several causes — a goal written from the candidate, a candidate built to the goal, one author for both. If you wrote this goal with the candidate in front of you, no verdict in this run is evidence about the work.`
+      : fitted && fitted.verdict === 'partial'
+        ? `PART OF THE GOAL IS TRACEABLE TO THE CANDIDATE'S OWN WORDING. ${fitted.reasoning} Verdicts on those clauses measure the overlap, not the work. Nothing here can see when the goal was written or by whom.`
+        : 'The goal is operator-supplied, and reads as independent of the candidate. That is a fact about the two texts: nothing here can see when the goal was written or by whom, and a goal written after looking at the candidate can be phrased so that it does not overlap with it.',
     'k>1 is an ADDITION, not source fidelity. Both primary texts say one critic per piece, singular; the source gets width by decomposing the goal, which this loop does not do. What k restores is the source\'s property — every judge satisfied — by a mechanism the source does not describe.',
     'Critic and builder share a model family, so the critic may be blind to exactly the mistakes the builder is prone to making.',
     'THE BLINDNESS PROBE MODELS THE FILESYSTEM ONLY, and the critic and builder both hold WebSearch and WebFetch. ' +
