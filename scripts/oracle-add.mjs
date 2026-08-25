@@ -27,7 +27,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, appendFileSync, mkdirSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, resolve, relative, isAbsolute } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // ORACLE_CORPUS lets a test point this at a throwaway file. It exists because a
@@ -47,7 +47,7 @@ const arg = n => {
 }
 
 const arm = arg('--arm')
-const artifact = arg('--artifact')
+let artifact = arg('--artifact')
 const goal = arg('--goal')
 const acceptance = arg('--acceptance')
 const note = arg('--note')
@@ -110,7 +110,45 @@ if (arm === 'generator') {
   }
 }
 
-const abs = existsSync(resolve(ROOT, artifact)) ? resolve(ROOT, artifact) : artifact
+// THE PATH IS STORED REPO-RELATIVE, AND THE ROW IS REFUSED IF IT CANNOT BE.
+//
+// This used to store whatever shape the operator typed. Every one of the first 14
+// rows was added with an absolute path, so the corpus could only be read on the
+// machine that wrote it, and `oracle-record` refused all 14 anywhere else. The
+// readers all carry `existsSync(resolve(ROOT, x)) ? resolve(ROOT, x) : x`, which
+// looks like it handles this and does not: resolve(base, ABSOLUTE) returns the
+// absolute path and ignores the base, so for the shape being stored the fallback
+// could never fire. Normalising here is what makes that idiom true.
+//
+// Refusing an outside-the-repo path rather than storing `../../..` is deliberate.
+// The corpus is committed; a row is ground truth only if every checkout can
+// re-establish it, and a path that climbs out of the tree cannot promise that.
+// The constraint belongs to the COMMITTED corpus, not to every corpus. A trial that
+// builds a fixture in a temp sandbox and adds a row pointing at it is doing the right
+// thing — that row is thrown away with the sandbox and no checkout ever re-reads it.
+// staleness-trial.mjs does exactly this for all four of its cases, and refusing it
+// outright broke a suite gate. So the refusal fires only when the row is going into
+// the tracked file.
+const abs = resolve(ROOT, artifact)
+const rel = relative(ROOT, abs)
+const insideRepo = !rel.startsWith('..') && !isAbsolute(rel)
+const trackedCorpus = !process.env.ORACLE_CORPUS
+
+if (insideRepo) {
+  // From here on `artifact` IS the relative form: what gets written to the row, what
+  // the refusal messages name, and what every reader resolves against ROOT.
+  artifact = rel
+} else if (trackedCorpus) {
+  console.error(`add: ${artifact} is outside the repository.`)
+  console.error('A row in the tracked corpus is ground truth only if any checkout can re-establish it, and a path')
+  console.error('that leaves the tree cannot be re-established anywhere else. Copy the artifact under')
+  console.error('oracle/fixtures/ and point the row at that.')
+  console.error('')
+  console.error('A throwaway corpus (ORACLE_CORPUS set) may point outside the tree: it is not committed and')
+  console.error('nothing re-reads it.')
+  process.exit(2)
+}
+// else: sandbox corpus, outside path — stored absolute, as given. It dies with the sandbox.
 if (arm === 'could-not-open' && existsSync(abs)) {
   console.error(`add: ${artifact} EXISTS, and this arm's ground truth is that it does not.`)
   console.error('A could-not-open row records an absence. If the file is there, the probe can open it, and')

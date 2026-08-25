@@ -238,7 +238,7 @@ function run(script, args, extraEnv) {
   const r = run(RECORD, ['--row', 'vanished', '--predicted', 'does-the-work',
                          '--prompt-hash', 'sha256:x', '--schema-fingerprint', 'sha256:y'],
                 { ORACLE_CORPUS: corpus, ORACLE_RESULTS: join(dir, 'results.jsonl') })
-  eq(r.code, 1, 'an observation against a row whose artifact is gone is refused')
+  eq(r.code, 3, `an observation against a row whose artifact is gone is refused as UNGROUNDABLE — got ${r.code}`)
   ok(/no longer exists/.test(r.out), 'and says the ground truth cannot be re-established')
   rmSync(dir, { recursive: true, force: true })
   console.log('oracle: a row whose artifact was deleted cannot take an observation OK')
@@ -369,7 +369,12 @@ function run(script, args, extraEnv) {
 {
   const r = run(RECORD, ['--row', 'make-hello', '--predicted', 'does-the-work',
                          '--prompt-hash', 'sha256:0000', '--schema-fingerprint', 'sha256:0000'])
-  eq(r.code, 1, `an observation made against a different prompt is refused — got ${r.code}`)
+  // Code 4 and not 1: this is the assertion that was passing against the WRONG
+  // refusal. Every corpus row stored an absolute path, so on any machine but the
+  // authoring one this row was refused as ungroundable long before the instrument
+  // check ran — and that refusal also exited 1, so `eq(r.code, 1)` held while
+  // measuring nothing. The distinct code is what makes this check able to fail.
+  eq(r.code, 4, `an observation made against a different prompt is refused as STALE-INSTRUMENT — got ${r.code}`)
   ok(/DIFFERENT instrument/.test(r.out), 'and names the mismatch')
   ok(/five of seven/.test(r.out), 'citing the event that made this check necessary')
   console.log('oracle: an observation from a stale instrument is refused OK')
@@ -393,7 +398,7 @@ function run(script, args, extraEnv) {
     writeFileSync(M, original + '\n# changed for one assertion\n')
     const r = run(RECORD, ['--row', 'make-hello', '--predicted', 'does-the-work',
                            '--prompt-hash', 'sha256:0000', '--schema-fingerprint', 'sha256:0000'])
-    eq(r.code, 1, 'an observation against a changed artifact is refused')
+    eq(r.code, 3, `an observation against a changed artifact is refused as UNGROUNDABLE — got ${r.code}`)
     ok(/has changed since row/.test(r.out), 'and says the ground truth no longer applies')
   } finally {
     // Restored by BYTES, not by re-typing the file. Editing a fixture by hand to put it
@@ -440,7 +445,20 @@ function run(script, args, extraEnv) {
     }
     ok(row.expected_role, `row ${row.id} has an expected role`)
     ok(row.goal, `row ${row.id} carries its goal — role is goal-relative, so a row without one is undefined`)
-    ok(row.artifact.startsWith('/'), `row ${row.id} uses an absolute path, the shape loop.js receives and the prompt hashes`)
+    // INVERTED, and the inversion is the point. This asserted an ABSOLUTE path,
+    // on the reasoning that it is "the shape loop.js receives and the prompt
+    // hashes". The shape loop.js receives is right; the shape the corpus STORES
+    // is not the same question. Storing absolute made all 14 rows readable on
+    // exactly one machine — oracle-record refused every one of them anywhere
+    // else, and because that refusal shared an exit code with the stale-instrument
+    // refusal, the guard aimed at the latter passed while receiving the former.
+    //
+    // oracle-extract now resolves the stored path against ROOT before it reaches
+    // the prompt, so the loop still sees an absolute path and the hash is
+    // unchanged on the machine that recorded the observations. The row stays
+    // portable; the prompt keeps its shape.
+    ok(!row.artifact.startsWith('/'), `row ${row.id} stores a repo-relative path — an absolute one pins the corpus to one machine, and oracle-extract resolves it against ROOT before the prompt is built`)
+    ok(existsSync(join(ROOT, row.artifact)) || row.arm === 'could-not-open', `row ${row.id} resolves from the repo root`)
   }
   console.log(`oracle: all ${rows.length} corpus row(s) carry goal, expected role and grounding evidence OK`)
 }

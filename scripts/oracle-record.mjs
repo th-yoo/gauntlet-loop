@@ -24,6 +24,29 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 
+// WHAT EACH EXIT CODE MEANS. A caller has to be able to tell WHICH refusal fired,
+// and a code earns its own value by naming a different thing to DO — not by marking
+// a different internal branch.
+//
+// This exists because two refusals shared code 1 and a guard could not tell them
+// apart. test/oracle.test.mjs asserted the stale-instrument refusal with
+// `eq(r.code, 1)` and was handed the missing-artifact refusal, which also exited 1;
+// the assertion passed against an unrelated failure and only a message check one
+// line later caught it. CLAUDE.md already states the rule — "a check whose PASS
+// condition is satisfied by the thing being broken measures nothing" — so the codes
+// now carry it.
+//
+//   2  bad input. Fix the command line.
+//   3  the ROW no longer describes reality: its artifact is gone, its artifact
+//      changed, or an absence row's file appeared. Re-ground or re-add the row.
+//      Missing and changed share this code deliberately: one remedy, one code.
+//   4  the OBSERVATION was made against a different instrument than the one on
+//      disk. Re-run the observation; the row is fine.
+//   1  the observation is internally inconsistent, or the live prompt could not be
+//      extracted at all.
+const EXIT_ROW_UNGROUNDED = 3
+const EXIT_STALE_INSTRUMENT = 4
+
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // Same reason as oracle-add.mjs: a suite run under a removed guard must not be able
 // to write into the tracked ledgers.
@@ -126,12 +149,12 @@ if (isAbsence) {
   if (existsSync(abs)) {
     console.error(`record: row "${rowId}" is a could-not-open row, but ${row.artifact} now EXISTS.`)
     console.error('Its ground truth was that there is nothing there. An observation against it now measures something else.')
-    process.exit(1)
+    process.exit(EXIT_ROW_UNGROUNDED)
   }
 } else {
   if (!existsSync(abs)) {
     console.error(`record: row "${rowId}" points at ${row.artifact}, which no longer exists. Its ground truth cannot be re-established, so an observation against it means nothing.`)
-    process.exit(1)
+    process.exit(EXIT_ROW_UNGROUNDED)
   }
   const nowHash = 'sha256:' + createHash('sha256').update(readFileSync(abs)).digest('hex')
   if (nowHash !== row.artifact_hash) {
@@ -139,7 +162,7 @@ if (isAbsence) {
     console.error(`    grounded against ${row.artifact_hash}`)
     console.error(`    on disk now      ${nowHash}`)
     console.error('The row\'s expected role was established for the old content. Re-add the row (--force) before recording.')
-    process.exit(1)
+    process.exit(EXIT_ROW_UNGROUNDED)
   }
 }
 
@@ -168,7 +191,7 @@ if (live.prompt_hash !== promptHash || live.schema_fingerprint !== schemaFp) {
   console.error('')
   console.error('This is the refusal that exists because the prompt changed once already and silently invalidated')
   console.error('five of seven observations. Re-run the observation against the current prompt; do not record this one.')
-  process.exit(1)
+  process.exit(EXIT_STALE_INSTRUMENT)
 }
 
 const rec = {

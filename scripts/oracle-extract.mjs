@@ -96,8 +96,27 @@ const THROWAWAY_REFERENCE = '/oracle-extract/unused-reference-side'
 // guard fires at round 51 and throws away the capture with it. One round is all this
 // needs: the breaker says PRESENT for round 1 (which is what lets the probes spawn at
 // all) and ABSENT after, so the run stops at the round-2 boundary.
+// THE CANDIDATE PATH IS RESOLVED TO ABSOLUTE BEFORE IT REACHES THE PROMPT.
+//
+// loop.js is handed an absolute path by its operator, so that is the shape the
+// prompt must carry and the shape the hash must pin. The corpus, meanwhile, has
+// to store the path RELATIVE or it cannot be read on any machine but the one that
+// wrote it. Resolving here is what lets both be true at once: the row stays
+// portable, and the prompt is byte-identical to the one a real run produces.
+//
+// resolve() is idempotent on an absolute input, so a caller passing the loop's own
+// absolute path is unaffected.
+//
+// RESIDUAL, and it is not closed by this: the resolved path is machine-specific,
+// so prompt_hash is too. An observation recorded on one machine cannot be
+// validated on another — not because of this change, which reproduces the old
+// hash exactly on the machine that recorded them, but because a filesystem path
+// is in the hashed prompt at all. That is a separate defect and it is disclosed
+// rather than silently absorbed here.
+const candidatePath = resolve(ROOT, artifact)
+
 const r = await runLoop({
-  args: { goal, candidate: artifact, reference: THROWAWAY_REFERENCE, token: '/oracle-extract/unused-token', ...(inspect ? { inspect } : {}) },
+  args: { goal, candidate: candidatePath, reference: THROWAWAY_REFERENCE, token: '/oracle-extract/unused-token', ...(inspect ? { inspect } : {}) },
   breaker: round => round <= 1,
   rounds: [],
 })

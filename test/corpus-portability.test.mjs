@@ -171,24 +171,61 @@ if (!existsSync(resolve(ROOT, realFixture))) {
   }
 }
 
-// ---------------------------------------------------------------------------
-// RC3, second face — the suite aborts on the first failure, so a red run hides
-// how much else is red. This is reported rather than asserted: it is a property
-// of the runner, and turning it into a failure here would be this file grading a
-// file it does not own.
-// ---------------------------------------------------------------------------
-
-console.log('corpus-portability: reporting how much the first failure masks')
+// THE LEDGER'S LEGACY ROWS — REPORTED, NOT REWRITTEN.
+//
+// oracle/results.jsonl carries 40 observations whose `artifact` field is still an
+// absolute path from the authoring machine, and some whose `reasoning` contains one
+// because the model said it. Neither is rewritten here.
+//
+// `reasoning` is the model's verbatim output. It is the evidence, and editing
+// evidence to make a scan quiet is the worst thing in this file's reach.
+//
+// `artifact` could be rewritten, and rewriting it would buy nothing. An observation
+// is tied to its instrument by `prompt_hash`, and that hash contains the resolved
+// absolute path, so these 40 can only be re-validated on the machine that recorded
+// them whatever their pointer field says. A rewrite would make this scan green while
+// changing no fact — which is the shape of fix this repo exists to refuse.
+//
+// What IS enforced below: a newly recorded observation inherits the row's relative
+// path. That is the half that can be fixed, so that is the half that gets a check.
+console.log('corpus-portability: a new observation inherits the row\'s relative path')
 {
-  const oracleSrc = readFileSync(join(ROOT, 'test', 'oracle.test.mjs'), 'utf8')
-  const checkpoints = (oracleSrc.match(/console\.log\('oracle: /g) || []).length
-  const r = run(join(ROOT, 'test', 'oracle.test.mjs'), [])
-  const reached = (r.out.match(/ OK$/gm) || []).length
-  console.log(`          oracle.test.mjs: ${reached}/${checkpoints} checkpoints reached before it threw`)
-  if (r.code !== 0 && reached < checkpoints) {
-    console.log(`          ${checkpoints - reached} checkpoint(s) did not run — a fix verified against this suite is verified against ${reached} of ${checkpoints} checks`)
+  const legacy = readFileSync(join(ROOT, 'oracle', 'results.jsonl'), 'utf8')
+    .split('\n').filter(l => l.trim()).map(l => JSON.parse(l))
+    .filter(o => o.artifact && isAbsolute(o.artifact)).length
+  console.log(`          ${legacy} legacy observation(s) carry an absolute pointer — machine-bound through prompt_hash regardless, so left as recorded`)
+
+  // Both probe rows above are refusals, so the sandbox ledger may not exist at all.
+  // Say that, rather than letting an unwritten file read as a clean result — a check
+  // whose PASS condition is "nothing was written" measures nothing.
+  const ledger = join(SANDBOX, 'results.jsonl')
+  if (!existsSync(ledger)) {
+    console.log('          NOT MEASURED: no observation was recorded in this run (both probe rows are refusals by design),')
+    console.log('          so the write-side shape is asserted by oracle-record copying row.artifact and by RC1 above.')
+  } else {
+    for (const line of readFileSync(ledger, 'utf8').split('\n').filter(l => l.trim())) {
+      const o = JSON.parse(line)
+      if (o.artifact && isAbsolute(o.artifact)) {
+        fail(`a newly recorded observation stored an absolute artifact path (${o.artifact}) — oracle-record copies row.artifact, so a row got in with the wrong shape`)
+      }
+    }
   }
 }
+
+// RC3, SECOND FACE — REMOVED, and why.
+//
+// While the suite was red this file spawned oracle.test.mjs and reported how many
+// of its checkpoints ran before it threw: 13 of 24, then 16 of 24 as fixes landed.
+// That number was the diagnosis — it said how much of the suite a green run was
+// not covering. It is 24 of 24 now, so the measurement has no signal left, and
+// test/run-all.mjs discovers every *.test.mjs, which means keeping it would run
+// the oracle suite twice on every invocation and put a suite inside a suite for
+// no reading.
+//
+// The underlying property is unchanged and is NOT fixed here: oracle.test.mjs
+// throws on its first failed assertion rather than accumulating, so the first red
+// check still hides every later one. Making it accumulate is a real change to a
+// file this one does not own. Recorded rather than absorbed.
 
 rmSync(SANDBOX, { recursive: true, force: true })
 
