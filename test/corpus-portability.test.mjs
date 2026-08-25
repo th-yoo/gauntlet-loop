@@ -212,6 +212,84 @@ console.log('corpus-portability: a new observation inherits the row\'s relative 
   }
 }
 
+// ---------------------------------------------------------------------------
+// RC4 — THE COHORT KEY EMBEDS THE CHECKOUT PATH.
+//
+// Predicted by RC1's own root cause rather than found by an incident: if the defect is
+// "a filesystem path leaked into something that is supposed to be portable", then fixing
+// the STORED path leaves every fact DERIVED from a path unfixed — and one of those decides
+// which cohort an observation is filed under.
+//
+// oracle-extract renders the prompt with the artifact resolved to an absolute path — which
+// is right, because loop.js receives one — and then blanks the artifact out of the text by
+// splitting on the string the CALLER passed. For a repo-relative row that substring sits at
+// the tail of the absolute path, so what is left in the "template" is
+// `/wherever/the/repo/is/{{ARTIFACT}}`. The template hash therefore depends on where the
+// checkout lives and on how the caller spelled the path, and two callers reading the same
+// loop.js disagree: oracle-instrument probes with absolute paths and gets one hash, every
+// corpus row gets another.
+//
+// What that costs: oracle-report labels a cohort by comparing the stored template hash with
+// the live one, so every observation recorded since the corpus went repo-relative is filed
+// as "SUPERSEDED — no run sends this prompt any more" about the prompt that ships. The
+// numbers do not move, which is what makes it quiet.
+//
+// Both checks below fail identically on the authoring machine, per this file's rule.
+console.log('corpus-portability: the cohort key does not depend on where the checkout is')
+{
+  const EXTRACT = join(ROOT, 'scripts', 'oracle-extract.mjs')
+  const probe = rows.find(r => r.arm !== 'could-not-open' && !r.inspect)
+  if (!probe) {
+    console.log('          NOT MEASURED: no corpus row is an ordinary present-artifact row, so there is nothing to spell two ways')
+  } else {
+    const th = extra => {
+      const r = run(EXTRACT, ['--artifact', extra, '--goal', probe.goal, '--json'])
+      if (r.code !== 0) { fail(`extraction failed for ${extra}: ${String(r.out).split('\n')[0]}`); return null }
+      return JSON.parse(r.out).template_hash
+    }
+    const relative = th(probe.artifact)
+    const absolute = th(resolve(ROOT, probe.artifact))
+    if (relative && absolute) {
+      // THE SAME ARTIFACT, THE SAME GOAL, THE SAME loop.js — two spellings of one path.
+      // A template is the part of the prompt that is the same for every row; if it moves
+      // when the caller types the path differently, it is not a template.
+      if (relative !== absolute) {
+        fail(`the template hash depends on how the artifact path is spelled: ${relative.slice(0, 23)}… relative vs ${absolute.slice(0, 23)}… absolute. The path is resolved into the prompt and blanked by the caller's spelling, so the repo's location is left inside the "template".`)
+      } else {
+        console.log(`          both spellings of ${probe.id} give ${relative.slice(0, 23)}…`)
+      }
+    }
+  }
+}
+
+// AND THE TWO READERS OF loop.js MUST AGREE. The check above is about one tool; this is
+// about the pair that actually decides a cohort label — oracle-record files an observation
+// under oracle-extract's template hash, and oracle-report compares it with
+// oracle-instrument's. If those two can disagree, a fresh draw is mislabelled stale no
+// matter how the extraction is spelled, so this asserts the property the report rests on
+// rather than the mechanism underneath it.
+console.log('corpus-portability: a fresh observation lands in the live cohort')
+{
+  const probe = rows.find(r => r.arm !== 'could-not-open' && !r.inspect)
+  if (!probe) {
+    console.log('          NOT MEASURED: no ordinary present-artifact row to extract')
+  } else {
+    const EXTRACT = join(ROOT, 'scripts', 'oracle-extract.mjs')
+    const r = run(EXTRACT, ['--artifact', probe.artifact, '--goal', probe.goal, '--json'])
+    let live = null
+    try { live = (await import(join(ROOT, 'scripts', 'oracle-instrument.mjs'))).liveInstrument() }
+    catch (e) { fail(`the live instrument could not be read at all: ${String(e.message).split('\n')[0]}`) }
+    if (r.code === 0 && live) {
+      const rowHash = JSON.parse(r.out).template_hash
+      if (rowHash !== live.template_hash) {
+        fail(`a row extracted today keys to ${rowHash.slice(0, 23)}… but the live instrument is ${live.template_hash.slice(0, 23)}… — so every observation recorded now is filed under a cohort oracle-report will call SUPERSEDED, about the prompt that ships`)
+      } else {
+        console.log(`          ${probe.id} and oracle-instrument agree on ${rowHash.slice(0, 23)}…`)
+      }
+    }
+  }
+}
+
 // RC3, SECOND FACE — REMOVED, and why.
 //
 // While the suite was red this file spawned oracle.test.mjs and reported how many

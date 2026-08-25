@@ -165,9 +165,23 @@ const sha = s => 'sha256:' + createHash('sha256').update(s).digest('hex')
 // goal, artifact and inspect blanked out — the part that is the same for every row —
 // and is what oracle-report.mjs groups by. A prompt wording change moves the template
 // hash for every row at once, which is the event that must split a cohort.
+//
+// BLANK THE PATH THAT WAS INTERPOLATED, NOT THE ONE THE CALLER TYPED. This used to split
+// on `artifact`, the raw --artifact argument. The prompt carries `candidatePath`, the
+// resolved one, so for a repo-relative row the caller's spelling matched only the TAIL of
+// what is in the text and the blanking left `/wherever/the/repo/is/{{ARTIFACT}}` behind.
+// The template hash then depended on where the checkout lived and on how the path was
+// spelled: oracle-instrument probes with absolute paths and got one hash, every corpus row
+// got another, and oracle-report — which labels a cohort by comparing the two — called
+// every observation recorded since the corpus went repo-relative SUPERSEDED, about the
+// prompt that ships. Nothing moved a number, which is what made it quiet.
+//
+// This is RC1 of #42 one layer down: normalising the STORED path left every fact DERIVED
+// from a path unfixed, and one of them decides which instrument an observation belongs to.
+// test/corpus-portability.test.mjs spells one artifact both ways and requires one hash.
 const template = hit.prompt
   .split(goal).join('{{GOAL}}')
-  .split(artifact).join('{{ARTIFACT}}')
+  .split(candidatePath).join('{{ARTIFACT}}')
   .split(inspect || '\u0000never').join('{{INSPECT}}')
 
 const payload = {
