@@ -67,3 +67,34 @@ and the report says so. Two draws agreeing on `partial-handoff` bounds its insta
 very loosely and says nothing about the eight rows not yet re-drawn under this wording.
 
 The fix is verified against the failure it was written for. It is not yet a measurement.
+
+---
+
+## Re-measured in full under the fixed instrument
+
+The first pass re-drew only the three rows the wording change put at risk. The other
+eight were still stranded in the old cohort, which left the new instrument's generator
+arm at one distinct artifact — a thin number that reads like a measurement.
+
+All eleven rows have now been drawn under the current wording:
+
+```
+── instrument sha256:131b8d46350793c4…
+   does-the-work    6 obs / 6 distinct / 0 wrong    0/6, 95% CI [0%, 39%]
+   generator        7 obs / 5 distinct / 0 wrong    0/7, 95% CI [0%, 35%]
+                    partial-handoff: 3 draws, 0 flips
+```
+
+`partial-handoff` reached the three clean draws #36 asked for and did not flip. The
+other ten rows kept their classifications: the wording change fixed the case it was
+written for without dragging anything across the line, which was the risk that made it
+worth re-drawing all of them rather than only the target.
+
+The old cohort's 15 observations remain in the ledger, reported separately, neither
+deleted nor blended in.
+
+## Still not a measurement
+
+Both intervals reach past 35%. Eleven correct across eleven shapes — including three
+built specifically to be hard — rules out a classifier badly wrong on obvious cases. It
+does not establish accuracy, and stability is measured on exactly one row.
