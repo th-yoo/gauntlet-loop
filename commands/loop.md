@@ -110,16 +110,30 @@ Decide now which you want, and say which:
   start a fourth — so a budgeted run with a wide split stops earlier than "budget
   divided by round cost" predicts. That is the ceiling working, not misfiring.
 
-**One thing it refuses after a single cheap probe, before the lead spawns.** The
-pairing itself. A blind A/B only means something when a preference between the two
-sides is a meaningful statement rather than a category error, and the commonest way
-that fails is a reference that is a *recipe for* the thing rather than the thing — a
-meta-prompt, a template, a spec, a schema. That does not fail loudly: it returns
-`WON` at round 1 with no build round, which reads exactly like success. It cost 419k
-tokens twice before the check existed. When the probe reports `generator` it names
-which side to execute, because executing that side once usually makes the same two
-sources comparable — which is what the source method does when it judges rendered
-frames against real frames rather than a prompt against a design document.
+**One thing it refuses after two cheap probes, before the lead spawns.** The pairing
+itself. A blind A/B only means something when a preference between the two sides is a
+meaningful statement rather than a category error, and the commonest way that fails is
+a reference that is a *recipe for* the thing rather than the thing. That does not fail
+loudly: it returns `WON` at round 1 with no build round, which reads exactly like
+success. It cost 419k tokens twice before the check existed.
+
+**Neither probe is asked whether the pairing is comparable.** Each is handed ONE
+artifact and one factual question — *if an agent were given only this and told to
+pursue the goal, would it do the work, or write an instruction for someone else to do
+it later?* The loop derives the verdict from the two answers: one instruction-writer
+against one worker is the asymmetry that makes a comparison meaningless; two
+instruction-writers are at the same level as each other and judge fine.
+
+That split is deliberate. Asking an agent to spot a category error means telling it
+what one looks like, and the first version of this check did — it named the failure
+and listed the shapes, and every refusal it produced echoed that phrasing back. What
+an artifact *is* belongs to the model; what follows from it belongs here.
+
+When the verdict is `generator` the refusal names which side to execute, because
+executing that side once usually makes the same two sources comparable — which is what
+the source method does when it judges rendered frames against real frames rather than a
+prompt against a design document. When it is `unreadable` it names the path that could
+not be opened, which is usually a typo and otherwise a whole wasted run.
 
 **Four things it refuses before spawning anything at all**, because none of them can
 produce a verdict worth reading:

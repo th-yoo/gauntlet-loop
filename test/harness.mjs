@@ -190,9 +190,18 @@ export async function runLoop(opts) {
     // the refusal dormant, exactly as before. 'throw' models the agent ERRORING;
     // it runs inside parallel(), so the loop must degrade rather than refuse — a
     // probe that died measured nothing and must not be read as a verdict.
-    if (label === 'comparability') {
-      if (opts.comparability === 'throw') throw new Error("agent type 'gauntlet-loop:gauntlet-goal-check' not found")
-      return enforceSchema(label, o, opts.comparability || null)
+    // The pairing check asks about each artifact SEPARATELY — comparability:1 is
+    // the candidate, comparability:2 the reference — and derives the verdict in
+    // loop.js from the two answers. opts.roles is [candidateRole, referenceRole];
+    // a bare object applies to both sides, which is the common case.
+    // 'throw' models the agent ERRORING. It runs inside parallel(), so the loop
+    // must degrade to "not measured" rather than refuse — a probe that died is not
+    // a verdict.
+    if (label === 'comparability:1' || label === 'comparability:2') {
+      if (opts.roles === 'throw') throw new Error("agent type 'gauntlet-loop:gauntlet-goal-check' not found")
+      const which = label.endsWith(':1') ? 0 : 1
+      const spec = Array.isArray(opts.roles) ? opts.roles[which] : (opts.roles || null)
+      return enforceSchema(label, o, spec || null)
     }
     if (label === 'blindness') {
       if (opts.selfid === 'throw') throw new Error("agent type 'gauntlet-loop:gauntlet-blindness' not found")

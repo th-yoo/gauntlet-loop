@@ -1084,109 +1084,94 @@ console.log('loop: required args throw, and the reference error explains why a b
   console.log('loop: an unmeasurable size is absent rather than recorded as zero, and is still reported OK')
 }
 
-// COMPARABILITY. The pairing check, and the three answers it can give.
+// THE PAIRING CHECK. The agent is asked one factual question about ONE artifact —
+// handed only this, would you do the work or write an instruction for someone else
+// — and loop.js derives the verdict from the two answers.
 //
-// Two live runs spent 419k tokens judging this plugin against a META-PROMPT — a
-// document whose output is a prompt for someone else to run. Both returned WON at
-// round 1 with no build round, which is indistinguishable from success. The
-// existing probes could not catch it: goal_fairness never sees the candidate (by
-// design, and pinned), and it answered 'attempts' both times, correctly by its own
-// definition. Attempting is a property of one side; comparability is a property of
-// the pair.
+// The first version asked one agent to judge the pairing and told it what the
+// failure looked like ("a thing versus a recipe for making that thing", then a list
+// of shapes). Every refusal echoed that phrasing back, one citing the prompt as its
+// source. These cases pin the DERIVATION, which is the part that decides.
 {
   const base = { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN }
+  const WORKER = { role: 'does-the-work', what_it_is: 'a runbook', reasoning: 'it names the commands' }
+  const WRITER = { role: 'produces-an-instruction', what_it_is: 'a meta-prompt', reasoning: 'its output is a prompt' }
+  const SHUT = { role: 'could-not-open', what_it_is: 'nothing — no such path', reasoning: 'open failed' }
 
-  // A GENERATOR refuses, and the refusal has to tell the operator the pairing is
-  // repairable — executing that side once makes the same two sources comparable.
+  // ONE instruction-writer against one worker is the asymmetry that makes a
+  // comparison meaningless, and the refusal must name which side to execute.
   let threw = null
-  try {
-    await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [],
-      comparability: { verdict: 'generator', generator_side: REFERENCE, reasoning: 'it emits a prompt rather than attempting the goal' } })
-  } catch (e) { threw = e.message }
-  ok(threw, 'a generator reference stops the run instead of being judged against')
-  ok(/GENERATOR/.test(threw), `the refusal names the class — got: ${String(threw).slice(0, 160)}`)
-  ok(threw.includes(REFERENCE), 'and names WHICH side must be executed, since the operator has to act on it')
+  try { await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: [WORKER, WRITER] }) }
+  catch (e) { threw = e.message }
+  ok(threw, 'a reference that writes an instruction stops the run instead of being judged against')
+  ok(/GENERATOR/.test(threw), `the refusal names the class — got: ${String(threw).slice(0, 140)}`)
+  ok(threw.includes(REFERENCE) && !threw.includes(`${CANDIDATE} is a recipe`),
+     'and blames the side that writes the instruction, not the one that does the work')
   ok(/Execute that side once|execute/i.test(threw),
-     'and says the pairing is repairable rather than only that it is refused — a refusal with no remedy sends an operator away from a run they could have had')
+     'and says the pairing is repairable — a refusal with no remedy sends an operator away from a run they could have had')
 
-  // NOT-COMPARABLE refuses too, and must NOT promise the execute remedy.
+  // The SAME asymmetry the other way round must blame the other side. Without this
+  // the derivation could be hardcoded to the reference and every test still passes.
   threw = null
-  try {
-    await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [],
-      comparability: { verdict: 'not-comparable', generator_side: '', reasoning: 'a spreadsheet against a sonnet' } })
-  } catch (e) { threw = e.message }
-  ok(threw, 'an incomparable pairing stops the run')
-  ok(/not comparable/i.test(threw) && /a spreadsheet against a sonnet/.test(threw),
-     `the refusal carries the probe's own reason, not a generic message — got: ${String(threw).slice(0, 160)}`)
-  ok(!/Execute that side once/.test(threw),
-     'and does NOT offer the generator remedy, which would send the operator to execute something that fixes nothing')
+  try { await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: [WRITER, WORKER] }) }
+  catch (e) { threw = e.message }
+  ok(threw && threw.includes(CANDIDATE), 'when the CANDIDATE is the instruction-writer, it is the side named')
 
-  // COMPARABLE proceeds, and the verdict records it.
-  const good = await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [],
-    comparability: { verdict: 'comparable', generator_side: '', reasoning: 'both are runbooks at the same level' } })
-  eq(good.result.comparability.verdict, 'comparable', 'a comparable pairing runs and the verdict carries the answer')
+  // BOTH writing instructions is COMPARABLE — they sit at the same level as each
+  // other. This is the branch a "does either side write an instruction" rule would
+  // get wrong, and it is why the derivation counts rather than tests.
+  const bothWriters = await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: [WRITER, WRITER] })
+  eq(bothWriters.result.comparability.verdict, 'comparable',
+     'two instruction-writers are at the same level as each other, so the pairing is judgeable')
 
-  // A DEAD probe costs its measurement, not the run. It runs inside parallel(),
-  // whose contract turns a throw into null — so a refusal raised inside the probe
-  // would be swallowed and the run would continue with the check silently absent.
-  const died = await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], comparability: 'throw' })
+  const bothWorkers = await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: [WORKER, WORKER] })
+  eq(bothWorkers.result.comparability.verdict, 'comparable', 'and so are two workers')
+  ok(bothWorkers.result.comparability.sides.length === 2 && bothWorkers.result.comparability.sides.every(x => x.what_it_is),
+     'the verdict carries what each side was found to be, not just the derived answer')
+
+  // A path that could not be opened beats everything else. A missing artifact is
+  // not a bad artifact, and shapeOf is a pure string test that cannot tell them
+  // apart — a nonexistent absolute path still reads as 'abs-path'.
+  threw = null
+  try { await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: [WORKER, SHUT] }) }
+  catch (e) { threw = e.message }
+  ok(threw && threw.includes(REFERENCE), 'an artifact that could not be opened stops the run and names the path')
+  ok(!/GENERATOR/.test(threw), 'and is not diagnosed as a category error — the operator would chase the wrong problem')
+
+  // An unopenable side wins even when the other side is an instruction-writer.
+  threw = null
+  try { await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: [WRITER, SHUT] }) }
+  catch (e) { threw = e.message }
+  ok(threw && !/GENERATOR/.test(threw),
+     'could-not-open outranks generator — telling someone to execute a file that does not exist is not a remedy')
+
+  // A DEAD probe costs its measurement, not the run. Both sides run inside
+  // parallel(), whose contract turns a throw into null.
+  const died = await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: 'throw' })
   eq(died.result.comparability, null, 'a probe that threw leaves no verdict rather than inventing one')
   ok(died.result.outcome.status, 'and the run still reaches an outcome — a diagnostic costs a measurement, not the run')
-  // UNREADABLE. A path that does not exist is not a bad artifact, and until this
-  // existed nothing told them apart: shapeOf is a pure string test, so a missing
-  // path still reads as 'abs-path', SIDES_LOOK_ALIKE still holds, and the run
-  // asserts its A/B was blind while one side was never there. Confirmed by
-  // building it — two full rounds and a verdict against a reference that did not
-  // exist.
+
+  console.log('loop: the pairing verdict is derived from one factual question per side, and a dead probe is not a refusal OK')
+
+  // A REFUSAL MUST NOT DISCARD WHAT WAS ALREADY PAID FOR. All the probes run in the
+  // same parallel(), so a refusal fires only after the operator has bought them.
   threw = null
   try {
-    await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [],
-      comparability: { verdict: 'unreadable', generator_side: '/tmp/gaunlet-loop/reference.md', reasoning: 'no such file' } })
-  } catch (e) { threw = e.message }
-  ok(threw, 'an artifact that could not be opened stops the run')
-  ok(threw.includes('/tmp/gaunlet-loop/reference.md'),
-     `the refusal names the path that failed, since a typo is the usual cause — got: ${String(threw).slice(0, 160)}`)
-  ok(!/GENERATOR/.test(threw),
-     'and does NOT diagnose a missing file as a category error — the operator would go looking for the wrong problem')
-  // All THREE refusal paths must carry the findings, not two of them. This one was
-  // written last and left uncovered; the sweep caught it before it shipped.
-  ok(/goal_fairness:/.test(threw) && /content blindness:/.test(threw),
-     `the unreadable refusal carries the probe findings too — got: ${String(threw).slice(-260)}`)
-
-  console.log('loop: a generator, incomparable or unreadable pairing is refused before the lead spawns, and a dead probe is not a refusal OK')
-
-  // A REFUSAL MUST NOT DISCARD WHAT WAS ALREADY PAID FOR.
-  //
-  // All four probes run in the same parallel(), so a refusal fires only after the
-  // operator has bought every one of them. In run wf_836738df-380 goal_fairness had
-  // returned 'does-not-attempt' and the blindness probe had found both artifacts
-  // byte-identical to files in the working tree — both actionable regardless of the
-  // pairing, both thrown away. A pairing refusal should cost the pairing.
-  threw = null
-  try {
-    await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [],
-      comparability: { verdict: 'generator', generator_side: REFERENCE, reasoning: 'it emits a prompt' },
+    await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: [WORKER, WRITER],
       fairness: { verdict: 'does-not-attempt', what_it_is_for: 'kicking off a different kind of run entirely', parts_not_attempted: null },
       fitted: { verdict: 'fitted', reasoning: 'every clause maps onto the candidate' },
       selfid: { verdict: 'self-identifying', self_identifying: [CANDIDATE], reasoning: 'it cites this tree' } })
   } catch (e) { threw = e.message }
-  ok(threw, 'the run is still refused')
   ok(/does-not-attempt/.test(threw) && /kicking off a different kind of run entirely/.test(threw),
-     `the fairness finding survives the refusal — it says the reference does not attempt the goal at all, which is actionable either way. Got: ${String(threw).slice(-400)}`)
-  ok(/goal_fitted: fitted/.test(threw), 'so does the fitted finding, which says the operator wrote a goal their own artifact wins by construction')
-  ok(/content blindness: self-identifying/.test(threw) && threw.includes(CANDIDATE),
-     'and the leak finding, naming the artifact that gave itself away')
+     `the fairness finding survives the refusal — actionable either way. Got: ${String(threw).slice(-360)}`)
+  ok(/goal_fitted: fitted/.test(threw), 'so does the fitted finding, which says the goal describes the candidate')
+  ok(/content blindness: self-identifying/.test(threw) && threw.includes(CANDIDATE), 'and the leak finding, naming the artifact')
 
-  // A probe that DIED must be reported as unmeasured, not omitted. An absent line
-  // reads as "nothing to report", which is the opposite of what a dead probe means.
   threw = null
-  try {
-    await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [],
-      comparability: { verdict: 'not-comparable', generator_side: '', reasoning: 'different kinds' } })
-  } catch (e) { threw = e.message }
-  ok(threw, 'still refused with no other probe results available')
+  try { await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: [WORKER, SHUT] }) }
+  catch (e) { threw = e.message }
   ok(/goal_fairness: NOT MEASURED/.test(threw) && /content blindness: NOT MEASURED/.test(threw),
-     `an unmeasured probe says so rather than vanishing from the report — got: ${String(threw).slice(-300)}`)
+     `an unmeasured probe says so rather than vanishing from the report — got: ${String(threw).slice(-260)}`)
 
   console.log('loop: a refusal carries the probe findings the operator already paid for, and says which were not measured OK')
 }

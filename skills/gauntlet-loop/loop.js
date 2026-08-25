@@ -573,97 +573,111 @@ describes is still \`does-not-attempt\`; a poor one that is trying is still \`at
   return f
 }
 
-const COMPARABILITY_SCHEMA = {
+const ARTIFACT_ROLE_SCHEMA = {
   type: 'object',
-  required: ['verdict', 'reasoning'],
+  required: ['role', 'what_it_is', 'reasoning'],
   additionalProperties: false,
   properties: {
-    verdict: { type: 'string', enum: ['comparable', 'generator', 'not-comparable', 'unreadable'], description: 'comparable if a judge could genuinely pick between them at this goal; generator if one side is a recipe for producing the other kind of thing and would be comparable once executed; unreadable if a side could not be opened at all; not-comparable otherwise' },
-    generator_side: { type: 'string', description: 'when the verdict is generator, the absolute path of the side that must be executed first; empty otherwise' },
-    reasoning: { type: 'string', description: 'what kind of object each side is, and why a preference between them is or is not meaningful' },
+    role: { type: 'string', enum: ['does-the-work', 'produces-an-instruction', 'could-not-open'], description: 'what an agent handed ONLY this artifact would do about the goal' },
+    what_it_is: { type: 'string', description: 'what kind of object this is, in your own words' },
+    reasoning: { type: 'string', description: 'what in the artifact settles it' },
   },
 }
 
-// COMPARABILITY — asked of the PAIRING, and the question no other probe asks.
+// THE PAIRING CHECK, and it deliberately never asks about the pairing.
 //
-// `checkGoalFairness` asks whether the REFERENCE attempts the goal, and it must
-// never see the candidate — that blindness is what stops it being swayed by what
-// the candidate happens to be good at, and a test pins it. So comparability
-// cannot live there: it needs both sides. This probe already sees both, which is
-// why the question belongs next to it.
+// The first version asked one agent to judge both sides at once, and told it what
+// the failure looked like: "a thing versus a recipe for making that thing", then a
+// list of shapes — meta-prompt, template, spec, schema, build file. Every refusal
+// it produced echoed that phrasing back, one of them citing the prompt as its
+// source. Detecting a pattern the prompt just described is not detection, and the
+// list was a registry: one entry per shape, and any shape not on it untested.
 //
-// The distinction the two probes draw, and it is not academic: a reference can
-// ATTEMPT the goal and still be incomparable to the candidate, because attempting
-// is a property of one side and comparability is a property of the pair. Measured
-// on five staged pairings before this was written — the case that separated them
-// was two command docs from the same plugin, where the reference does not address
-// the goal at all. Fairness says does-not-attempt; comparability says COMPARABLE,
-// because it would simply lose. That is the information this adds.
+// So the agent is no longer asked for a verdict. It is asked ONE factual question
+// about ONE artifact, with no mention of comparison, category errors or recipes:
+// handed only this, would you DO the work or WRITE AN INSTRUCTION for someone else
+// to do it. That is world knowledge, which belongs to the model. The verdict is
+// derived below, which is a decision, and decisions belong to the checker.
 //
-// THREE OUTCOMES, not two, and the third is the one that cost the most to learn.
-// Runs wf_495d5358-129 and wf_50a6af1d-379 spent 419k tokens comparing this
-// plugin against a META-PROMPT — a document whose output is a prompt for someone
-// else to run. Both returned WON at round 1 with no build. The pairing was not a
-// contest; it was a thing judged against a recipe for a thing. But that is
-// REPAIRABLE rather than fatal: executing the generator once yields an artifact at
-// the same level, and the same probe then answers `comparable` on the same two
-// sources. Refusing without saying so would send an operator away from a run they
-// could have had.
+// Three consequences fall out rather than being designed in:
+//   - the agent cannot be told which answer is expensive, because it does not
+//     produce the answer that costs anything;
+//   - it never sees the two artifacts together, so the pairing cannot tell it
+//     which side is the candidate (it can still recognise one from the tree —
+//     that residual is measured, not claimed away);
+//   - "could not open" stops being a special case and becomes one of the roles.
 //
-// It REFUSES rather than warning. `won_without_building` already warned, in those
-// exact words, and was read past twice in one session — including by the author of
-// the warning. A caution that gets read past is not a check. This joins the
-// refusals in commands/loop.md Step 2, on the same ground as all of them: none of
-// these inputs can produce a verdict worth reading.
+// NOT-COMPARABLE IS GONE. It had zero observations: the three the record held came
+// from a two-verdict probe with no `generator` option, and their reasoning
+// described the generator case. It was also the only refusal with no remedy —
+// `generator` names the side to execute, `unreadable` names the path to fix, and
+// that one just said no. A pairing that is genuinely incomparable and not a
+// generator now runs, loses round 1, and is reported by `won_without_building`,
+// which says exactly that in the verdict. A real case turning up is the evidence
+// to bring the verdict back with.
 let comparability = null
 
-async function checkComparability() {
+async function roleOf(path, n) {
   return agent(
-    `Answer ONE question about two artifacts. You are not judging which is better and you must not try.
+    `Answer ONE question about ONE artifact. Do not judge whether it is good.
 
-THE GOAL: ${GOAL}
+THE GOAL SOMEONE IS PURSUING: ${GOAL}
 
-ARTIFACT ONE: ${CANDIDATE}
-ARTIFACT TWO: ${REFERENCE}
-${INSPECT ? `\nHOW TO INSPECT THEM:\n${INSPECT}\n` : ''}
-THE QUESTION: could a judge put these two side by side and pick one as better AT THAT GOAL?
+THE ARTIFACT: ${path}
+${INSPECT ? `\nHOW TO INSPECT IT:\n${INSPECT}\n` : ''}
+THE QUESTION: if an agent were handed ONLY this artifact and told to pursue that goal, what would
+it end up doing?
 
-This is about the PAIRING. It is NOT "which is better" and NOT "does each one attempt the goal".
-It is whether a preference between them would be a meaningful statement or a category error.
+  does-the-work            — it would work on the goal itself. The artifact is the thing, or an
+                             attempt at the thing, or the instructions for operating something that
+                             does the thing right now.
+  produces-an-instruction  — it would write or emit something for a DIFFERENT party to act on
+                             later, and the goal would still be untouched when it finished.
+  could-not-open           — the path does not exist, or is not readable, or is a directory where a
+                             file was expected. Check this first.
 
-Read both fully before answering. Where either can be run or measured, run and measure it.
+Open it and read it before answering. Where it can be run or measured, run and measure it. If it
+names a command, a path, a tool or a URL, follow one and see whether it resolves.
 
-Answer COMPARABLE when a judge could genuinely pick. Two artifacts stay comparable when one is
-much worse, much shorter, more general, more specific, or does not address the goal at all —
-being bad at the goal, or pitched at a different scope, is not the same as being incomparable.
-A document that simply loses is COMPARABLE. Prefer this answer; the other two stop the run.
+Being short, incomplete, badly written, or bad at the goal does not change the answer — a poor
+attempt at the goal is still does-the-work. The question is only what an agent would END UP DOING,
+not how well.
 
-Answer GENERATOR when one side is not the thing but a recipe for producing it — a meta-prompt
-whose output is a prompt, a template, a spec, a schema, a build file. The tell: an agent handed
-that side would PRODUCE something rather than DO the thing the goal names. Put its absolute path
-in generator_side. These pairings become comparable once that side is executed, and saying so is
-what lets the operator fix the setup instead of abandoning it.
+Say what kind of object it is in your own words, and what in it settles the answer.`,
+    { label: `comparability:${n}`, phase: 'Loop', schema: ARTIFACT_ROLE_SCHEMA, agentType: 'gauntlet-loop:gauntlet-goal-check' }
+  )
+}
 
-Answer UNREADABLE if either path could not be opened — it does not exist, it is a directory where a
-file was expected, or it cannot be read. Put that path in generator_side. Check this FIRST: a missing
-artifact is not a bad artifact, and nothing downstream can tell the difference.
+async function checkComparability() {
+  // Each side alone, concurrently. parallel() resolves a thrower to null, and a
+  // probe that DIED must not read as an answer: either side missing returns null,
+  // which the refusal branches below treat as "not measured", never as a refusal.
+  const [c, r] = await parallel([() => roleOf(CANDIDATE, 1), () => roleOf(REFERENCE, 2)])
+  if (!c || !r) return null
 
-Answer NOT-COMPARABLE only when the two are different kinds of thing and executing neither would
-fix it.
+  const sides = [{ path: CANDIDATE, ...c }, { path: REFERENCE, ...r }]
+  const shut = sides.find(x => x.role === 'could-not-open')
+  const writers = sides.filter(x => x.role === 'produces-an-instruction')
 
-Return the verdict, the generator's path when there is one, and your reasoning.`,
-    { label: 'comparability', phase: 'Loop', schema: COMPARABILITY_SCHEMA, agentType: 'gauntlet-loop:gauntlet-goal-check' }
-  ).then(c => {
-    // Report here, refuse at the top level. The refusal CANNOT live in this
-    // function: these probes run inside parallel(), whose contract turns a throw
-    // into null, so a refusal raised here would be swallowed and the run would
-    // continue with comparability silently absent — the precise failure mode that
-    // made a dead agent read as a clean result before the harness was fixed.
-    if (c && c.verdict !== 'comparable') {
-      log(`REFUSING: the pairing is ${c.verdict}${c.generator_side ? ` (${c.generator_side} is the generator)` : ''}. ${c.reasoning}`)
-    }
-    return c
-  })
+  // THE DERIVATION, and it is the whole decision. Kept here in three lines so it
+  // can be read at once and broken by a mutation: an unopenable side beats
+  // everything, then exactly one instruction-writer against one worker is the
+  // asymmetry that makes a comparison meaningless, and anything else is a pairing
+  // a judge can rule on — including two instruction-writers, which are at the same
+  // level as each other.
+  const verdict = shut ? 'unreadable' : (writers.length === 1 ? 'generator' : 'comparable')
+  const blamed = shut || (verdict === 'generator' ? writers[0] : null)
+
+  const out = {
+    verdict,
+    generator_side: blamed ? blamed.path : '',
+    reasoning: sides.map(x => `${x.path} — ${x.what_it_is} (${x.role}): ${x.reasoning}`).join('  ||  '),
+    sides: sides.map(x => ({ path: x.path, role: x.role, what_it_is: x.what_it_is })),
+  }
+  if (verdict !== 'comparable') {
+    log(`REFUSING: the pairing is ${verdict}${out.generator_side ? ` (${out.generator_side})` : ''}. ${out.reasoning}`)
+  }
+  return out
 }
 
 const SELFID_SCHEMA = {
@@ -1027,13 +1041,6 @@ if (comparability && comparability.verdict === 'generator') {
     'keep what it produces — then pass the OUTPUT as the artifact. The same two sources come back comparable. ' +
     'This is what the source method already does: it judges rendered frames against real frames, not a prompt ' +
     'against a design document.' + probeFindings())
-}
-if (comparability && comparability.verdict === 'not-comparable') {
-  throw new Error(
-    'REFUSED: these two artifacts are not comparable at this goal. ' + comparability.reasoning + '\n\n' +
-    'A forced binary choice between two different kinds of thing produces a verdict, but not one about quality — ' +
-    'and it produces it at round 1, with no build round, which is indistinguishable from winning. Pick a reference ' +
-    'that is the same kind of object as the candidate, or restate the goal so both are attempting the same thing.' + probeFindings())
 }
 const decomposition_ = pendingProbe ? await decompose() : null
 decomposition = decomposition_

@@ -103,9 +103,12 @@ const PROPERTIES = [
   ['a piece judged against its own path is disclosed as unchecked', L, "DECOMPOSED && PIECES.some(p => (p.candidate", "false && PIECES.some(p => (p.candidate"],
   ['the pairing disclosure does not fire on every decomposed run', L, "DECOMPOSED && PIECES.some(p => (p.candidate", "DECOMPOSED || PIECES.some(p => (p.candidate"],
   ['an artifact that cannot be opened is refused', L, "comparability.verdict === 'unreadable'", "false"],
+  ['the pairing verdict is DERIVED, not taken from the agent', L, "const verdict = shut ? 'unreadable' : (writers.length === 1 ? 'generator' : 'comparable')", "const verdict = 'comparable'"],
+  ['an unopenable side outranks a generator', L, "const verdict = shut ? 'unreadable' : (writers.length === 1 ? 'generator' : 'comparable')", "const verdict = (writers.length === 1 ? 'generator' : (shut ? 'unreadable' : 'comparable'))"],
+  ['two instruction-writers are comparable, not a generator', L, "writers.length === 1", "writers.length >= 1"],
+  ['the side blamed is the one that writes the instruction', L, "const blamed = shut || (verdict === 'generator' ? writers[0] : null)", "const blamed = shut || (verdict === 'generator' ? sides[0] : null)"],
+  ['the verdict carries what each side was found to be', L, "    sides: sides.map(x => ({ path: x.path, role: x.role, what_it_is: x.what_it_is })),\n", "    sides: [],\n"],
   ['a generator reference is refused, not judged against', L, "comparability.verdict === 'generator'", "false"],
-  ['an incomparable pairing is refused', L, "comparability.verdict === 'not-comparable'", "false"],
-  ['the verdict carries the pairing check', L, "  comparability,\n  size_by_round: sizeByRound,", "  comparability: null,\n  size_by_round: sizeByRound,"],
 
   ['the JS side resolves the temp root through the full chain', S, "process.env.TMPDIR || process.env.TMP || process.env.TEMP || '/tmp'", "'/tmp'"],
 
@@ -115,7 +118,6 @@ const PROPERTIES = [
 
   ['a generator refusal keeps the findings already paid for', L, "'against a design document.' + probeFindings())", "'against a design document.')"],
   ['an unreadable refusal keeps them too', L, "'against nothing. Check the path — a typo here costs a whole run.' + probeFindings())", "'against nothing. Check the path — a typo here costs a whole run.')"],
-  ['a not-comparable refusal keeps them too', L, "'that is the same kind of object as the candidate, or restate the goal so both are attempting the same thing.' + probeFindings())", "'that is the same kind of object as the candidate, or restate the goal so both are attempting the same thing.')"],
   ['a probe that died is reported as unmeasured, not omitted', L, "    : 'goal_fairness: NOT MEASURED — the probe returned nothing, so whether the reference even attempts this goal is unknown')", "    : '')"],
 
   // --- the shipped tools refuse a wrong invocation (#98) --------------------
