@@ -425,6 +425,14 @@ function run(script, args, extraEnv) {
     if (row.arm === 'does-the-work') {
       ok(row.evidence.acceptance_command, `row ${row.id} carries the command that grounded it`)
       eq(row.evidence.method, 'mechanical-execution', `row ${row.id} says how it was grounded`)
+    } else if (row.arm === 'could-not-open') {
+      // The absence arm. Its grounding is the same SHAPE as does-the-work — a command that
+      // exited 0 — and the opposite claim: that there is nothing at that path. So it carries
+      // an acceptance command and no hash, because there is no content to hash.
+      ok(row.evidence.acceptance_command, `row ${row.id} carries the command that established the absence`)
+      eq(row.evidence.method, 'mechanical-absence', `row ${row.id} says how it was grounded`)
+      eq(row.artifact_hash, null, `row ${row.id} has no artifact hash — its claim is that there is no artifact`)
+      eq(row.expected_role, 'could-not-open', `row ${row.id} expects the verdict its absence produces`)
     } else {
       ok(row.evidence.emission, `generator row ${row.id} names the emission it was derived from`)
       eq(row.evidence.method, 'agentic-execution', `row ${row.id} says how it was grounded`)
