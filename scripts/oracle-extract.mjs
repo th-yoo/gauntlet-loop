@@ -114,6 +114,24 @@ function canonical(v) {
 }
 const sha = s => 'sha256:' + createHash('sha256').update(s).digest('hex')
 
+// THE INSTRUMENT IS THE TEMPLATE, NOT THE FILLED-IN PROMPT.
+//
+// The artifact path and the goal are interpolated INTO the prompt, so every row
+// necessarily produces a different prompt_hash. Grouping cohorts by that hash put
+// every single row in a cohort of its own — reported by the tool's own first run on a
+// four-row corpus, as four cohorts of one.
+//
+// So two hashes are recorded and they answer different questions. `prompt_hash` is the
+// exact text this observation was made against, and is what oracle-record.mjs matches
+// to refuse a stale observation. `template_hash` is that text with this row's own
+// goal, artifact and inspect blanked out — the part that is the same for every row —
+// and is what oracle-report.mjs groups by. A prompt wording change moves the template
+// hash for every row at once, which is the event that must split a cohort.
+const template = hit.prompt
+  .split(goal).join('{{GOAL}}')
+  .split(artifact).join('{{ARTIFACT}}')
+  .split(inspect || '\u0000never').join('{{INSPECT}}')
+
 const payload = {
   artifact,
   goal,
@@ -121,6 +139,7 @@ const payload = {
   agent_type: hit.agentType || null,
   prompt: hit.prompt,
   prompt_hash: sha(hit.prompt),
+  template_hash: sha(template),
   schema_fingerprint: sha(canonical(hit.schema || null)),
 }
 
@@ -131,5 +150,6 @@ if (asJson) {
   console.error('')
   console.error(`# agent_type         ${payload.agent_type}`)
   console.error(`# prompt_hash        ${payload.prompt_hash}`)
+  console.error(`# template_hash      ${payload.template_hash}`)
   console.error(`# schema_fingerprint ${payload.schema_fingerprint}`)
 }

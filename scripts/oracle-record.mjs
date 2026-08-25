@@ -114,6 +114,10 @@ const rec = {
   what_it_is: whatItIs || null,
   reasoning: reasoning || null,
   prompt_hash: promptHash,
+  // Recorded from the LIVE extraction rather than the caller: the caller already
+  // proved it is on the current instrument by matching prompt_hash above, and the
+  // template is what the report groups by.
+  template_hash: live.template_hash,
   schema_fingerprint: schemaFp,
   observer,
 }

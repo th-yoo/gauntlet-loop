@@ -23,9 +23,13 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const read = f => existsSync(join(ROOT, 'oracle', f))
-  ? readFileSync(join(ROOT, 'oracle', f), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l))
-  : []
+// ORACLE_CORPUS / ORACLE_RESULTS, same as the other two tools — a test asserting on
+// cohort grouping needs ledgers it can construct, and must never write the real ones.
+const LEDGER = { 'corpus.jsonl': process.env.ORACLE_CORPUS, 'results.jsonl': process.env.ORACLE_RESULTS }
+const read = f => {
+  const p = LEDGER[f] || join(ROOT, 'oracle', f)
+  return existsSync(p) ? readFileSync(p, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l)) : []
+}
 
 const corpus = read('corpus.jsonl')
 const results = read('results.jsonl')
@@ -44,7 +48,12 @@ if (!results.length) {
 // Group by instrument, then by arm. A cohort is (prompt_hash, schema_fingerprint).
 const cohorts = new Map()
 for (const r of results) {
-  const k = `${r.prompt_hash}|${r.schema_fingerprint}`
+  // GROUPED BY TEMPLATE. Grouping by prompt_hash put every row in its own cohort,
+  // because the goal and artifact path are interpolated into the prompt — the tool
+  // reported four cohorts of one on a four-row corpus. An observation predating the
+  // template hash has none; it belongs to an unknown instrument and is reported as
+  // its own cohort rather than silently folded into a current one.
+  const k = `${r.template_hash || 'template-unknown:' + (r.prompt_hash || 'none')}|${r.schema_fingerprint}`
   if (!cohorts.has(k)) cohorts.set(k, [])
   cohorts.get(k).push(r)
 }

@@ -71,6 +71,62 @@ function run(script, args) {
   console.log('oracle: the live prompt is captured from loop.js rather than retyped OK')
 }
 
+// THE COHORT IS THE TEMPLATE, NOT THE FILLED-IN PROMPT.
+//
+// The goal and artifact path are interpolated INTO the prompt, so two rows can never
+// share a prompt_hash. Grouping cohorts by it put every row in a cohort of its own —
+// the report tool said so on its own first four-row run. The template hash blanks this
+// row's own goal and artifact out, so it is stable ACROSS rows and moves only when the
+// wording itself changes, which is the event that must actually split a cohort.
+{
+  const A = join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile')
+  const B = join(ROOT, 'oracle', 'fixtures', 'py-slug', 'slugify.py')
+  const one = JSON.parse(run(EXTRACT, ['--artifact', A, '--goal', 'goal one here', '--json']).out)
+  const two = JSON.parse(run(EXTRACT, ['--artifact', B, '--goal', 'a completely different goal', '--json']).out)
+
+  ok(one.prompt_hash !== two.prompt_hash,
+     'two different rows produce different filled-in prompts — this is why prompt_hash cannot be the cohort key')
+  eq(one.template_hash, two.template_hash,
+     'but the same template, so they belong to ONE cohort and a rate can be computed across them')
+  ok(one.template_hash.startsWith('sha256:'), 'the template hash is recorded')
+
+  // And the template must still be sensitive to the thing it exists to detect.
+  const loop = readFileSync(join(ROOT, 'skills', 'gauntlet-loop', 'loop.js'), 'utf8')
+  ok(loop.includes('Being short, incomplete, badly written, or bad at the goal does not change the answer'),
+     'the wording the template hashes is loop.js\'s own, so a change there moves every row\'s cohort at once')
+  console.log('oracle: the cohort key is the prompt TEMPLATE, stable across rows and sensitive to wording OK')
+}
+
+// AND THE REPORT MUST GROUP BY IT. Two observations sharing a template but not a
+// prompt are ONE cohort; two with different templates are TWO, because a wording change
+// is exactly the event that must not be averaged away.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'oracle-report-'))
+  const results = join(dir, 'results.jsonl')
+  const mk = (row, template, prompt, correct) => JSON.stringify({
+    row, arm: 'does-the-work', artifact: '/x/' + row, expected_role: 'does-the-work',
+    predicted_role: correct ? 'does-the-work' : 'produces-an-instruction', correct,
+    prompt_hash: prompt, template_hash: template, schema_fingerprint: 'sha256:fp', observer: 't',
+  })
+  writeFileSync(results, [
+    mk('a', 'sha256:TPL1', 'sha256:P1', true),
+    mk('b', 'sha256:TPL1', 'sha256:P2', true),
+    mk('c', 'sha256:TPL2', 'sha256:P3', false),
+  ].join('\n') + '\n')
+
+  const env = { ...process.env, ORACLE_CORPUS: join(dir, 'corpus.jsonl'), ORACLE_RESULTS: results }
+  let out = ''
+  try { out = execFileSync(process.execPath, [join(ROOT, 'scripts', 'oracle-report.mjs')], { encoding: 'utf8', cwd: ROOT, env }) }
+  catch (e) { out = String(e.stdout || '') + String(e.stderr || '') }
+
+  const cohorts = (out.match(/── instrument/g) || []).length
+  eq(cohorts, 2, `three observations across two templates report as TWO cohorts, not three and not one — got ${cohorts}\n${out}`)
+  ok(/observations      2/.test(out), 'the two sharing a template are counted together despite differing prompt hashes')
+  ok(/misclassified     1/.test(out), 'and the different-template observation is kept separate rather than diluting the other cohort')
+  rmSync(dir, { recursive: true, force: true })
+  console.log('oracle: the report groups observations by template, so a wording change splits a cohort instead of averaging into it OK')
+}
+
 // A path that does not exist cannot be an oracle row: the hash would pin an absence.
 {
   const r = run(EXTRACT, ['--artifact', '/oracle/definitely/not/here.md', '--goal', 'g', '--json'])

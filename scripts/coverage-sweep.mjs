@@ -26,6 +26,8 @@ const S = 'scripts/seed-loop-trial.mjs'
 const C = 'scripts/canary.mjs'
 const OA = 'scripts/oracle-add.mjs'
 const OR = 'scripts/oracle-record.mjs'
+const OE = 'scripts/oracle-extract.mjs'
+const OP = 'scripts/oracle-report.mjs'
 
 const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -145,6 +147,10 @@ const PROPERTIES = [
   ['an acceptance command that fails is not ground truth', OA, 'if (res.error || res.status !== 0) {', 'if (false) {'],
   ['an observation from a stale instrument is refused', OR, 'if (live.prompt_hash !== promptHash || live.schema_fingerprint !== schemaFp) {', 'if (false) {'],
   ['an observation against a changed artifact is refused', OR, 'if (nowHash !== row.artifact_hash) {', 'if (false) {'],
+
+  ['the cohort key blanks the goal out of the prompt', OE, "  .split(goal).join('{{GOAL}}')", "  .split('\\u0000never').join('{{GOAL}}')"],
+  ['the cohort key blanks the artifact path out', OE, "  .split(artifact).join('{{ARTIFACT}}')", "  .split('\\u0000never').join('{{ARTIFACT}}')"],
+  ['the report groups by template, not by filled-in prompt', OP, "r.template_hash || 'template-unknown:'", "r.prompt_hash || 'template-unknown:'"],
 
   // --- the shipped tools refuse a wrong invocation (#98) --------------------
   // NOT listed: needleFrom's `!lines.length` guard. It sweeps NOT CAUGHT and that

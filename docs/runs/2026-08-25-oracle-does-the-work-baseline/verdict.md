@@ -1,8 +1,9 @@
 # Oracle baseline — the pairing check's does-the-work arm
 
-**instrument** `sha256:a546e3c339586225…` (the prompt `loop.js` produced on 2026-08-25)
+**instrument** `sha256:e788e8e1904448c0…` (template hash — the prompt wording, with each
+row's own goal and artifact blanked out)
 
-The first observation of the pairing check against ground truth its author did not write.
+Four observations of the pairing check against ground truth its author did not write.
 
 ## What was measured
 
@@ -85,3 +86,62 @@ automatic refusal is safe — rather than the generator arm they were filed as.
 The report tool's first run printed *"up to about 300%"* — the rule of three is `3/n`,
 which exceeds 1 below n=3. Capped, and below n=3 it now says the bound carries no
 information instead of printing an impossible rate.
+
+---
+
+## The four rows, and why these four
+
+| row | artifact | why it is in the corpus |
+|---|---|---|
+| `make-hello` | a Makefile | build tool; `make && run` settles it |
+| `sh-report` | a POSIX shell script | a second language, so the corpus is not one shape repeated |
+| `py-slug` | a Python script | a third |
+| `readme-build` | **prose that instructs** | **the hard case** — see below |
+
+`readme-build` is the row that was chosen for being *near* the boundary rather than far
+from it. It is a `BUILD.md` saying "run `cc -O2 -o counter counter.c`, then `./counter`".
+It reads like an instruction, and a careless classifier calls it
+`produces-an-instruction`. It is not: the reader following it reaches the deliverable
+themselves, and the prompt's own wording counts "the instructions for operating
+something that does the thing right now" as does-the-work. That is where a false
+refusal would come from, so that is where a row was put.
+
+The agent got it right, and cited exactly that distinction unprompted:
+
+> *"Nothing here is addressed to a separate party or deferred for later action — it is a
+> runbook for a program that already exists… That matches the does-the-work criterion
+> 'instructions for operating something that does the thing right now', not
+> produces-an-instruction (which requires the goal to remain untouched when the
+> artifact-following is done)."*
+
+## The result
+
+```
+observations       4
+distinct artifacts 4
+misclassified      0
+rate               CANNOT BE POSED — 4 distinct artifacts supports no rate.
+                   0/4 wrong is consistent with a per-side error rate anywhere
+                   up to about 75% (rule of three at n=4). Not evidence of accuracy.
+```
+
+**Four for four is not evidence of accuracy**, and the tool refuses to present it as
+such. What it rules out is a classifier that is badly wrong on obvious cases — which was
+not known before, since the does-the-work arm had never been measured at all.
+
+## Two bugs this run found in its own instruments
+
+**The cohort key was wrong.** Cohorts were grouped by `prompt_hash` — but the goal and
+artifact path are interpolated *into* the prompt, so no two rows can ever share one. The
+report's first four-row run printed four cohorts of one, which is how it was caught.
+Cohorts now group by `template_hash`: the prompt with this row's own goal and artifact
+blanked out, stable across rows and moving only when the wording itself changes — which
+is the event that must actually split a cohort.
+
+**Test runs had written to the tracked ledger.** Four observations carrying
+`prompt_hash: sha256:0000` were in `results.jsonl`, put there by suite runs before the
+suite was sandboxed — a mutation disabling the staleness check let a test write a real
+row. Dropped, and the report now honours `ORACLE_RESULTS` so a test can never reach the
+real ledger again. Same class as the corpus pollution recorded in
+`../2026-08-25-oracle-fork-bomb/incident.md`, found the same way: by reading a number
+rather than trusting a restore.
