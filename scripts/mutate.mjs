@@ -94,7 +94,19 @@ try {
       done(2)
     }
   }
-  const r = spawnSync(check[0], check.slice(1), { encoding: 'utf8' })
+  // TIMEOUT, because a hanging check is how this script corrupted the file it was
+  // testing. spawnSync blocks forever, so `done()` is never reached, and the SIGKILL
+  // that eventually arrives does not run the exit handler either — the mutation stays
+  // in the working tree looking like source. A hang is also not a verdict: it is the
+  // "did not run" class below, not NOT CAUGHT.
+  const timeoutMs = Number(process.env.MUTATE_CHECK_TIMEOUT_MS || 300_000)
+  const r = spawnSync(check[0], check.slice(1), { encoding: 'utf8', timeout: timeoutMs })
+  if (r.error && r.error.code === 'ETIMEDOUT') {
+    console.error(`mutate: the check command did not finish within ${timeoutMs} ms and was killed.`)
+    console.error('A check that hangs has not noticed anything — and a mutation can CAUSE the hang, so this is')
+    console.error('not a verdict. Set MUTATE_CHECK_TIMEOUT_MS if the suite is legitimately slower than this.')
+    done(2)
+  }
   // A check that never RAN is not a check that noticed. spawnSync reports status
   // null when the command could not be spawned or died on a signal, and `null !== 0`
   // is true — so a typo in the check command reported CAUGHT, in the script whose

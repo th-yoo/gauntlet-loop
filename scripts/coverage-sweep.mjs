@@ -24,6 +24,8 @@ const MUTATE = join(ROOT, 'scripts', 'mutate.mjs')
 const L = 'skills/gauntlet-loop/loop.js'
 const S = 'scripts/seed-loop-trial.mjs'
 const C = 'scripts/canary.mjs'
+const OA = 'scripts/oracle-add.mjs'
+const OR = 'scripts/oracle-record.mjs'
 
 const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -137,6 +139,12 @@ const PROPERTIES = [
   ['a silent lead is not reported as a refusal', L, 'refused: decomposition ? decomposition.why : null,', "refused: decomposition ? decomposition.why : 'no lead returned a plan',"],
   ['a dead builder says which of the two events it was', L, "+ silenceNote('gauntlet-loop:gauntlet-builder') }", ' }'],
   ['a silent split check says which it was', L, "read this run as if this check did not exist' + silenceNote('gauntlet-loop:gauntlet-ab-critic') }", "read this run as if this check did not exist' }"],
+
+  // --- oracle ground truth for the pairing check (#33) ----------------------
+  ['a model-backed acceptance command is refused', OA, 'if (MODEL_SHAPED.test(acceptance)) {', 'if (false) {'],
+  ['an acceptance command that fails is not ground truth', OA, 'if (res.error || res.status !== 0) {', 'if (false) {'],
+  ['an observation from a stale instrument is refused', OR, 'if (live.prompt_hash !== promptHash || live.schema_fingerprint !== schemaFp) {', 'if (false) {'],
+  ['an observation against a changed artifact is refused', OR, 'if (nowHash !== row.artifact_hash) {', 'if (false) {'],
 
   // --- the shipped tools refuse a wrong invocation (#98) --------------------
   // NOT listed: needleFrom's `!lines.length` guard. It sweeps NOT CAUGHT and that
