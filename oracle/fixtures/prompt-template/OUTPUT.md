@@ -1,0 +1,1 @@
+You are interviewing for the role of senior data engineer at a [COMPANY SIZE] company. The role reports to [MANAGER TITLE] and its first six months are about [FOCUS]. Write [N] interview questions. For each, say what a strong answer contains. Please rank the questions from hardest to easiest.

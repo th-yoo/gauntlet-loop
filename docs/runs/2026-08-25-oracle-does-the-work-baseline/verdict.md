@@ -237,3 +237,54 @@ it, rather than by mapping the endpoints and hoping.
 
 The synthetic ten-observation test written a round earlier had asserted the point-estimate
 form and passed. Verifying a branch is not the same as verifying it says something true.
+
+---
+
+## Both arms, eleven rows — and the row that was built to break it
+
+Three more generator rows, hunting for shapes that would disconfirm finding 4 rather
+than confirm it:
+
+- **`rfp-notice`** — a call for outside proposals. *"We do not build anything
+  ourselves; the awarded supplier delivers the system."*
+- **`prompt-template`** — a meta-prompt, though not Shumer's. Included deliberately:
+  if the arm held only unusual generators, the hypothesis would be untested from the
+  other side too.
+- **`partial-handoff`** — **the hardest row in the corpus.** It does real work: an
+  agent following it genuinely creates the config tree and writes `STATUS=provisioned`.
+  Then it defers the goal-critical part to another team. A classifier keying on *"did
+  anything happen"* calls this does-the-work and is wrong — the test is whether the
+  GOAL is untouched, and it is.
+
+The probe ran the commands, watched them succeed, and still answered
+`produces-an-instruction`:
+
+> *"They create inert scaffolding not wired to any event source… the dashboard remains
+> empty when the artifact's instructions are exhausted. That is a handoff to a different
+> party with the goal untouched, not an attempt at the goal itself."*
+
+Ground truth for all three agreed across both independent parties — the executing agent
+reported the goal outstanding in every case (`partial-handoff` reported `Goal status:
+NOT MET` *after* doing its work), and the classifier, shown only the emissions, said
+`addressed-onward` for each. No row is `DISPUTED`.
+
+## Where this leaves the measurement
+
+```
+   does-the-work arm      0/6, 95% CI [0%, 39%]
+   generator arm          0/5, 95% CI [0%, 43%]
+```
+
+Eleven rows, eleven correct, both arms posing a rate for the first time.
+
+**And both intervals still reach past 39%.** Eleven-for-eleven across eleven shapes —
+build tool, shell script, Python, declarative SQL, two runbooks near the boundary, a
+brief template, a spec form, an RFP, a meta-prompt, and one artifact that does real work
+before deferring — is consistent with a per-side error rate around 40%. What is ruled
+out is a classifier that is badly wrong on obvious cases, and on two deliberately
+constructed hard ones. That is worth having and is not the same as accuracy.
+
+**Finding 4 is now clearly wrong.** It supposed the `produces-an-instruction` class was
+narrow and mostly prompt-shaped. Five distinct shapes are in it, only one of which is a
+prompt, and the probe caught all five. The arm was never limited by a shortage of
+candidate shapes.
