@@ -38,13 +38,24 @@
 //      Note what the timeout does not do: killing the child does not kill what the child
 //      spawned. It bounds the wait, not the blast.
 //
-// BARRIER 2 IS UNTESTED BY CONSTRUCTION, and the reason is barrier 1. A test that proved
-// this file refuses under GAUNTLET_SUITE would have to name or invoke it, which barrier 1
-// forbids, and it forbids that because a test canary reaching a live spawn is the exact
-// incident above. The two barriers cannot both be automated; one of them has to be checked
-// by hand. Verified by hand: `GAUNTLET_SUITE=1 node scripts/oracle-draw.mjs --all` exits 2
-// before reading an argument, and `--draws 9 --all` exits 2 on the ceiling. Re-run both
-// after touching this file — that is the whole of its test plan, and it is deliberate.
+// ALL THREE BARRIERS ARE CHECKED BY test/containment.test.mjs, and none of its cases runs
+// this file. They are claims about SOURCE: that nothing the suite executes names a
+// model-spawner, that the marker refusal is reached before any spawn call is, and that
+// every spawn carries a timeout under a ceiling that is compared before it. That file
+// finds its subjects by what they do rather than by name, so a second spawner added later
+// is covered without an edit here.
+//
+// An earlier version of this paragraph said barriers 1 and 2 could not both be automated —
+// that a test proving the refusal would have to invoke the spawner, and barrier 1 forbids
+// that. Wrong, and worth leaving recorded: it is true only of a test that INVOKES. The
+// postmortem had already said what to do instead — "verify by mutation that removing the
+// guard cannot reach a spawn of an interactive binary" — and reachability is a property of
+// the text. Declaring something untestable is cheap and was, here, premature.
+//
+// STILL NEVER EXECUTED: the spawn itself. `--dry-run` exercises every line except
+// spawnSync('claude', ...) and everything downstream of it — response parsing, the schema
+// check, the raw-response record, the handoff to oracle-record. No static check reaches
+// that; only a live draw does.
 
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
