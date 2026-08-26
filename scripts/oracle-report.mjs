@@ -333,7 +333,28 @@ for (const [k, rs] of cohorts) {
     const n = a.length
     const distinct = new Set(a.map(r => r.artifact)).size
     const wrong = a.filter(r => !r.correct)
-    const ci = wilson(wrong.length, n)
+
+    // THE INTERVAL IS OVER THE UNIT THE CLAIM IS ABOUT, WHICH IS THE ARTIFACT.
+    //
+    // This line used to be `wilson(wrong.length, n)` — over OBSERVATIONS — two lines
+    // above a label that says `distinct artifacts <- the number that bears on any
+    // statistical claim`, and directly under a comment saying repeat executions of one
+    // artifact are not independent evidence. The principle was written beside the number
+    // that violated it, which is how it survived: every reader of this file, including
+    // the one who wrote both, read the sentence and not the argument to wilson().
+    //
+    // It was caught by USING it. On 2026-08-26 the pairing cell's false-refusal figure
+    // moved from 0/6, CI [0%, 39%] to 0/18, CI [0%, 18%] because the same six pairings
+    // were each drawn twice more. No pairing was added; the interval halved because one
+    // question was asked three times.
+    //
+    // An artifact counts as wrong if ANY draw of it was wrong — the conservative
+    // collapse, since a classifier that gets an artifact wrong once is not shown correct
+    // by getting it right afterwards. What redraws DO buy is reported separately and
+    // honestly, as `answer stability`, which is the only claim they can support.
+    // test/interval-unit.test.mjs is the reproducible.
+    const wrongUnits = new Set(wrong.map(r => r.artifact)).size
+    const ci = wilson(wrongUnits, distinct)
 
     console.log('')
     console.log(`   ${arm} arm`)
@@ -389,14 +410,16 @@ for (const [k, rs] of cohorts) {
         // "up to about 300%", an impossible rate, in this tool's very first run. Capped,
         // and below n=3 the bound carries no information at all, so say that instead of
         // dressing a vacuous number as a result.
-        const bound = 3 / n
-        console.log(`                       ${wrong.length}/${n} wrong is consistent with a per-side error rate anywhere`)
+        const bound = 3 / distinct
+        console.log(`                       ${wrongUnits}/${distinct} wrong is consistent with a per-side error rate anywhere`)
         console.log(bound >= 1
-          ? `                       up to 100% — at n=${n} the rule of three bounds nothing. Not evidence of accuracy.`
-          : `                       up to about ${pct(bound)} (rule of three at n=${n}). Not evidence of accuracy.`)
+          ? `                       up to 100% — at ${distinct} distinct artifact(s) the rule of three bounds nothing. Not evidence of accuracy.`
+          : `                       up to about ${pct(bound)} (rule of three at ${distinct} distinct artifact(s)). Not evidence of accuracy.`)
       }
     } else {
-      console.log(`     per-side error    ${wrong.length}/${n}, 95% CI [${pct(ci[0])}, ${pct(ci[1])}]  <- PRIMARY`)
+      console.log(`     per-side error    ${wrongUnits}/${distinct}, 95% CI [${pct(ci[0])}, ${pct(ci[1])}]  <- PRIMARY`)
+      console.log(`                       over DISTINCT ARTIFACTS. ${n} observation(s) stand behind it; the extra`)
+      console.log(`                       ${n - distinct} are redraws, and they bound stability rather than narrowing this.`)
       if (arm === 'does-the-work') {
         // DERIVED FROM THE INTERVAL, NOT THE POINT. The first real run of this branch
         // printed "~0% would be falsely refused" off a point estimate of 0/6 — a bare
@@ -538,10 +561,15 @@ if (pairings.length) {
       console.log(`                       Same threshold the per-side arm uses on distinct artifacts. Declaring and`)
       console.log(`                       drawing more pairings in this cell moves it; redrawing these ones does not.`)
     } else {
-      const ci = wilson(refused.length, cell.length)
-      console.log(`     falsely refused   ${refused.length}/${cell.length}, 95% CI [${pct(ci[0])}, ${pct(ci[1])}]   <- MEASURED by drawing the pairing, not derived from 2q(1-q)`)
+      // OVER PAIRINGS, NOT DRAWS — the same repair as the per-side arm, and this is the
+      // cell where the defect was observed. A pairing counts as falsely refused if ANY
+      // of its draws refused it.
+      const refusedUnits = new Set(refused.map(s => s.pairing)).size
+      const ci = wilson(refusedUnits, distinctPairings)
+      console.log(`     falsely refused   ${refusedUnits}/${distinctPairings}, 95% CI [${pct(ci[0])}, ${pct(ci[1])}]   <- MEASURED by drawing the pairing, not derived from 2q(1-q)`)
       console.log(`                       The number #33 calls the one that decides whether an automatic refusal is`)
-      console.log(`                       safe to keep, over ${distinctPairings} distinct pairing(s).`)
+      console.log(`                       safe to keep. Over DISTINCT PAIRINGS: ${cell.length} draw(s) stand behind it, and`)
+      console.log(`                       redrawing these ones will not move it — only declaring more will.`)
     }
     // THE SAME THRESHOLD, and it was missing here first time out. This cell printed a
     // bare `1/1`, which a reader takes for 100% — the bare point estimate this report
@@ -558,8 +586,10 @@ if (pairings.length) {
       if (distinctTrue < 5) {
         console.log(`     fired correctly   ${fired} of ${trueCell.length} draw(s) — NO RATE: ${distinctTrue} distinct pairing(s) supports no rate.`)
       } else {
-        const ci = wilson(trueCell.length - fired, trueCell.length)
-        console.log(`     fired correctly   ${fired}/${trueCell.length}, 95% CI on the miss rate [${pct(ci[0])}, ${pct(ci[1])}]`)
+        const missedUnits = new Set(trueCell.filter(s => s.observed !== s.expected).map(s => s.pairing)).size
+        const firedUnits = distinctTrue - missedUnits
+        const ci = wilson(missedUnits, distinctTrue)
+        console.log(`     fired correctly   ${firedUnits}/${distinctTrue}, 95% CI on the miss rate [${pct(ci[0])}, ${pct(ci[1])}] — over DISTINCT PAIRINGS (${trueCell.length} draw(s))`)
       }
       if (missed) console.log(`     MISSED            ${missed} draw(s) — the run would have proceeded on a pairing the corpus says is not comparable`)
     }
