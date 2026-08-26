@@ -361,8 +361,58 @@ had landed four hours earlier was never evaluated.** Everything downstream follo
 one unexamined step: the cadence, the missing reader, #46's four options, and every suspect
 in this ledger.
 
-That is where the causal chain terminates. The suspects above are not eleven independent
-causes; they are what one premature generalisation costs, itemised.
+That is not where the chain terminates. It goes one layer further, and the layer below
+explains why the generalisation felt safe.
+
+## THE BOTTOM — two correct designs, composed
+
+`#45`'s reasoning takes the sweep's cost as a fixed property of the sweep. So does `#42`'s
+table, which tags it "by hand, **and it takes >10 min**" — the cost is the distinguishing
+feature of that row. Neither asked whether the cost was reducible, and nor did `#46`:
+
+```
+mentions of making the sweep cheaper, in #42, #45, #46:   0, 0, 0
+"short-circuit" / "stop at the first" anywhere in the tree: only in unrelated trial docs
+```
+
+It is reducible, by 5.3x, with an identical verdict. The reason sits at an interface:
+
+```js
+// test/run-all.mjs:31
+if (r.status !== 0) { console.error(`FAILED: ${s}`); failed++ }   // continues, by design
+```
+
+`run-all` reports EVERY failing suite, which is right for a human reading test output — you
+want the whole list, not the first line of it. `mutate` needs only the FIRST non-zero exit,
+because any non-zero means CAUGHT and nothing downstream reads which suite it was. Each
+design is correct for its own purpose. Composed, the sweep pays for thirteen suites it does
+not need on every property it catches early.
+
+**A composition has no owner.** Neither file is wrong, so neither file has a defect to
+report, and no reproducible can be built that fails — which is exactly the trigger this
+project's method requires. `CLAUDE.md` says: *name root-cause candidates, BUILD a
+reproducible that fails, then attack it iteratively.* A five-fold cost produces nothing that
+fails. The sweep worked; it was merely slow.
+
+So the honest bottom of this investigation is a limit of the method that produced everything
+else in this repository: **defect-driven inquiry cannot see an inefficiency, and this one
+cost five issues and a reader problem.** It was found here only because RC5's investigation
+asked what the out-of-band placement rested on, rather than what had broken.
+
+The full chain, then:
+
+```
+run-all reports all failures (correct)  +  mutate needs only the first (correct)
+   -> the sweep costs 5x what it needs to
+   -> #42 tags it "by hand, and it takes >10 min"
+   -> #45 "too slow for a pre-push hook" generalised to "cannot have a gate"
+   -> a schedule instead of a gate
+   -> #46 a cadence with no reader
+   -> the eleven suspects in this ledger
+```
+
+The suspects are not eleven independent causes. They are what one unexamined interface cost,
+itemised.
 
 ---
 
