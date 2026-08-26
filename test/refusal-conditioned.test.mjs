@@ -101,12 +101,87 @@ if (rec) {
      'and the record names the downgrade, so a reader of this run cannot mistake it for a comparison nothing objected to. A switch that leaves the record clean launders the refusal, which is worse than having no switch')
 }
 
+// ---------------------------------------------------------------------------
+// THE CASES WHERE THE REMEDY MUST NOT APPLY.
+//
+// Everything above tests that the downgrade WORKS. What decides whether it is
+// safe is where it must not reach, and each case below is derived from something
+// in the artifact rather than from a list that felt incomplete:
+//
+//   - the two REFUSED branches sit adjacent in loop.js (:1150, :1159), so a fix
+//     that wraps "the refusal" wraps both;
+//   - loop.js already holds the rule that a passed argument is refused rather
+//     than ignored, for round caps, with the reason spelled out;
+//   - other throws share the same path;
+//   - the `comparable` branch is the one a flag could pollute.
+//
+// FOUR OF THESE PASS TODAY, AND THREE OF THOSE PASS VACUOUSLY — the input is
+// ignored, so nothing can be wrongly downgraded yet. They are here as the
+// baseline the fix must not break, and saying which is which is the point: a
+// green line whose green comes from the feature not existing measures nothing
+// until it does.
+// ---------------------------------------------------------------------------
+
+console.log('refusal-conditioned: an unopenable artifact is NOT downgradable  [holds today, vacuously]')
+{
+  const SHUT = { role: 'could-not-open', what_it_is: 'nothing — no such path', reasoning: 'open failed' }
+  let msg = null
+  try {
+    await runLoop({ args: { ...base, ...DOWNGRADE }, breaker: rd => rd <= 2, rounds: [], roles: [SHUT, WORKER] })
+  } catch (e) { msg = e.message }
+  ok(msg !== null,
+     'a file that could not be opened still stops the run with the downgrade on. An operator can overrule a JUDGEMENT about what an artifact is; they cannot overrule a file that is not there, and a downgraded run here would be a blind A/B against a path that does not exist')
+  ok(msg !== null && /could not be opened/.test(msg) && !/GENERATOR/.test(msg),
+     'and it stops for the unreadable reason, not the category one — the two REFUSED branches are adjacent in the source and a fix that wraps both would pass the first assertion while breaking this')
+}
+
+console.log('refusal-conditioned: an unrecognised value is refused, not ignored  [fails until the fix]')
+{
+  let msg = null
+  try {
+    await runLoop({ args: { ...base, on_refusal: 'banana' }, breaker: rd => rd <= 2, rounds: [], roles: [WORKER, WORKER] })
+  } catch (e) { msg = e.message }
+  ok(msg !== null,
+     'a run given an unrecognised on_refusal value stops rather than proceeding. loop.js already states this rule about round caps — "A cap passed in is REFUSED, not ignored ... Silently dropping the argument leaves them believing the run is bounded" — and an operator who typed a value they believe disarms a refusal is in exactly that position. Two workers are used here so the ONLY thing that could object is the argument itself')
+}
+
+console.log('refusal-conditioned: the downgrade does not disable unrelated refusals  [holds today]')
+{
+  let msg = null
+  try {
+    await runLoop({ args: { ...base, reference: CANDIDATE, ...DOWNGRADE }, breaker: rd => rd <= 2, rounds: [], roles: [WORKER, WORKER] })
+  } catch (e) { msg = e.message }
+  ok(msg !== null && /same file/.test(msg),
+     'a candidate compared against itself still stops with the downgrade on — otherwise "downgrade the comparability refusal" has quietly become a kill switch over every guard in the file')
+}
+
+console.log('refusal-conditioned: a clean run does not claim a downgrade that never happened  [holds today, vacuously]')
+{
+  const clean = await runLoop({ args: { ...base, ...DOWNGRADE }, breaker: rd => rd <= 2, rounds: [], roles: [WORKER, WORKER] })
+  const verdict = clean.result && clean.result.comparability && clean.result.comparability.verdict
+  ok(verdict === 'comparable', `two workers are comparable even with the downgrade on (got ${JSON.stringify(verdict)}) — the switch is not an instruction to refuse`)
+  const text = JSON.stringify(clean.result)
+  ok(!/proceeded_over_refusal|refusal_downgraded/.test(text),
+     'and nothing in the record says a refusal was overruled, because none was. A flag that appears on runs where nothing objected is noise, and a reader who learns to ignore it loses the only thing the record half of this property buys')
+}
+
+console.log('refusal-conditioned: a probe that died is unaffected by the downgrade  [holds today, vacuously]')
+{
+  const died = await runLoop({ args: { ...base, ...DOWNGRADE }, breaker: rd => rd <= 2, rounds: [], roles: 'throw' })
+  ok(died.result && died.result.comparability === null,
+     'a probe that threw leaves no verdict, with or without the downgrade — there is no refusal to downgrade, and inventing one from a dead probe would be the switch manufacturing evidence')
+}
+
 console.log('refusal-conditioned: stating what this file does NOT establish')
 console.log('          NOT MEASURED: whether refusing was RIGHT. This asserts that the refusal can be')
 console.log('          answered, never that it should be. The rate that would justify overruling it lives')
 console.log('          in oracle/, which loop.js still does not read — making the authority conditional on')
 console.log('          an OPERATOR is not making it conditional on EVIDENCE, and the second is what S5')
 console.log('          names. A fix that lands only the switch closes half of this.')
+console.log('          ALSO NOT MEASURED YET: three of the five must-not-apply cases pass VACUOUSLY')
+console.log('          today — the input is ignored, so nothing can be wrongly downgraded. They begin')
+console.log('          measuring only once the switch exists, and are here so the fix is judged against')
+console.log('          a baseline that is in git rather than one written after it.')
 
 if (failures) {
   console.error(`\nrefusal-conditioned: ${failures} failure(s) — the only component that can stop a run cannot be answered.`)
