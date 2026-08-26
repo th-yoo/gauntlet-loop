@@ -232,6 +232,51 @@ Three recorded instances, and the mechanism each time:
 evidence than "nobody has decided": every transport that exists today has a measured success
 rate of zero, on three trials.
 
+## S17 — the sweep is destructive to the tree it checks, which is a SECOND reason it is out of band. VERIFIED
+
+Found by attacking S3's own conclusion. S3 says cost is the ONLY reason the sweep is out of
+band. That is wrong.
+
+`scripts/mutate.mjs` writes each mutation into the file **in place** and restores it
+afterwards. In CI the checkout is ephemeral and nobody is looking at it. In
+`.githooks/pre-push` it is the developer's own working tree, mutated for the duration of
+every push, and a crash leaves the mutation behind — observed on 2026-08-26, when
+`skills/gauntlet-loop/loop.js` was found at zero bytes after concurrent sweeps.
+
+A third reason, from the same session: the per-file lock added at `0aee825` makes two
+concurrent mutations of one file refuse. A locally gated sweep racing a background sweep
+would fail the push for a reason that is not a finding.
+
+**So the remedy S3 points at is asymmetric, and the ledger said "the gate" as though it were
+one thing.** Gating in `ci.yml` is safe. Gating in `.githooks/pre-push` is not.
+
+## The short-circuit's cost profile, measured on the verdict that matters
+
+The 117-property agreement was all `CAUGHT`. The verdict that matters is the other one, and
+it was never tested — a saving measured only on the case that ends early says nothing about
+the case that cannot.
+
+Built: clone the repo, neuter `oracle.test.mjs` so one property becomes genuinely unpinned,
+run that property both ways.
+
+```
+full suite       NOT CAUGHT   14 s
+short-circuit    NOT CAUGHT   14 s
+```
+
+Both agree, and the short-circuit saves **nothing** when nothing fails — by construction, a
+NOT CAUGHT has to run every suite to establish itself. So the six-minute figure holds only
+while the sweep is clean, and each real finding costs full suite time. At today's numbers a
+sweep with ten findings would be about eight minutes rather than six.
+
+Also machine-specific: 32 min full locally against 41 min on the runner, so the ratio
+transfers better than the absolute. Short-circuited on CI is likely nearer eight minutes than
+six.
+
+**And the remedy has a lifespan.** The list is hand-written and grows; at roughly 20
+properties per minute short-circuited, a list of 500 is 25 minutes and the cost premise
+returns.
+
 ---
 
 ## THE ROOT CAUSE, and the hypothesis it replaced
@@ -251,8 +296,9 @@ quotes". `staleness-trial` and `rowmodel-trial` are spawned by `oracle.test.mjs`
 
 > Every finding-producer in this repository is gated except the sweep. Being gated is what
 > being read consists of here — a gate refuses, and a refusal cannot be ignored. The sweep is
-> the single exception, and it is the exception for exactly one reason: it was too expensive
-> to gate.
+> the single exception, and it is the exception for two reasons: it was too expensive to gate
+> (S3, now false by measurement for CI), and it is destructive to the tree it checks (S17,
+> still true, and it is what makes the remedy CI-only).
 
 | producer | gated by | read? |
 |---|---|---|
