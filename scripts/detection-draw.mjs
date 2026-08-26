@@ -405,7 +405,7 @@ async function draw() {
       detected: note.degraded_side === 'none' ? null
         : picked === null ? null
         : picked !== note.degraded_side,
-      named_defect: null,
+      named_defect: namedDefect(out, note),
       prompt_hash: sha(prompt),
       response: rawRel,
       degraded_hash: note.degraded_hash,
@@ -459,6 +459,39 @@ function parseWinner(text) {
   return a && !b ? 'A' : b && !a ? 'B' : null
 }
 
+// DID IT NAME THE DEFECT, or merely land on the right side?
+//
+// Picking correctly is 50/50 luck on any single trial; quoting the planted text
+// is not. This is the leak-check shape the deleted gate 7 used in reverse — there,
+// finding the sealed strings in a critic's output proved it had reached the
+// original; here it is evidence the critic actually located the damage.
+//
+// HEURISTIC, AND RECORDED AS ONE. It looks for a distinctive fragment of the
+// changed line, or the removed section's heading. A critic that describes the
+// defect in its own words without quoting scores false here, so this UNDERSTATES.
+// It is a separate field, nothing gates on it, and the response is on disk for a
+// reader who wants the real answer.
+function namedDefect(text, note) {
+  if (note.degraded_side === 'none') return null
+  const hay = String(text)
+  const candidates = []
+  if (note.defect_class === 'section-removal') {
+    const head = String(note.removed).split('\n')[0].replace(/^#+\s*/, '').trim()
+    if (head.length >= 8) candidates.push(head)
+  } else {
+    // The changed line, minus markup, in fragments long enough not to match by
+    // chance. Both directions: the critic may quote what is there or what is not.
+    for (const line of [note.removed, note.inserted]) {
+      const t = String(line).replace(/[`*#|]/g, ' ').replace(/\s+/g, ' ').trim()
+      if (t.length >= 24) candidates.push(t.slice(0, 60))
+    }
+  }
+  if (!candidates.length) return null
+  const norm = x => x.replace(/[`*#|]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase()
+  const h = norm(hay)
+  return candidates.some(c => h.includes(norm(c)))
+}
+
 // A control where the critic said the sides are identical, or picked one while
 // disclaiming that the pick carries no signal, is NOT a false alarm — it is the
 // difference-seeking confound scoring zero. Recorded separately from the pick,
@@ -494,7 +527,7 @@ function reparse() {
         : picked === null ? null
         : picked !== note.degraded_side,
       declared_no_difference: declaredNoDifference(text),
-      named_defect: null,
+      named_defect: namedDefect(text, note),
       prompt_hash: PROMPT_HASHES.get(id) || null,
       response: join('runs', 'detection-raw', f),
       degraded_hash: note.degraded_hash,
