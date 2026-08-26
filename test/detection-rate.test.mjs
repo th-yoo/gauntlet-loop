@@ -55,7 +55,12 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const LEDGER = join(ROOT, 'runs', 'detection.jsonl')
+// DETECTION_LEDGER lets a check point this at a throwaway file, the same
+// affordance oracle-add.mjs has as ORACLE_CORPUS and for the same reason: the
+// only way to know whether a guard can FAIL is to hand it a set that should fail
+// it, and doing that against the tracked ledger would mean writing fabricated
+// rows into the evidence.
+const LEDGER = process.env.DETECTION_LEDGER || join(ROOT, 'runs', 'detection.jsonl')
 
 let failures = 0
 const fail = m => { console.error(`  FAIL  ${m}`); failures++ }
