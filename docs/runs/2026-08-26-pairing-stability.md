@@ -64,3 +64,61 @@ instrument is allowed to do, and nothing else in the corpus can produce it.
 - **It does not test the composition.** Both sides of a pairing are drawn in one invocation
   by the same process; nothing here establishes they are independent draws, which is the
   same residual the report already carries about the derived `2q(1-q)` figure.
+
+---
+
+# The result
+
+**32 spawns, 32 recorded, 0 excluded.** No draw errored, timed out, or failed to parse, so
+the exclusion branch of the rule above is empty — stated here because a stability figure
+that silently drops its failures is measuring the draws that worked.
+
+**Zero flips, across all 8 pairings at 3 draws each.** Every pairing's composed verdict is
+identical in every draw:
+
+```
+inventory-pair         comparable  x3        landing-pair            generator   x3
+counter-pair           comparable  x3        inventory-absent-pair   unreadable  x3
+release-pair           comparable  x3        writers-pair            comparable  x3
+subscribers-pair       comparable  x3
+slug-pair              comparable  x3
+```
+
+By the rule fixed before drawing: **the automatic refusal keeps its authority.** One failure
+mode — a verdict that does not reproduce — is ruled out to the extent 16 redraws can rule
+anything out. The prediction recorded above held, which is worth exactly what a held
+prediction is worth: it did not come back against its author, and it could have.
+
+**This does not close #28.** That issue names three gaps, and this run closes one:
+
+| #28's gap | after this run |
+|---|---|
+| n=1 per pairing — nothing shows a verdict reproduces | **closed** — 3 draws per pairing, 0 flips |
+| the answer key is the probe author's | open — #33 |
+| no blindness: the probe reads both artifacts and has shown it can identify a side | open |
+
+## What the run exposed, which was not what it was looking for
+
+`oracle-report` narrowed the false-refusal interval from `0/6, 95% CI [0%, 39%]` to
+`0/18, 95% CI [0%, 18%]` — **on redraws of the same six pairings.** No pairing was added.
+Nothing new was tested. The interval halved because the same six questions were asked three
+times each.
+
+The report already knows this is wrong, in its own words, at `scripts/oracle-report.mjs:342`:
+
+> `distinct artifacts ${distinct}   <- the number that bears on any statistical claim`
+
+and in the comment directly above it:
+
+> *repeat executions of ONE artifact are not independent evidence, and a rate computed over
+> observations would let one artifact measured twice masquerade as two*
+
+Then `:336` computes `wilson(wrong.length, n)` over observations, and `:541` computes
+`wilson(refused.length, cell.length)` over draws. **The report prints the correct principle
+beside a number that violates it**, on both arms.
+
+A redraw does buy something — it is exactly what bounds instability, which is why this run
+was worth making. What it does not buy is a narrower interval on the rate, because the
+population that rate is about is pairings someone might run, not draws someone chose to
+repeat. Filed separately; the honest reading of this run is `0 falsely refused over 6
+distinct pairings`, whose interval is the one that was there before: `[0%, 39%]`.

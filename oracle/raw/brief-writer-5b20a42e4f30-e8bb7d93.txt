@@ -1,0 +1,3 @@
+```json
+{"verdict": "produces-an-instruction", "reasoning": "The template says outright \"You are not designing anything yourself — the studio does that, from the brief you write, in their next sprint.\" An agent following it fills six headings (product sentence, audience, desired visitor action, tone/references, out of scope, deadline) and hands the result to the studio contact; it even routes follow-up questions to the account manager. End state is a one-page document, no landing page for Cadence — the goal is untouched, delegated by design to a named external party.", "what_it_is": "A fill-in-the-blank creative-brief form, with headings plus handoff and question-routing instructions, meant to commission a design studio to build the page later."}
+```

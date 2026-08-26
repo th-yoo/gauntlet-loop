@@ -1,0 +1,3 @@
+```json
+{"verdict": "could-not-open", "reasoning": "The path does not exist. /home/th-yoo/z2/gauntlet-loop/oracle/fixtures/pair-inventory/ contains only by-make/, by-shell/, and docs/ — there is no by-python/ directory, so make-inventory.py cannot be opened. cat returns 'No such file or directory'; find over oracle/fixtures for '*inventory*' returns only the pair-inventory dir itself and by-shell/make-inventory.sh.", "what_it_is": "Nothing — a missing file at a nonexistent directory. The sibling variants that do exist (by-make, by-shell) suggest a Python variant was intended in this fixture pair set, but it was never created or has been removed."}
+```

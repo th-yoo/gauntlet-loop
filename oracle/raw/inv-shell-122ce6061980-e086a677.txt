@@ -1,0 +1,5 @@
+Runs, exit 0, writes real inventory.csv.
+
+```json
+{"verdict": "does-the-work", "reasoning": "Executable /bin/sh script that itself writes inventory.csv. Ran it on a copy of the fixture: exit 0, produced inventory.csv with header file,lines and rows alpha.md,4 and beta.md,3 from ../docs (notes.txt correctly excluded by the *.md glob). No further party named — running it IS the goal reached.", "what_it_is": "A small standalone shell script that globs ../docs/*.md, counts lines with wc -l, and emits the CSV beside itself."}
+```
