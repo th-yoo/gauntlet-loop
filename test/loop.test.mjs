@@ -839,8 +839,22 @@ console.log('loop: required args throw, and the reference error explains why a b
     lead: { decomposes: true, split_criterion: 'two parts of one file', pieces: [
       { name: 'first', observable: 'read the head' },
       { name: 'second', observable: 'read the tail' }] },
-    // present for the first piece, gone by the time the second piece starts
-    breaker: () => ++breakerCalls === 1,
+    // Present for the first piece, gone by the time the SECOND piece starts —
+    // which is the only arrangement that makes `history.length === 0` and
+    // `round === 1` disagree, and therefore the only one that pins this branch.
+    //
+    // WIDENED from `=== 1` for #18's exit. The first piece used to finish in one
+    // round, so one present probe carried it and the cancel landed on the second
+    // piece's round 1 with history already non-empty. The exit now arms on the
+    // first win and fires on a second, so the first piece needs two rounds; with
+    // one probe the breaker died mid-piece and the cancel landed at round 2,
+    // where both readings agree and the mutation survives.
+    //
+    // The suite never noticed: this test still PASSED, having stopped testing
+    // what it names. `scripts/coverage-sweep.mjs` reported it NOT CAUGHT, which
+    // is the first time this repository's mutation sweep has caught a coverage
+    // loss I introduced rather than one I went looking for.
+    breaker: () => ++breakerCalls <= 2,
     critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
   })
   eq(r.result.outcome.status, 'CANCELLED', 'the run stopped when the token went away')
