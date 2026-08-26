@@ -13,20 +13,32 @@
 // tests, or when a fix stops feeling covered." That is a remembered trigger, which
 // is the thing #42 is about, stated in the file that most needs one.
 //
-// THE COST IS MEASURED, NOT ESTIMATED. #45 said ">10 min". One property was timed
-// at ~28s — the same as a whole `run-all`, because that is exactly what it does —
-// and the list holds 114 of them. So the real figure is closer to 50 minutes, and
-// the conclusion changes with it: this is not merely too slow for a pre-push hook,
-// it is too slow for per-push CI as well. The number is recomputed below rather
-// than restated, so it cannot go stale the way ">10 min" did.
+// THE COST IS MEASURED, NOT ESTIMATED. #45 said ">10 min". Every cost figure this
+// file states comes from OBSERVED below — one run that happened, on a named
+// machine — and no figure here multiplies a sample. This paragraph used to do
+// exactly that, arriving at "114 x ~28s = ~53 min", and both halves went stale:
+// the count is 117 and the run took 13m35s. The correction is kept below under
+// THE COST IS AN OBSERVATION, because the error is the reusable part.
+//
+// WHAT WOULD CHANGE THE COST, AND HAS NOT LANDED. `scripts/mutate.mjs` runs the
+// whole suite per property even after a suite has already failed, though any
+// non-zero exit already means CAUGHT — `test/run-all.mjs:31` reports every failing
+// suite, which is right for a human reading test output and wasted here. Both ways
+// were run over all 117 properties on 2026-08-26: 32 min against 6.0 min locally,
+// identical verdicts. The short-circuit is NOT implemented. So the figures below
+// are what the sweep costs, not what it needs to cost, and the out-of-band
+// placement this file argues for rests on the former. A short-circuited sweep also
+// saves nothing on a property that is genuinely unpinned — establishing NOT CAUGHT
+// has to run every suite — so the reduction holds only while the sweep is clean.
 //
 // Root causes.
 //
 // RC1 — no trigger exists. The only one written down is a human intention.
 //
-// RC2 — it is too slow for any blocking gate, so "add it to the suite" is not the
-//   fix. A gate that adds ~50 minutes to a push gets bypassed, and a bypassed gate
-//   is worse than an absent one because the repo reads as covered.
+// RC2 — it is too slow for any push-time gate, so "add it to the suite" is not the
+//   fix. A gate that adds ~14 minutes to a push gets bypassed, and a bypassed gate
+//   is worse than an absent one because the repo reads as covered. That argument
+//   is about the cost as implemented; see WHAT WOULD CHANGE THE COST above.
 //
 // RC3 — being unrunnable in a gate is not a reason to have no cadence. Something
 //   that cannot block can still run on a schedule, on a machine nobody is waiting
@@ -52,7 +64,8 @@ const ok = (cond, msg) => { if (!cond) fail(msg) }
 // answer to a parser that can go blind is not a better parser. The sweep exports its list
 // and runs only when invoked, so this reads the same array the sweep sweeps. #46 RC4.
 //
-// A removed export guard would make this import start ~50 minutes of mutation. That
+// A removed export guard would make this import start a full sweep — ~14 min on
+// ubuntu-latest, ~32 min locally, and it mutates the tree while it runs. That
 // failure is loud — the sweep prints a line per property while it happens — and
 // test/sweep-summary.test.mjs pins the guard with bounded probes.
 const { PROPERTIES } = await import(pathToFileURL(SWEEP).href)
@@ -84,7 +97,12 @@ const FLOOR = 117
 // unusable in front of a push as a 53-minute one.
 const OBSERVED = { minutes: 14, where: 'ubuntu-latest', run: '32900618692' }
 
-console.log('coverage-cadence: the sweep is too slow for a blocking gate')
+// "BLOCKING" IS THE WRONG WORD FOR ANYTHING HERE, and this file used it four times.
+// main has no branch protection and no required status checks, and .git/hooks holds
+// samples only. What the suite has is a PUSH-TIME trigger: .githooks/pre-push where
+// core.hooksPath is set, and ci.yml on the runner. A finding reaches a person because
+// the suite gets RUN, not because anything refuses.
+console.log('coverage-cadence: the sweep is too slow for the push-time suite')
 console.log(`          ${PROPERTY_COUNT} properties in the list; last full run ~${OBSERVED.minutes} min on ${OBSERVED.where} (run ${OBSERVED.run})`)
 ok(PROPERTY_COUNT > 0, 'the imported property list is empty — the sweep would report full coverage of nothing')
 // ONE THING makes this fire now, where the old version had to diagnose two. It cannot be a
@@ -93,9 +111,9 @@ ok(PROPERTY_COUNT >= FLOOR,
    `the list holds ${PROPERTY_COUNT} properties and has held at least ${FLOOR} — it lost ${FLOOR - PROPERTY_COUNT}. That is the silent-coverage-loss this sweep exists to catch: a structural edit once removed four cases beyond the one being rewritten and the suite went green at a lower count. Establish why, then lower FLOOR deliberately or restore what went.`)
 
 // It must NOT be in run-all. This is asserted in the direction that would actually
-// go wrong: someone reads #45, adds the sweep to the suite, and every push becomes
-// an hour.
-console.log('coverage-cadence: the sweep stays out of the blocking suite')
+// go wrong: someone reads #45, adds the sweep to the suite, and every push carries
+// OBSERVED.minutes instead of seconds.
+console.log('coverage-cadence: the sweep stays out of the push-time suite')
 {
   const suiteFiles = readdirSync(join(ROOT, 'test')).filter(f => f.endsWith('.test.mjs') && f !== 'coverage-cadence.test.mjs')
   for (const f of suiteFiles) {
@@ -106,7 +124,7 @@ console.log('coverage-cadence: the sweep stays out of the blocking suite')
     }
   }
   const runAll = readFileSync(join(ROOT, 'test', 'run-all.mjs'), 'utf8')
-  ok(!/coverage-sweep/.test(runAll), `test/run-all.mjs names coverage-sweep — the suite is the blocking gate and this does not belong in it`)
+  ok(!/coverage-sweep/.test(runAll), `test/run-all.mjs names coverage-sweep — the suite is what every push runs and this does not belong in it`)
 }
 
 // ---------------------------------------------------------------------------
@@ -144,7 +162,7 @@ if (wf) {
      `${wf.f} runs the sweep but has no cron — a workflow that fires only on dispatch is still a remembered trigger, wearing CI's clothes`)
 
   // The sweep must not gate a push. Separate workflow, or at least not on push.
-  console.log('coverage-cadence: an unfiltered push trigger would put ~50 min in everyone\'s way')
+  console.log(`coverage-cadence: an unfiltered push trigger would put ~${OBSERVED.minutes} min in everyone's way`)
   // A bare `push:` and a path-filtered one are indistinguishable by a line regex —
   // both leave `push:` alone on its line — and the first version of this check
   // called the filtered form a failure. What separates them is the indented block
@@ -214,4 +232,4 @@ if (failures) {
   console.error(`\ncoverage-cadence: ${failures} failure(s) — the sweep runs when someone remembers.`)
   process.exit(1)
 }
-console.log(`\ncoverage-cadence: OK — ${PROPERTY_COUNT} properties on a schedule, out of the blocking gate, failures reported.`)
+console.log(`\ncoverage-cadence: OK — ${PROPERTY_COUNT} properties on a schedule, out of the push-time suite, failures reported.`)

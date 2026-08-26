@@ -34,7 +34,9 @@ let failures = 0
 const fail = m => { console.error(`  FAIL  ${m}`); failures++ }
 
 // IMPORTING THE SWEEP MUST NOT RUN IT, and the check is bounded rather than trusting.
-// Today importing it starts ~50 minutes of mutation, so this asks in a child process with a
+// Without the export guard, importing it starts a whole sweep — cost recorded in
+// one place, test/coverage-cadence.test.mjs OBSERVED, and not copied here. So this
+// asks in a child process with a
 // short timeout: a sweep that runs on import cannot be imported by anything, which is why
 // three files ended up re-parsing its source instead.
 console.log('sweep-summary: the property list can be imported without running the sweep')

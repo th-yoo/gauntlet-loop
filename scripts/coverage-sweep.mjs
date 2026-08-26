@@ -187,7 +187,8 @@ export const PROPERTIES = [
 // Three files were reading this list by RE-PARSING this file's text — coverage-cadence with
 // a regex that went blind once (114 against 117, three entries opening with a double
 // quote), and two written since. They all did it because importing this file used to start
-// ~50 minutes of mutation, so the list could not be read any other way. One list, imported,
+// a whole sweep (cost: test/coverage-cadence.test.mjs OBSERVED), so the list could
+// not be read any other way. One list, imported,
 // cannot be misparsed by anyone. #46 RC4.
 const INVOKED = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 

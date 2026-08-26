@@ -6,7 +6,8 @@
 // pins each property by a literal string: it replaces that text, runs the suite, and
 // requires the suite to go red. Rename the code and the string stops matching — the
 // mutation cannot be applied, the property silently stops being tested, and the only thing
-// that notices is a sweep that takes ~50 minutes and runs weekly. Two renames on 2026-08-26
+// that notices is a sweep that runs weekly and takes minutes, not milliseconds (cost:
+// test/coverage-cadence.test.mjs OBSERVED). Two renames on 2026-08-26
 // (`arm` -> `grounding` in oracle-add, and blanking the resolved path rather than the
 // caller's spelling in oracle-extract) disarmed two properties, and the first anyone knew
 // was a red scheduled run three commits later.
