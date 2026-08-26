@@ -4,32 +4,41 @@
 `gauntlet-ab-critic` as deployed by `loop.js`, prompt captured from the live
 script, one template hash across all trials.
 
-> **THIS DOCUMENT WAS WRONG IN ITS HEADLINE NUMBER AND HAS BEEN CORRECTED.** It
-> first reported detection at **2/12 = 17%** and concluded the critic does not
-> discriminate. The ledger it read scored every trial by comparing the critic's
-> **ARTIFACT** letter against the **directory** letter the degraded bytes were
-> staged under, and those are opposite for every trial in the batch. The rate is
-> the complement of what was published: **10/12 = 83%**. Nothing was re-spawned;
-> the responses on disk are unchanged and were re-parsed. See
-> [What was wrong, and how it was found](#what-was-wrong-and-how-it-was-found).
+> **THIS DOCUMENT WAS WRONG IN ITS HEADLINE NUMBER AND HAS BEEN CORRECTED TWICE.**
+> It first reported detection at **2/12 = 17%** and concluded the critic does not
+> discriminate. Two defects, both in how the ledger was read rather than in
+> anything the critic did:
+>
+> 1. Every trial was scored by comparing the critic's **ARTIFACT** letter against
+>    the **directory** letter the degraded bytes were staged under, and those are
+>    opposite for every trial in the batch — so the published rate was the exact
+>    complement of the real one.
+> 2. `parseWinner` demanded a `#` heading the prompt never asked for, dropping
+>    three responses that answered in the prompt's own numbered form, and read the
+>    word `tie` anywhere in the item, turning one control's disclaimed pick into a
+>    refusal (#53).
+>
+> The rate is **12/15 = 80%**. Nothing was re-spawned for either correction; the
+> responses on disk are unchanged and were re-parsed.
 
 ## The result
 
 | | |
 |---|---|
-| detection | **10 / 12 readable degraded trials = 83%** |
-| interval | Wilson 95% CI **55% – 95%** |
-| against chance | P(≥10 of 12 \| coin) = **0.019** |
+| detection | **12 / 15 degraded trials = 80%** |
+| interval | Wilson 95% CI **55% – 93%** |
+| against chance | P(≥12 of 15 \| coin) = **0.018** |
 | named the defect | **13 / 15** degraded trials quoted text only one side carried |
 | false alarms | **0 / 5** controls |
+| unread | **0 / 15** |
 
 By defect class:
 
 | class | detected |
 |---|---|
-| section-removal | **4 / 4** |
+| section-removal | **5 / 5** |
 | factual-substitution | 4 / 5 |
-| inverted-constraint | 2 / 3 |
+| inverted-constraint | 3 / 5 |
 
 ## What this establishes
 
@@ -39,34 +48,44 @@ and no trivial strategy available to it reproduces that:
 
 | strategy | scores |
 |---|---|
-| always pick ARTIFACT A | 7 / 12 |
-| always pick ARTIFACT B | 5 / 12 |
-| always pick the longer file | 6 / 12 (3 trials are size-identical, where it cannot choose at all) |
-| **the critic** | **10 / 12** |
+| always pick ARTIFACT A | 8 / 15 |
+| always pick ARTIFACT B | 7 / 15 |
+| always pick the longer file | 9 / 15 (3 trials are size-identical, where it cannot choose at all) |
+| **the critic** | **12 / 15** |
 
 The length confound is the one that matters most at a high rate, because
 section-removal makes the degraded copy strictly shorter and a critic that always
 preferred the longer file would score 4/4 on that class while reading nothing.
-It does not explain the result: three of the ten detections are on pairs where
+It does not explain the result: three of the twelve detections are on pairs where
 the degraded side is **longer** (a planted `not ` or a substituted token adds
 bytes), two more are on pairs that are **byte-identical in length**, and across
-the nine trials whose sides differ in size the critic picked the longer file 5
-times — chance.
+the twelve trials whose sides differ in size the critic picked the longer file 7
+times — near chance.
 
 **#29's original anecdote is now consistent with the measurement rather than an
 outlier.** The issue rested on one observation: `wf_a4a68ddd-317`, a 22-line
 section removed from a SKILL.md, found and confirmed by running grep. That is a
-section-removal detection, and section-removal came in at 4/4. One draw from an
-83% detector detecting is the ordinary case.
+section-removal detection, and section-removal came in at 5/5. One draw from an
+80% detector detecting is the ordinary case.
 
 ## What the critic does on the controls
 
 Every one of the five undegraded control pairs was correctly called identical —
 zero false alarms — under a prompt that tells it in as many words that *"a tie is
-a critic declining to look closely enough"*. Two controls answered `neither`
-outright; the rest picked a side while stating the pick carried no signal. So the
-critic is not a difference-seeker: it reports no difference when there is none,
-and finds the difference when there is one.
+a critic declining to look closely enough"*. **One** control answered outright
+that there is no winner — *"None. Not a tie from shallow looking — a literal
+identity. I ran the diff."* The other four picked a side while stating in the same
+breath that the pick carried no signal: *"**A** — by coin-flip convention only,
+not earned"*, *"**A** — forced pick only"*. So the critic is not a
+difference-seeker: it reports no difference when there is none, and finds the
+difference when there is one.
+
+An earlier version of this section said *two* controls answered `neither`
+outright. That was the parser, not the critic: `parseWinner` scanned the whole
+item for the word `tie` and read *"…would be worse than reporting the tie"* — the
+tail of a sentence whose subject was a pick for A — as a refusal to pick. Fixed
+under #53; a pick with a disclaimer is a pick, and the disclaimer is
+`declaredNoDifference`'s job.
 
 ## And it quotes the defect it finds
 
@@ -76,17 +95,16 @@ characters, or the removed section's heading.
 
 | | named the defect |
 |---|---|
-| the 10 detections | 8 / 10 |
-| the 2 misses | 2 / 2 |
-| the 3 unread | 3 / 3 |
+| the 12 detections | 10 / 12 |
+| the 3 misses | 3 / 3 |
 | all degraded trials | **13 / 15** |
 
-Read against an 83% detection rate this is unremarkable and that is the point:
+Read against an 80% detection rate this is unremarkable and that is the point:
 the critic locates the planted text and converts it into the verdict. It is the
 same field that, read against the inverted 17%, produced issue **#52** — "the
 critic quotes the planted defect and picks the degraded side anyway, on 8 of the
-10 trials it got wrong". With the mapping corrected there are **two** trials it
-got wrong, not ten, and n=2 is an anecdote. **#52's premise does not survive the
+10 trials it got wrong". With the mapping corrected there are **three** trials it
+got wrong, not ten, and n=3 is an anecdote. **#52's premise does not survive the
 correction.**
 
 The quoting-volume confound behind the field is unaffected by any of this, since
@@ -208,14 +226,15 @@ The identical basenames are what made the defect invisible in prose: `a/` and
 - **Whether these defects resemble the ones a real run meets.** They are planted,
   and a planted defect is one somebody chose. The rate is about detecting *this*
   set and generalises only as far as the set does.
-- **Twelve is small.** The interval is 40 points wide, 55% to 95%. What it
-  excludes is chance, not much else — and the per-class figures (4/4, 4/5, 2/3)
+- **Fifteen is small.** The interval is 38 points wide, 55% to 93%. What it
+  excludes is chance, not much else — and the per-class figures (5/5, 4/5, 3/5)
   are each too small to separate from one another.
-- **Three degraded trials are unread** — the parser could not read a winner from
-  them. They are recorded, excluded from the rate rather than counted as misses,
-  and the responses are on disk. At least one of the three states its answer in a
-  form a human reads immediately (`**1. WINNER — A** (`b/subject.md`, 63 lines)`),
-  so the unread count is a property of `parseWinner`, not of the critic.
+- **The denominator moved once already, for a reason that had nothing to do with
+  the critic.** This document first reported the rate over twelve trials, because
+  `parseWinner` demanded a `#` heading and dropped three responses that answered
+  in the prompt's own numbered form. Fixed under #53; the rate is now over all
+  fifteen. A 20% drop set by markdown decoration narrowed every interval here and
+  nothing noticed until the ledger was read by hand.
 - **The mapping of these twenty rows rests on loop.js's alternation as it is
   today**, plus the shared template hash, rather than on a prompt rebuilt from
   each trial's own recorded paths — those paths were not recorded when the batch
@@ -233,9 +252,9 @@ The identical basenames are what made the defect invisible in prose: `a/` and
 **#18's automatic revert was declined on a number that was wrong, so the decline
 no longer has its reason.** The argument was: rollback authority handed to an
 evaluator detecting at 17% would discard work more often than it saved any. At
-83% that argument is gone. **It does not follow that the revert arm should be
+80% that argument is gone. **It does not follow that the revert arm should be
 turned on** — that is a decision for the operator, on a rate whose interval runs
-from 55% to 95%, measured on planted single-transform defects that are not the
+from 55% to 93%, measured on planted single-transform defects that are not the
 thing a revert would act on. What has changed is that the question is open again
 and the old answer's stated basis is void.
 
@@ -255,11 +274,43 @@ worked.
     node test/detection-rate.test.mjs
     node test/detection-parse.test.mjs
     node test/artifact-mapping.test.mjs
+    node test/winner-parse.test.mjs
 
 The ledger is `runs/detection.jsonl`, responses are `runs/detection-raw/`, sealed
 notes are `runs/detection-sealed/`. Re-parsing never needs re-spawning: every
 response is written to disk before it is read, which is why a defect that
 inverted every verdict cost a re-parse and no live agents.
+
+## Second correction: the parser set the denominator (#53)
+
+Found while writing up the first correction. `parseWinner` located the verdict by
+matching a heading, `/^#{1,4}\s*\d*\.?\s*WINNER\b/`. The prompt never asks for a
+`#` — it asks for a numbered list, `1. WINNER — A or B` — so three responses that
+complied literally, writing `**1. WINNER — B**`, were recorded as unread and
+dropped from the rate. A fourth defect in the same function read the word `tie`
+anywhere in the item, turning a control's *"**A** — by coin-flip convention
+only… worse than reporting the tie"* into a refusal to pick.
+
+The fix is not a wider catalogue of markdown shapes. The labels are read out of
+the prompt's own numbered template (`templateLabels`), a section line is any line
+carrying one of those labels once decoration and an item number are stripped, and
+the answer is the FIRST answer token inside the item — because the template reads
+`1. WINNER — A or B`, so the answer is what follows the label, and everything
+after it is the critic continuing to talk. `DEPLOYED_LABELS` is crossed against
+the live prompt on every run, so the fallback cannot go stale in silence.
+
+Effect on the ledger: four of twenty answers changed — the three that were
+unread, plus the control that was recorded `neither` and had picked A. Sixteen
+were unchanged. **The rate moved from 10/12 = 83% to 12/15 = 80%**, which was
+written into #53 before the fix was built precisely so the fix could not be
+graded by whether it moved the number in a welcome direction.
+
+`test/winner-parse.test.mjs` is the reproducible. Six mutations of the parser are
+caught by it, including one — deleting the word-boundary check that stops a label
+from matching a longer word — that survived the first version of the test. The
+property was asserted in the code and no input needed it, which is the
+can't-fail-check rule one level in: the check existed, and nothing established
+that it did anything.
 
 ## Earlier correction to this document, kept
 

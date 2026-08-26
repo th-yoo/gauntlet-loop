@@ -26,22 +26,115 @@
 // So it reads the heading AND the block under it, and anything it cannot read is
 // left null for a human rather than guessed at.
 
-export function parseWinner(text) {
+// THE ITEM LABELS COME FROM THE PROMPT, not from a catalogue of markdown shapes.
+//
+// #53: three of fifteen degraded trials were recorded `picked: null` because the
+// critic wrote `**1. WINNER — B**` and this parser demanded a `#` heading. The
+// prompt never asks for `#`. It states a numbered template —
+//
+//     1. WINNER — A or B. You must choose. ...
+//     2. WHY — what actually separates them. Concrete.
+//
+// — so the thing to look for is a line carrying one of THOSE labels, whatever
+// decoration surrounds it. Widening the regex to accept `**N. LABEL**` because
+// three responses used that form would be one pattern per incident; deriving the
+// labels from the template covers the form nobody has emitted yet, and follows
+// the prompt if the prompt is rewritten.
+export const DEPLOYED_LABELS = ['WINNER', 'WHY', 'GAP', 'INSPECTED']
+
+// Read the numbered items out of a prompt. A pin covers what someone thought to
+// enumerate; test/winner-parse.test.mjs crosses DEPLOYED_LABELS against this on
+// every run, so the fallback cannot go stale in silence.
+export function templateLabels(prompt) {
+  const out = []
+  for (const line of String(prompt).split('\n')) {
+    const m = /^\s*(\d+)\.\s+([A-Z][A-Z ]{1,})\b/.exec(line)
+    if (m) { const l = m[2].trim(); if (l.length >= 2 && !out.includes(l)) out.push(l) }
+  }
+  return out
+}
+
+// Decoration a critic may wrap a label in. NOT part of the answer either way:
+// stripped from the front, and what remains has to START with the label, which
+// is what keeps the word "winner" inside a sentence from being an item.
+const DECOR = /^[\s#*_>`\-–—]+/
+
+function sectionLabelAt(line, labels) {
+  let t = String(line).replace(DECOR, '')
+  t = t.replace(/^\(?\d+[.):]\s*/, '')   // an optional item number
+  t = t.replace(/^[\s*_`]+/, '')         // and decoration between number and label
+  for (const L of labels) {
+    if (!t.startsWith(L)) continue
+    const rest = t.slice(L.length)
+    // A boundary is required so WINNERS, WHYEVER and GAPS are not items.
+    if (rest === '' || /^[^A-Za-z]/.test(rest)) return { label: L, rest }
+  }
+  return null
+}
+
+// THE ANSWER IS THE VALUE THAT FOLLOWS THE LABEL. The template reads
+// `1. WINNER — A or B`, so within the item the first answer token is the answer;
+// everything after it is the critic continuing to talk. Scanning the whole item
+// for `neither` instead reads
+//
+//     **1. WINNER — A** (b/subject.md, 63 lines). Narrow win. Neither meets goal.
+//
+// (unbackticked deliberately: that path is inside a trial tree that no longer
+// exists, and drift-guard is right that a backticked path here would be a
+// citation a reader could follow to nothing.)
+//
+// as a refusal to pick, when it is a pick for A followed by a remark that neither
+// artifact is good enough. Those are different observations and merging them is
+// how a control set stops controlling: a critic that picks a side while saying
+// the pick carries no signal is recorded by `declaredNoDifference`, which is a
+// separate field for exactly this reason.
+function answerIn(t) {
+  const pats = [
+    ['neither', /(^|[^A-Za-z])(neither|none|no winner|not a winner|tie)([^A-Za-z]|$)/i],
+    ['A', /(^|[^A-Za-z])A([^A-Za-z]|$)/],
+    ['B', /(^|[^A-Za-z])B([^A-Za-z]|$)/],
+  ]
+  let best = null, bestIdx = Infinity
+  for (const [val, re] of pats) {
+    const m = re.exec(t)
+    if (!m) continue
+    const idx = m.index + (m[1] ? m[1].length : 0)
+    if (idx < bestIdx) { bestIdx = idx; best = val }
+  }
+  return best
+}
+
+// WHAT THIS HAS BEEN WRONG ABOUT BEFORE, kept because the next version will be
+// graded against it:
+//
+//   1. It matched `winner` followed anywhere on the line by a standalone `A`, and
+//      read "winner. Not tie-from-laziness — tie from measurement…" as a pick for
+//      A on a control the critic had correctly called identical.
+//   2. It read only the heading line, and the critic does not always put the
+//      answer there: "## 1. WINNER", a blank line, then "**A** — but by declared
+//      coin-flip, not by merit" parsed as nothing.
+//   3. It required a `#` heading and dropped three responses that answered in the
+//      prompt's own numbered form (#53).
+//   4. It scanned the whole block for `neither`, so a pick followed by "Neither
+//      meets goal" was recorded as a refusal to pick.
+//
+// Anything it cannot read is left null for a human rather than guessed at, and
+// the drop rate is reported by the test rather than left to be discovered.
+export function parseWinner(text, labels = DEPLOYED_LABELS) {
   const lines = String(text).split('\n')
-  const h = lines.findIndex(l => /^#{1,4}\s*\d*\.?\s*WINNER\b/i.test(l))
-  if (h === -1) return null
-  // The heading line minus the word WINNER, plus the next few lines, stopping at
-  // the following heading so a later section cannot supply the answer.
-  const block = [lines[h].replace(/^.*WINNER/i, '')]
-  for (let i = h + 1; i < lines.length && block.length < 6; i++) {
-    if (/^#{1,4}\s/.test(lines[i])) break
+  const first = labels[0]
+  let start = -1, head = ''
+  for (let i = 0; i < lines.length; i++) {
+    const s = sectionLabelAt(lines[i], labels)
+    if (s && s.label === first) { start = i; head = s.rest; break }
+  }
+  if (start === -1) return null
+  const block = [head]
+  for (let i = start + 1; i < lines.length; i++) {
+    if (sectionLabelAt(lines[i], labels)) break
     block.push(lines[i])
   }
-  const t = block.join(' ')
-  if (/\bneither\b|\bno winner\b|\bnot a winner\b|\btie\b/i.test(t)) return 'neither'
-  const a = /(^|[^A-Za-z])A([^A-Za-z]|$)/.test(t)
-  const b = /(^|[^A-Za-z])B([^A-Za-z]|$)/.test(t)
-  return a && !b ? 'A' : b && !a ? 'B' : null
+  return answerIn(block.join('\n'))
 }
 
 export const norm = x => String(x).replace(/[`*#|]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase()
