@@ -1,14 +1,41 @@
-# Issue 28 — root causes, and the reproducible for the one that is buildable
+# Issue 28 — suspects, and the one reproducible that was built
 
-**Written before the classification and before the draw.** The prediction at the bottom is
-recorded while the answer is unknown.
+**CORRECTED 2026-08-26, after the result.** This file was published at `06c8751` calling
+these five things ROOT CAUSES. Four of them were not, and one had already been refuted in
+its causal half by the time the word was committed. The correction and what it cost are at
+the bottom, under *The naming outran the evidence*; the status line now on each heading is
+the substance of it.
+
+S1-S5 were RC1-RC5 in `06c8751`. **The numbering is kept, and so is this file's name**, so
+that the pointer in `brief-emitter`'s corpus note and the commit message still resolve. The
+`rc-` in the filename is now wrong and is left wrong on purpose.
+
+A ROOT CAUSE IS A COUNTERFACTUAL: the defect occurs because of this, and would not if this
+were removed. Inspection establishes a FACT. It does not establish that link, and this
+project's own rule says reading the source finds nothing. Each heading below therefore
+carries what its evidence actually is:
+
+| status | what it means |
+|---|---|
+| VERIFIED FACT | computed or grepped from the artifact. True, and not thereby a cause |
+| OBSERVED FAILURE | something went wrong in a way that was watched. The only status that earns "cause" |
+| UNTESTED | a conjecture with no input built. This is where four of the five sat |
+| REFUTED IN ITS CAUSAL HALF | the fact holds, the failure it predicted was built and did not occur |
+| UNREPRODUCIBLE BY CONSTRUCTION | no input can fail it, so no reproducible will ever exist |
+
+**Written before the classification and before the draw.** The prediction below is recorded
+while the answer is unknown.
 
 ## Where #28 stands after the stability run
 
 `0bf7bab`/`1ea6eff` closed one of the issue's three gaps: 8 pairings x 3 draws, zero flips.
 The remaining two are not the same kind of thing, and one of them is partly stale.
 
-## RC1 — the corpus cannot separate ROLE from FILE SHAPE in the direction that matters
+## S1 — the corpus cannot separate ROLE from FILE SHAPE in the direction that matters
+
+**Status: VERIFIED FACT, and REFUTED IN ITS CAUSAL HALF.** The occupancy below is computed.
+The claim it was named for — that the probe is therefore reading shape — was built into an
+input and did not occur. See *The result*.
 
 Computed from `oracle/corpus.jsonl`, not asserted:
 
@@ -37,7 +64,10 @@ This is the parent rule in `CLAUDE.md` applied to this instrument: cross the cla
 property against the confound it is probably measuring instead, and arrange the cases so an
 instrument reading the confound scores at chance. Today it scores 89%.
 
-## RC2 — the gap as filed is partly stale, and the residual moved
+## S2 — the gap as filed is partly stale, and the residual moved
+
+**Status: the staleness is a VERIFIED FACT (two timestamps). The residual is UNTESTED** —
+nothing here shows the probe uses `Bash` to find provenance, only that it could.
 
 #28 says *"the probe reads both artifacts with a shell"* and cites the P6 trial, where its
 reasoning showed it had identified which side belonged to this repo. That describes a
@@ -60,13 +90,19 @@ the filesystem around the artifact. Blindness of the CONTENT is structural now; 
 the ENVIRONMENT is not, and nothing in the corpus tests it — every fixture sits inside this
 repository, where provenance is exactly what a `grep` would find.
 
-## RC3 — the answer key is still the author's
+## S3 — the answer key is still the author's
+
+**Status: UNREPRODUCIBLE BY CONSTRUCTION.** A sampling frame cannot fail a test, which is
+why #38 is permanent rather than open.
 
 Unchanged, and the largest. The generator arm reads its label off a blind second agent
 rather than off a flag, which is real, but the SELECTION of rows is one person's, and
 selection bias cannot be fixed by adding rows of the same kind (#38, #33).
 
-## RC4 — the evidence is reported stronger than it is
+## S4 — the evidence is reported stronger than it is
+
+**Status: OBSERVED FAILURE.** The only one of the five that earned the word. It happened
+to this session's own numbers, in front of the person quoting them.
 
 Found while running the stability draws: `oracle-report` computes Wilson intervals over
 observations (`:336`) and over draws (`:541`), while printing, two lines above,
@@ -75,7 +111,11 @@ six pairings narrowed the false-refusal interval from `[0%, 39%]` to `[0%, 18%]`
 single new pairing being tested. An instrument's evidence looking twice as strong as it is
 makes the authority-evidence mismatch worse from the reporting side.
 
-## RC5 — the authority is unconditioned
+## S5 — the authority is unconditioned
+
+**Status: VERIFIED FACT, causal half UNTESTED.** The grep is 0. That the refusal *would*
+behave differently if it could read the rate is a counterfactual nothing here tests, and
+arguably nothing can while nothing reads it.
 
 ```
 $ grep -c 'oracle\|corpus\|results.jsonl' skills/gauntlet-loop/loop.js
@@ -89,8 +129,9 @@ The remedy #28 proposes — downgrade the refusal to a warning — has nowhere t
 
 ## The reproducible
 
-RC1 is the only one of the five that is buildable as an input that FAILS. The empty cell is
-the reproducible: **an executable whose deliverable is a request to another party.**
+S1 is the only one of the five that admits an input that can FAIL. S3 never will, S2 and S5
+would need a counterfactual, and S4 had already failed on its own. The empty cell is the
+reproducible: **an executable whose deliverable is a request to another party.**
 
 `oracle/fixtures/brief-emitter/emit-brief.sh` — a POSIX shell script, `set -eu`, `mkdir`,
 heredoc, exit-0, shaped exactly like the eleven scripts and Makefiles in the
@@ -118,7 +159,7 @@ does not remove a confound — it starts crossing it.
 If it comes back `does-the-work`, that is a misclassification in the direction that makes
 the refusal FAIL TO FIRE, and the corpus's perfect record becomes explainable by shape. In
 that case #28's authority question is no longer about stability at all, and the remedy is
-RC5's: give the refusal somewhere to be downgraded from.
+S5's: give the refusal somewhere to be downgraded from.
 
 ---
 
@@ -170,11 +211,42 @@ knowing an answer: an executable writer whose execution emits NOTHING observable
 that prints a request to stdout and writes no file. If the probe reads the emission, it has
 none to read.
 
-## The four root causes this did not touch
+## The four suspects this did not touch
 
-RC2 (environment blindness — the agent still holds `Bash` and every fixture lives inside
-this repository), RC3 (the selection is one person's), RC4 (Wilson over observations rather
-than distinct artifacts), and RC5 (`grep -c 'oracle|corpus' loop.js` = 0, so the refusal has
-nothing to be downgraded from). RC5 is the one that makes #28's own proposed remedy
+S2 (environment blindness — the agent still holds `Bash` and every fixture lives inside
+this repository), S3 (the selection is one person's), S4 (Wilson over observations rather
+than distinct artifacts), and S5 (`grep -c 'oracle|corpus' loop.js` = 0, so the refusal has
+nothing to be downgraded from). S5 is the one that makes #28's own proposed remedy
 impossible today, and no measurement will fix it.
 
+
+---
+
+# The naming outran the evidence
+
+This file called five things root causes. One was.
+
+A root cause asserts a counterfactual — *the defect occurs because of this*. What produced
+four of these five was inspection: an occupancy table, two timestamps, a tools list, a
+`grep` returning 0. Every one of those is true. None of them is a cause, and the difference
+is not pedantic: **S1's causal half was built into an input within the hour and did not
+happen.** The probe ran the artifact and classified its emission. Had the word stayed
+uncorrected, this file would record a cause that the file's own experiment refutes two
+sections later.
+
+The precedent was in this repository, from earlier the same day. `2026-08-26-rc5-suspects.md`
+calls its seventeen items SUSPECTS and puts VERIFIED, PARTLY VERIFIED or FIXED on each,
+because a list that cannot say what it has established will assert everything at the
+strength of its strongest item. That discipline was available and was not applied here.
+
+There is a second reason it mattered for this issue specifically. **#28 is not a
+malfunction.** Nothing produces a wrong output; the complaint is that authority exceeds
+evidence. A defect with no wrong output has no failing input — the same shape as #46's RC5,
+recorded there as *"a composition has no owner — neither file is wrong, so no reproducible
+can be built that FAILS."* For that class, "root cause" is the wrong frame from the start,
+and suspects-with-status is the instrument that fits.
+
+**What still has no reproducible, stated plainly:** S2 and S5. Both are buildable and
+neither is built. S4's failure was watched but is not yet a test, so it can recur silently.
+S1 keeps its status until a shape-only classifier scores at chance on this corpus, which
+one row does not achieve.
