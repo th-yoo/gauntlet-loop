@@ -250,3 +250,30 @@ and suspects-with-status is the instrument that fits.
 neither is built. S4's failure was watched but is not yet a test, so it can recur silently.
 S1 keeps its status until a shape-only classifier scores at chance on this corpus, which
 one row does not achieve.
+
+---
+
+# Where each suspect stands, 2026-08-26 end of session
+
+The paragraph above was true when it was written and is not any more. Kept rather than
+edited, because what it got wrong is the record: two of the five were called unbuildable-
+for-now and were built within the hour.
+
+| suspect | then | now |
+|---|---|---|
+| S1 shape confound | VERIFIED FACT, causal half REFUTED | unchanged. `brief-emitter` put the first executable in the writer arm (`1ea6eff`) and the probe ran it rather than reading its extension. One row is not a crossed confound |
+| S2 environment blindness | UNTESTED | **still UNTESTED.** No input built. It is the only suspect nothing has been spent on |
+| S3 answer key is the author's | UNREPRODUCIBLE BY CONSTRUCTION | unchanged, and permanent (#38) |
+| S4 interval over the wrong unit | OBSERVED FAILURE, no test | **FIXED** (`81df191`). `test/interval-unit.test.mjs` reproduces it on synthetic ledgers; the shipped figures moved back to `0/6, CI [0%, 39%]` and `0/17, CI [0%, 18%]` |
+| S5 authority unconditioned | VERIFIED FACT, causal half UNTESTED | **HALF FIXED** (`8dbdc7f`). `args.on_refusal` makes the refusal answerable, with the unreadable verdict deliberately not downgradable and the downgrade recorded. The other half stands: `grep -c 'oracle\|corpus' loop.js` is still 0 |
+
+**The half of S5 that is not fixed is the half S5 named.** #28 asks for a refusal that can
+be downgraded *when the evidence says so*. What ships is a refusal an operator can overrule.
+Conditioning authority on a person is not conditioning it on a measurement, and the corpus
+still cannot reach the decision it is about.
+
+**What the S5 work found that was not S5.** `drift-guard` scans `args.*` in three places
+with three copies of a pattern that excludes underscores, so the first underscored argument
+in `loop.js` read as `args.on` in all three — the guard demanding documentation for a name
+that does not exist. Two were fixed and the failure moved to the third. Same shape as #46
+RC4, found the same way: by adding something the assumption had never met.
