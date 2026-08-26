@@ -277,32 +277,32 @@ export async function runLoop(opts) {
       })
     }
 
-    // THE RATCHET COMPARISON — #18. A fresh critic asked whether this round's build
+    // THE REGRESSION CHECK — #18's measuring half. A fresh critic asked whether this round's build
     // is better than the version that existed before it, which is the comparison the
     // loop has never had: every other A/B here is against the REFERENCE, so a round
     // that made the artifact worse is invisible and becomes the next round's baseline.
     //
-    // opts.ratchet -> function(round) -> the critic's answer, or null (no answer).
-    // Default undefined, so every existing test runs with no ratchet asked for and
+    // opts.regressionCheck -> function(round) -> the critic's answer, or null (no answer).
+    // Default undefined, so every existing test runs with no regression check asked for and
     // behaves exactly as before.
-    if (/:ratchet$/.test(label)) {
+    if (/:regression-check$/.test(label)) {
       const round = roundOf(label)
-      if (opts.ratchet === 'throw') throw new Error("agent type 'gauntlet-loop:gauntlet-ab-critic' not found")
-      if (opts.ratchet === undefined) return null
+      if (opts.regressionCheck === 'throw') throw new Error("agent type 'gauntlet-loop:gauntlet-ab-critic' not found")
+      if (opts.regressionCheck === undefined) return null
       // The stub is TOLD which side the new version landed on, read from the real
       // prompt, so a test can assert the alternation instead of trusting it. Without
-      // this a ratchet pinned to one side passes every test in the suite — which is
+      // this a check pinned to one side passes every test in the suite — which is
       // what the coverage sweep reported the first time these properties were pinned.
       const newIsA = /ARTIFACT A: (?!.*\.prev-)/.test(prompt)
-      const spec = typeof opts.ratchet === 'function' ? opts.ratchet(round, { newIsA }) : opts.ratchet
+      const spec = typeof opts.regressionCheck === 'function' ? opts.regressionCheck(round, { newIsA }) : opts.regressionCheck
       if (spec == null) return null
       // A test says which VERSION the critic preferred; which SIDE that is comes from
-      // the real prompt, never from re-deriving loop.js's parity here. A ratchet whose
+      // the real prompt, never from re-deriving loop.js's parity here. A check whose
       // alternation broke would otherwise sail through, which is the mistake the A/B
       // branch above already refuses to make.
       if (spec.prefers) {
         const winner = spec.prefers === 'new' ? (newIsA ? 'A' : 'B') : (newIsA ? 'B' : 'A')
-        return enforceSchema(label, o, { winner, why: spec.why || 'stub ratchet why' })
+        return enforceSchema(label, o, { winner, why: spec.why || 'stub regression-check why' })
       }
       return enforceSchema(label, o, spec)
     }

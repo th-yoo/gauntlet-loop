@@ -305,8 +305,11 @@ stays checkable while its correct form is underivable from anything else.
 - **The split is not checked.** A lead chooses what gets judged and nothing
   verifies the choice. Every piece can win while the artifact as a whole is worse
   than the reference, and no part of this run would notice.
-- **No ratchet.** The builder edits in place; a bad round is permanent, and the
-  loop holds no prior version to compare against.
+- **No ratchet — regressions are measured, not undone.** The builder edits in place, so a
+  bad round still stands. What changed is that it is no longer invisible: the builder copies
+  the artifact first, one fresh critic says which version is closer to the goal, and the
+  record carries `regression` and `regressed` with the path of what it lost to. Keeping the
+  best version and restoring it would be a ratchet; this is not one.
 - **Critics are not independent judgments.** They are the same model in fresh
   contexts. Requiring k of them to agree is not k independent opinions, and
   nothing here measures how much independence there actually is.

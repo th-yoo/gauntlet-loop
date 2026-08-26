@@ -1,7 +1,7 @@
-// THE REPRODUCIBLE for #18 — the loop has no ratchet, so a round that makes the
+// THE REPRODUCIBLE for #18 — the loop cannot see a round that made things worse, so a round that makes the
 // artifact worse is permanent and can be exited on.
 //
-//   node test/ratchet.test.mjs
+//   node test/regression-check.test.mjs
 //
 // COMMITTED FAILING.
 //
@@ -74,74 +74,74 @@ const THREE_ROUNDS = {
   ],
 }
 
-console.log('ratchet: the run under test really does build more than once')
-const run = await runLoop({ ...THREE_ROUNDS, ratchet: () => ({ prefers: 'new', why: 'stub: the new version is better' }) })
+console.log('regression-check: the run under test really does build more than once')
+const run = await runLoop({ ...THREE_ROUNDS, regressionCheck: () => ({ prefers: 'new', why: 'stub: the new version is better' }) })
 const built = (run.result.history || []).filter(h => h.built)
 ok(built.length >= 2, `at least two rounds built (got ${built.length}) — with fewer, nothing below is a question`)
 ok(run.result.outcome && run.result.outcome.status === 'WON', 'and the run ended on a win, which is the state a bad round can be exited on')
 
-console.log('ratchet: every built round names the version that existed before it')
+console.log('regression-check: every built round names the version that existed before it')
 ok(built.every(h => h.snapshot),
    'each built round carries a snapshot identifier for the pre-build version. Today history holds descriptions of changes and nothing else, so a regression cannot be recovered — or even named')
 
-console.log('ratchet: a fresh critic is asked which of the two versions is better')
-ok(built.every(h => h.ratchet && h.ratchet.prefers),
+console.log('regression-check: a fresh critic is asked which of the two versions is better')
+ok(built.every(h => h.regression && h.regression.prefers),
    'each built round records a head-to-head verdict against its own predecessor. Every other comparison in this loop is against the REFERENCE, so nothing has ever asked whether the artifact got better')
 
-console.log('ratchet: a round the critic declines is MARKED, and deliberately not rolled back')
+console.log('regression-check: a round the critic declines is MARKED, and deliberately not rolled back')
 const reverting = await runLoop({
   ...THREE_ROUNDS,
   // Round 2's build is judged worse than what round 1 left behind.
-  ratchet: rd => rd === 2
+  regressionCheck: rd => rd === 2
     ? { prefers: 'previous', why: 'stub: round 2 made it worse' }
     : { prefers: 'new', why: 'stub: better' },
 })
 const r2 = (reverting.result.history || []).find(h => h.round === 2)
-ok(r2 && r2.built, 'round 2 still built — a ratchet declines a result, it does not skip the work')
+ok(r2 && r2.built, 'round 2 still built — the check declines a result, it does not skip the work')
 ok(r2 && r2.regressed === true,
    'and round 2 is marked regressed, naming the round whose build a fresh critic judged worse than what it replaced. Before this, that round was indistinguishable from any other')
-ok(r2 && r2.ratchet && r2.ratchet.snapshot,
+ok(r2 && r2.regression && r2.regression.snapshot,
    'and the record carries the path of the version it lost to, so the regression is recoverable by hand rather than merely regrettable')
 ok((reverting.result.history || []).filter(h => h.regressed).length === 1,
    'and only the declined round is marked — a flag that appears on every round names nothing')
 ok(r2 && r2.reverted !== true,
    'and the round is NOT rolled back. Deliberate, and asserted so it cannot change quietly: revert hands rollback authority to an evaluator whose detection rate is n=1 (#29), and the rate at which rounds regress — the number that would justify it — is what this half exists to produce')
 
-console.log('ratchet: the new version does not always land on the same side')
+console.log('regression-check: the new version does not always land on the same side')
 {
   const seen = []
-  await runLoop({ ...THREE_ROUNDS, ratchet: (rd, ctx) => { seen.push(ctx.newIsA); return { prefers: 'new', why: 'stub' } } })
+  await runLoop({ ...THREE_ROUNDS, regressionCheck: (rd, ctx) => { seen.push(ctx.newIsA); return { prefers: 'new', why: 'stub' } } })
   ok(seen.length >= 2 && new Set(seen).size === 2,
      `the version under test appears on both sides across rounds (saw ${JSON.stringify(seen)}). A ratchet critic that always finds the new version at ARTIFACT A can answer "which is better" by position, and the snapshot path is recognisable enough to make that free`)
 }
 
-console.log('ratchet: a round with no snapshot says so, rather than reading as checked')
+console.log('regression-check: a round with no snapshot says so, rather than reading as checked')
 {
-  const nosnap = await runLoop({ ...THREE_ROUNDS, snapshots: false, ratchet: () => ({ prefers: 'new', why: 'stub' }) })
+  const nosnap = await runLoop({ ...THREE_ROUNDS, snapshots: false, regressionCheck: () => ({ prefers: 'new', why: 'stub' }) })
   const b = (nosnap.result.history || []).filter(h => h.built)
   ok(b.length >= 2, 'the run still built')
   ok(b.every(h => h.snapshot === null), 'no snapshot is recorded when the builder reported none — an invented path is worse than an admitted absence')
-  ok(b.every(h => h.ratchet === null && /no snapshot/.test(String(h.ratchet_why_not))),
+  ok(b.every(h => h.regression === null && /no snapshot/.test(String(h.regression_why_not))),
      'and each such round names WHY the comparison could not be made. Silence here would make an unchecked round look exactly like one that was checked and found fine')
   ok(b.every(h => h.regressed === undefined),
      'and no round claims it did not regress, because nothing established that')
 }
 
-console.log('ratchet: the verdict discloses what the comparison cannot establish')
+console.log('regression-check: the verdict discloses what the comparison cannot establish')
 const disclosed = JSON.stringify(run.result.not_enforced || [])
 ok(/lateral|improvement/i.test(disclosed),
    'not_enforced says the loop cannot tell an improvement from a lateral move — it knows which of two versions a critic preferred on the day, and nothing more')
 
-console.log('ratchet: stating what this file does NOT establish')
+console.log('regression-check: stating what this file does NOT establish')
 console.log('          NOT ASSERTED: the exit condition. #18 also says "won one blind A/B" stands in')
 console.log('          for "utterly wowed". That is a policy choice with a cost, not a defect, and')
 console.log('          bundling it here would hide a decision inside a fix.')
-console.log('          NOT MEASURED: whether the ratchet critic is right. It is one judge, once, on')
+console.log('          NOT MEASURED: whether the regression check is right. It is one judge, once, on')
 console.log('          two versions of one artifact — the same instrument whose n=1 detection rate is')
 console.log('          #29, now asked a second question per round.')
 
 if (failures) {
-  console.error(`\nratchet: ${failures} failure(s) — a round that made the artifact worse is permanent and can be exited on.`)
+  console.error(`\nregression-check: ${failures} failure(s) — a round that made the artifact worse is permanent and can be exited on.`)
   process.exit(1)
 }
-console.log('\nratchet: OK — every build is measured against what it replaced, and a declined one is named rather than rolled back.')
+console.log('\nregression-check: OK — every build is measured against what it replaced, and a declined one is named rather than rolled back.')

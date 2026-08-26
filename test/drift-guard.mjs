@@ -735,10 +735,11 @@ const LOOP_PINNED = [
 // without failing a test is not a disclosure.
 const LOOP_DISCLOSURES = [
   'Nothing verifies that a harsh INSTRUCTION produced a harsh CRITIC',
-  // REPOINTED when the measuring half of the ratchet landed. The disclosure changed
-  // from "there is none" to "it is measured and not reverted", which is a different
-  // claim, and the pin has to move with it or it guards a sentence nobody ships.
-  'REGRESSIONS ARE MEASURED AND NOT REVERTED',
+  // REPOINTED when the regression check landed, and again when it was renamed off
+  // "ratchet". The claim moved from "there is no ratchet" to "there is no ratchet AND
+  // regressions are measured", and a pin that does not move with a claim guards a
+  // sentence nobody ships.
+  'THERE IS NO RATCHET; REGRESSIONS ARE MEASURED AND NOT REVERTED',
   // k>1 is ours, not the source's. Both primary texts say one critic per piece.
   // If this line goes, the verdict starts implying a precedent that does not
   // exist — which is the exact class this tracker files most.
