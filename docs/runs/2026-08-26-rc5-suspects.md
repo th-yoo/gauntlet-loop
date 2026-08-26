@@ -414,6 +414,38 @@ run-all reports all failures (correct)  +  mutate needs only the first (correct)
 The suspects are not eleven independent causes. They are what one unexamined interface cost,
 itemised.
 
+## The transfer test — does the blind spot predict a case it was not induced from
+
+This project's standard for a mechanism is that it survives a case it was not built on. If
+defect-driven inquiry is blind to inefficiency, there should be another instance nobody
+flagged. There is, and it was created during this same session:
+
+`test/mutate.test.mjs` became the most expensive suite in the repo at **8.44 s**, almost
+entirely `setTimeout` waiting — 5 s in the signal case, 2 x 2.5 s in the race case. Correct
+test design in isolation. Run by `run-all` on every push and by the sweep once per property.
+Nothing failed, so nothing flagged it.
+
+Claimed reducible, then TESTED rather than asserted, because asserting it would have been the
+disease being described:
+
+```
+8.44 s -> 3.62 s   both cases still pass
+```
+
+And passing is not the check. Each case was re-verified by removing the fix it pins:
+
+```
+mutate's signal handlers removed  -> the kill case FAILS, as it must
+the per-file lock removed         -> the race case FAILS, as it must
+```
+
+So the shortened cases still measure what they exist for. Applied. The saving is 4.8 s on
+every push, and up to nine minutes on a full-suite sweep.
+
+That is the transfer: the same question — *what does this cost rest on?* — found a second
+instance in a different file, with a different author's intent, and the instance was fixable
+by measurement rather than by argument.
+
 ---
 
 ## The adversarial pass, and where it stopped

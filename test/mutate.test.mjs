@@ -87,6 +87,14 @@ function fixture(body) {
   console.log('mutate: every exit path restores the file OK')
 }
 
+// THE SLEEPS BELOW ARE AS SHORT AS THEY CAN BE AND STILL MEASURE, which was checked rather
+// than guessed. This suite was the most expensive in the repo at 8.44s — almost all of it
+// waiting — and run-all runs it on every push while the sweep runs it once per property. The
+// timings were cut to 3.62s and both cases were then re-verified by REMOVING the fix each one
+// pins: without mutate's signal handlers the kill case fails, without the per-file lock the
+// race case fails. A shortened case that still passes might have stopped measuring; these
+// were shown to still catch what they exist for.
+//
 // ── KILLED MID-CHECK ────────────────────────────────────────────────────────────────
 //
 // The header claims "The file is always restored, including when the check command dies",
@@ -99,12 +107,12 @@ function fixture(body) {
   const { dir, target, suite } = fixture('export const value = 1\n')
   void suite
   const before = readFileSync(target, 'utf8')
-  const slow = ['-e', 'setTimeout(() => process.exit(0), 5000)']
+  const slow = ['-e', 'setTimeout(() => process.exit(0), 1500)']
   const child = spawn('node', [MUTATE, target, 'value = 1', 'value = 2', '--', 'node', ...slow], { stdio: 'pipe' })
   let out = ''
   child.stdout.on('data', d => { out += d })
   child.stderr.on('data', d => { out += d })
-  await new Promise(r => setTimeout(r, 1200))
+  await new Promise(r => setTimeout(r, 500))
   const during = readFileSync(target, 'utf8')
   child.kill('SIGTERM')
   await new Promise(r => child.on('exit', r))
@@ -130,11 +138,11 @@ function fixture(body) {
 {
   const { dir, target } = fixture('export const a = 1\nexport const b = 2\nexport const value = 1\n')
   const before = readFileSync(target, 'utf8')
-  const slow = ['-e', 'setTimeout(() => process.exit(0), 2500)']
+  const slow = ['-e', 'setTimeout(() => process.exit(0), 1200)']
   const say = c => { let o = ''; c.stdout.on('data', d => { o += d }); c.stderr.on('data', d => { o += d }); return () => o }
   const one = spawn('node', [MUTATE, target, 'const a = 1', 'const a = 99', '--', 'node', ...slow], { stdio: 'pipe' })
   const oneOut = say(one)
-  await new Promise(r => setTimeout(r, 600))
+  await new Promise(r => setTimeout(r, 250))
   const two = spawn('node', [MUTATE, target, 'const b = 2', 'const b = 99', '--', 'node', ...slow], { stdio: 'pipe' })
   const twoOut = say(two)
   const [, twoCode] = await Promise.all([one, two].map(c => new Promise(r => c.on('exit', r))))
