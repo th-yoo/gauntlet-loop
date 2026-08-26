@@ -39,6 +39,13 @@ the same method.
   claims. A structural edit once removed four cases beyond the one being rewritten
   and the suite stayed green at a lower count — this is what sees that. Slow, so
   it is not part of `run-all`: run it after touching tests.
+- `scripts/sweep-status.mjs` — prints the last sweep's conclusion at session start,
+  wired as a `SessionStart` hook in `.claude/settings.json`. The sweep's findings
+  otherwise stop at a run page nothing points at; of the three that have ever
+  reached a person here, all three arrived inside a working session. It transports
+  one bit — the run's conclusion is the only part of a sweep result fetchable from
+  outside — and says so on every branch, including when it cannot reach the API at
+  all. Remove the hook from `.claude/settings.json` to turn it off.
 - `scripts/seed-loop-trial.mjs` — sets up a seeded-defect trial of the loop, and
   **refuses** to set one up whose answer is still readable from somewhere the
   builder can reach.

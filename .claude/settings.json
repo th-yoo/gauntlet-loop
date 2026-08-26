@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR:-.}/scripts/sweep-status.mjs\"",
+            "timeout": 20,
+            "statusMessage": "Reading the last coverage sweep"
+          }
+        ]
+      }
+    ]
+  }
+}
