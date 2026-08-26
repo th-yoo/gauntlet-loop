@@ -119,3 +119,62 @@ If it comes back `does-the-work`, that is a misclassification in the direction t
 the refusal FAIL TO FIRE, and the corpus's perfect record becomes explainable by shape. In
 that case #28's authority question is no longer about stability at all, and the remedy is
 RC5's: give the refusal somewhere to be downgraded from.
+
+---
+
+# The result
+
+**The probe got it right, twice, and the reasoning shows why.** The prediction recorded
+above held — which is worth what a held prediction is worth, and no more.
+
+```
+brief-emitter  produces-an-instruction  CORRECT
+brief-emitter  produces-an-instruction  CORRECT
+```
+
+The label came from the blind classifier, which quoted *"The page does not exist until the
+studio builds it from this brief."* The probe, drawn twice afterwards, agreed — and its own
+reasoning is the informative part, because it did not read the file at all in the sense the
+confound predicts:
+
+> *"Ran it: `sh emit-brief.sh` writes exactly one file, run/design-brief.md (960 bytes), and
+> prints 'wrote .../design-brief.md'. No HTML, CSS, copy, or assets are emitted... Following
+> this artifact to its end leaves the landing page untouched — the handoff is by design, not
+> a failed attempt."*
+
+**It executed the artifact and classified the emission.** That is the live prompt's own
+instruction — *"Where it can be run or measured, run and measure it"* — being followed, and
+it is direct evidence against the shape hypothesis rather than another correct label on a
+row that could have been right for the wrong reason.
+
+## What this buys, and what it does not
+
+The empty cell has one entry. The shape-only baseline is now:
+
+```
+shape-only classifier: 17/20 = 85% on the non-absence corpus
+on the writer arm alone: 6/7 — 1 executable writer(s) now break it
+```
+
+That is one row less degenerate, not a crossed confound. An instrument reading shape still
+scores far above chance here, because the cell has one entry and the arm has 7. The
+cross is crossed when a shape-only classifier scores at chance, and it does not yet.
+
+**What is now known that was not:** the probe's correctness on this row does not rest on
+the file extension, because the probe said what it did instead — it ran the thing. That is
+a mechanism, and it predicts where it would fail: an artifact that cannot be run, or whose
+run emits nothing, leaves it with nothing but the text and the shape.
+
+**That is the next reproducible**, and it is derivable from this result rather than from
+knowing an answer: an executable writer whose execution emits NOTHING observable — a script
+that prints a request to stdout and writes no file. If the probe reads the emission, it has
+none to read.
+
+## The four root causes this did not touch
+
+RC2 (environment blindness — the agent still holds `Bash` and every fixture lives inside
+this repository), RC3 (the selection is one person's), RC4 (Wilson over observations rather
+than distinct artifacts), and RC5 (`grep -c 'oracle|corpus' loop.js` = 0, so the refusal has
+nothing to be downgraded from). RC5 is the one that makes #28's own proposed remedy
+impossible today, and no measurement will fix it.
+
