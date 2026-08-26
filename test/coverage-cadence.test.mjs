@@ -164,6 +164,36 @@ if (wf) {
     }
   }
 
+  // A PUSH CAN CANCEL THE SCHEDULED RUN, AND THE SCHEDULED RUN IS A DIFFERENT MEASUREMENT.
+  //
+  // `cancel-in-progress` is right for a push burst: three runs were cancelled on 2026-08-26
+  // while commits landed, and the last push's run completed, which is the debounce working.
+  // What it also does is put SCHEDULED runs in the same group, so any commit landing on a
+  // Monday morning discards that week's cron run — no red, no green, no verdict.
+  //
+  // Those are not the same measurement, and coverage.yml's own header says why: "A red
+  // Monday on a tree nobody touched is a finding in itself: it means something outside this
+  // repo moved under a property." A push-triggered sweep cannot make that observation,
+  // because the tree just moved. Cancelling the cron run deletes the only run that can.
+  //
+  // NOT RESTED ON: who gets emailed. GitHub's notification behaviour differs by event and by
+  // the owner's settings, and this file has not measured it. The argument above does not
+  // need it.
+  //
+  // The fix is a group that varies by event, not the removal of the debounce: a push burst
+  // should still collapse to its last run, and the cron run should not be collateral.
+  console.log('coverage-cadence: a push cannot cancel the scheduled run')
+  {
+    const group = (text.match(/^\s*group:\s*(.+)$/m) || [, ''])[1]
+    const cancels = /cancel-in-progress:\s*true/.test(text)
+    if (cancels) {
+      ok(/github\.event_name/.test(group),
+         `${wf.f} cancels in-progress runs from a concurrency group that does not vary by event (${JSON.stringify(group.trim())}), so a commit landing on a Monday morning discards that week's cron run — the only run that can observe a tree nobody touched, which is what this workflow's own header says the schedule is for. Vary the group by event_name, or stop cancelling.`)
+    } else {
+      console.log('          the workflow does not cancel in-progress runs, so nothing can be cancelled by a push')
+    }
+  }
+
   console.log('coverage-cadence: a red sweep is reported rather than swallowed')
   ok(!/continue-on-error:\s*true/.test(text),
      `${wf.f} sets continue-on-error — a sweep whose failure is discarded reports coverage it has not got, which is worse than not running it`)

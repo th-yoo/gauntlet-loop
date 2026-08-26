@@ -45,8 +45,23 @@ permissions:
 
 # A second push while one is running cancels the first. The sweep is a picture of
 # a tree, and the older picture stops being worth an hour the moment it is stale.
+# A burst of commits therefore collapses to one run of the tip, which is what
+# happened on 2026-08-26: three cancellations while work landed, and the last
+# push's sweep ran.
+#
+# THE GROUP VARIES BY EVENT, and that is not cosmetic. With one group per ref, a
+# push cancels an in-progress SCHEDULED run too — so a commit landing on a Monday
+# morning discards that week's cron run, leaving no red and no green.
+#
+# The two are not the same measurement. The header above says what the schedule is
+# for: "A red Monday on a tree nobody touched is a finding in itself: it means
+# something outside this repo moved under a property." A push-triggered sweep
+# cannot make that observation, because the tree just moved. Debouncing pushes
+# against each other is the intent; collecting the cron run as collateral was not.
+#
+# The cost is one extra concurrent job on a morning when a push meets the cron.
 concurrency:
-  group: coverage-${{ github.ref }}
+  group: coverage-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
