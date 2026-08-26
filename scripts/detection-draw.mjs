@@ -61,7 +61,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import { tmpdir } from 'node:os'
 import { runLoop } from '../test/harness.mjs'
-import { parseWinner, namedDefect, declaredNoDifference } from './detection-parse.mjs'
+import { parseWinner, namedDefect, declaredNoDifference, artifactSides, degradedArtifact, scoreDetection } from './detection-parse.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -356,6 +356,21 @@ async function draw() {
     const prompt = await capturePrompt(aPath, bPath)
     if (!prompt) { console.error(`draw: could not capture the deployed prompt for ${id} — skipping rather than judging under a prompt nobody ships`); continue }
 
+    // WHICH LETTER THE CRITIC WILL CALL EACH FILE, read out of the prompt that
+    // is about to be sent. The sealed note records a DIRECTORY (`a/` or `b/`);
+    // the critic answers an ARTIFACT letter, because that is what the prompt
+    // calls them; and loop.js alternates which side the candidate occupies, so
+    // the two are not the same letter. Twenty trials were scored by comparing
+    // them anyway and the rate came out as its own complement.
+    //
+    // Refused, not defaulted. A trial whose mapping cannot be read carries no
+    // observation — assuming one is precisely the step that produced the
+    // inverted rate.
+    const sides = artifactSides(prompt, aPath, bPath)
+    if (!sides) { console.error(`draw: could not read the ARTIFACT A/B mapping out of the prompt for ${id} — skipping rather than assuming a/ is ARTIFACT A`); continue }
+    const degArtifact = degradedArtifact(sides, note.degraded_side)
+    if (note.degraded_side !== 'none' && !degArtifact) { console.error(`draw: ${id} stages the degraded copy under ${note.degraded_side}/ and the prompt maps neither ARTIFACT letter to it — skipping`); continue }
+
     if (spawned >= MAX_SPAWNS_PER_RUN) { console.error('draw: spawn ceiling reached'); break }
     spawned++
     // CWD IS THE TRIAL'S OWN DIRECTORY, and that is what makes the trial both
@@ -411,14 +426,25 @@ async function draw() {
       degraded_side: note.degraded_side,
       source: note.source,
       picked,
-      // The critic detected iff it picked the side that was NOT degraded.
-      // `neither` is not a detection: on a degraded pair one side really is
-      // worse, and answering that nothing separates them is a miss with a
-      // different shape. It is recorded as itself so the two never merge.
+      // THE COORDINATE SYSTEM, recorded so a reader never has to infer it.
+      // `degraded_side` is a directory; `degraded_artifact` is the letter the
+      // critic could actually have typed. Both are written because a row that
+      // carries only one of them cannot be audited without rebuilding the prompt.
+      artifact_a_dir: sides.A,
+      degraded_artifact: degArtifact,
+      // The paths the prompt was built from. Without these a re-parse cannot
+      // reproduce `prompt_hash`: STAGE_DIR defaults under tmpdir(), which is a
+      // property of the machine and was recorded nowhere, so re-parsing this
+      // ledger on a second machine silently replaced every prompt hash with the
+      // hash of a prompt that was never sent.
+      a_path: aPath,
+      b_path: bPath,
+      // The critic detected iff it picked the ARTIFACT letter that was NOT the
+      // degraded one. `neither` is not a detection: on a degraded pair one side
+      // really is worse, and answering that nothing separates them is a miss
+      // with a different shape. It is recorded as itself so the two never merge.
       // Same rule as reparse: null means unread, not missed.
-      detected: note.degraded_side === 'none' ? null
-        : picked === null ? null
-        : picked !== note.degraded_side,
+      detected: scoreDetection(picked, degArtifact, note.degraded_side),
       named_defect: namedDefect(out, note),
       prompt_hash: sha(prompt),
       prompt_template_hash: templateHash(prompt, aPath, bPath),
@@ -433,7 +459,11 @@ async function draw() {
     const verdictWord = note.degraded_side === 'none' ? 'control'
       : rec.detected === null ? 'UNREAD'
       : rec.detected ? 'DETECTED' : 'missed'
-    console.log(`draw: ${id} — picked ${picked || '(unparsed)'} · degraded ${note.degraded_side} · ${verdictWord}`)
+    // BOTH COORDINATES IN THE LINE. It printed the directory letter beside the
+    // critic's artifact letter with nothing saying they were different systems,
+    // so `picked A · degraded A · missed` read as a plain miss when it was a
+    // detection scored backwards.
+    console.log(`draw: ${id} — picked ARTIFACT ${picked || '(unparsed)'} · degraded copy is ARTIFACT ${degArtifact || 'n/a'} (staged under ${note.degraded_side}/, ARTIFACT A is ${sides.A}/) · ${verdictWord}`)
   }
   console.log(`draw: ${spawned} spawn(s) this invocation`)
 }
@@ -450,8 +480,22 @@ async function draw() {
 // shape, learned again here because my reproducible asserted one distinct hash
 // across twenty trials, which no set of twenty could ever satisfy. A check that
 // cannot pass is as broken as one that cannot fail.
+// THE PLACEHOLDERS ARE DIRECTORIES, NOT ARTIFACT LETTERS, and calling them
+// `<ARTIFACT-A>`/`<ARTIFACT-B>` was this file writing its own defect into an
+// evidence value. `aPath` is the file staged under `a/`; which ARTIFACT letter
+// the prompt gives that file is a fact about the prompt, read by artifactSides.
+//
+// Renaming them CHANGES the recorded template hash without the instrument
+// changing, so the chain is stated here rather than lost: every row drawn before
+// 2026-08-27 carried
+//   sha256:9aca9bc56da53ca881ebc5a1ee69f2ec76ca81e8de167373769fab2efc5d4e9b
+// and that value was verified, root-independently, to be the hash of a prompt
+// whose ARTIFACT A line carried the b/ path. The redaction keeps the mapping
+// INSIDE the hash — round 1 and round 2 redact to different templates — so this
+// hash is also the check that a batch of trials shared one mapping, which is the
+// property that was silently violated and is now the thing most worth pinning.
 function templateHash(prompt, aPath, bPath) {
-  const redacted = String(prompt).split(aPath).join('<ARTIFACT-A>').split(bPath).join('<ARTIFACT-B>')
+  const redacted = String(prompt).split(aPath).join('<PATH-UNDER-A>').split(bPath).join('<PATH-UNDER-B>')
   return sha(redacted)
 }
 
@@ -460,6 +504,22 @@ function templateHash(prompt, aPath, bPath) {
 async function reparse() {
   if (!existsSync(RAW_DIR)) { console.error('reparse: no raw responses on disk'); process.exit(2) }
   const files = readdirSync(RAW_DIR).filter(f => f.endsWith('.txt')).sort()
+  // THE PATHS THE PROMPT WAS ACTUALLY BUILT FROM, when the ledger records them.
+  // Recomputing a hash beats copying one ONLY while every input to it is
+  // recorded, and STAGE_DIR was not: it defaults under tmpdir(), so re-parsing
+  // this ledger on a machine whose tmpdir differs reproduced 0 of 20 stored
+  // prompt hashes and would have overwritten all twenty with the hash of a
+  // prompt that was never sent. Rows drawn before the paths were recorded keep
+  // their original prompt_hash and say so in `paths_unrecorded`, because a
+  // fabricated hash that looks recomputed is worse than a copied one that is
+  // labelled.
+  const prior = new Map()
+  if (existsSync(LEDGER)) {
+    for (const line of readFileSync(LEDGER, 'utf8').split('\n')) {
+      if (!line.trim()) continue
+      try { const r = JSON.parse(line); if (r.opaque) prior.set(r.opaque, r) } catch {}
+    }
+  }
   const out = []
   for (const f of files) {
     const id = f.replace(/\.txt$/, '')
@@ -468,12 +528,28 @@ async function reparse() {
     const note = JSON.parse(readFileSync(sealedPath, 'utf8'))
     const text = readFileSync(join(RAW_DIR, f), 'utf8')
     const picked = parseWinner(text)
-    const aP = join(STAGE_DIR, id, 'a', 'subject.md')
-    const bP = join(STAGE_DIR, id, 'b', 'subject.md')
+    const was = prior.get(id)
+    const pathsRecorded = Boolean(was && was.a_path && was.b_path)
+    const aP = pathsRecorded ? was.a_path : join(STAGE_DIR, id, 'a', 'subject.md')
+    const bP = pathsRecorded ? was.b_path : join(STAGE_DIR, id, 'b', 'subject.md')
     const prompt = await capturePrompt(aP, bP)
+    // Read, not assumed — the same derivation draw() makes, so a re-parse can
+    // never disagree with the draw about which letter the critic was answering.
+    // The mapping is a property of loop.js's side alternation and not of the
+    // path strings, so it is recoverable for rows whose paths were never
+    // recorded; the prompt HASH is not, which is why the two are treated
+    // differently below.
+    const sides = prompt ? artifactSides(prompt, aP, bP) : null
+    if (!sides) { console.error(`reparse: ${id} — could not read the ARTIFACT A/B mapping; recording the row with no mapping rather than assuming one`) }
+    const degArtifact = sides ? degradedArtifact(sides, note.degraded_side) : null
     out.push({
       trial_id: note.trial_id, opaque: id, defect_class: note.defect_class, degraded_side: note.degraded_side,
       source: note.source, picked,
+      artifact_a_dir: sides ? sides.A : null,
+      degraded_artifact: degArtifact,
+      a_path: pathsRecorded ? aP : null,
+      b_path: pathsRecorded ? bP : null,
+      paths_unrecorded: !pathsRecorded,
       // AN UNREAD RESPONSE IS NOT A MISS. `picked === null` means this parser
       // could not read the answer, which says nothing about whether the critic
       // found the defect — the response is on disk and a human can read it. It
@@ -481,9 +557,12 @@ async function reparse() {
       // which would have pushed the rate DOWN using trials that measured
       // nothing. Same class as the two parser defects above, one level along:
       // a value that cannot be established recorded as the negative answer.
-      detected: note.degraded_side === 'none' ? null
-        : picked === null ? null
-        : picked !== note.degraded_side,
+      // THE LINE THAT WAS WRONG read `picked !== note.degraded_side` — the
+      // critic's ARTIFACT letter against the sealed note's DIRECTORY letter. It
+      // also scored `neither` as a detection, because `'neither' !== 'A'`, while
+      // the comment beside it said the opposite; that one never fired only
+      // because every `neither` in the ledger landed on a control.
+      detected: scoreDetection(picked, degArtifact, note.degraded_side),
       declared_no_difference: declaredNoDifference(text),
       named_defect: namedDefect(text, note),
       // RECOMPUTED, not looked up. This read a map keyed on `trial_id` using the
@@ -497,7 +576,9 @@ async function reparse() {
       // function of the two paths and the goal, capturing it costs no live
       // spawn, and a hash derived from the artifact can never disagree with the
       // artifact the way a copied one can.
-      prompt_hash: sha(prompt || ''),
+      // Recomputed when every input to the recomputation is recorded; carried
+      // forward otherwise. See the note on `prior` above.
+      prompt_hash: pathsRecorded || !was ? sha(prompt || '') : was.prompt_hash,
       prompt_template_hash: prompt ? templateHash(prompt, aP, bP) : null,
       response: join('runs', 'detection-raw', f),
       degraded_hash: note.degraded_hash,
@@ -505,7 +586,13 @@ async function reparse() {
   }
   writeFileSync(LEDGER, out.map(r => JSON.stringify(r)).join('\n') + '\n')
   const unparsed = out.filter(r => r.picked === null).length
+  const nomap = out.filter(r => r.degraded_side !== 'none' && r.degraded_artifact === null).length
+  const carried = out.filter(r => r.paths_unrecorded).length
   console.log(`reparse: ${out.length} trial(s) rebuilt from raw responses — ${unparsed} unparsed`)
+  // THE RESIDUAL ON EVERY BRANCH, including the clean one. A limitation printed
+  // only when something is wrong is printed exactly when it does not matter.
+  console.log(`reparse: ${nomap} degraded trial(s) with no readable ARTIFACT mapping (excluded from any rate rather than assumed)`)
+  console.log(`reparse: ${carried} row(s) predate the recording of a_path/b_path — their prompt_hash is carried forward, not recomputed, and cannot be reproduced on a machine whose tmpdir differs from the one that drew them`)
 }
 
 if (!has('--stage') && !has('--draw') && !has('--reparse')) {

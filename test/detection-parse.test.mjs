@@ -36,7 +36,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { createHash } from 'node:crypto'
-import { parseWinner, namedDefect, declaredNoDifference, defectNeedles, norm } from '../scripts/detection-parse.mjs'
+import { parseWinner, namedDefect, declaredNoDifference, defectNeedles, norm, scoreDetection } from '../scripts/detection-parse.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 let failures = 0
@@ -133,9 +133,14 @@ console.log('detection-parse: the ledger on disk is what this parse produces fro
       const note = JSON.parse(readFileSync(notePath, 'utf8'))
       const text = readFileSync(join(RAW, f), 'utf8')
       const picked = parseWinner(text)
-      const detected = note.degraded_side === 'none' ? null
-        : picked === null ? null
-        : picked !== note.degraded_side
+      // NOT `picked !== note.degraded_side`. That was a third private copy of
+      // the scoring rule, it compared the critic's ARTIFACT letter against the
+      // sealed note's DIRECTORY letter, and it agreed with the two copies it was
+      // supposed to audit because it repeated their defect. The rule now lives
+      // once, in the parse module, and the ARTIFACT letter comes from the row —
+      // whether that letter matches the prompt the trial was judged under is
+      // test/artifact-mapping.test.mjs's question, not this file's.
+      const detected = scoreDetection(picked, row.degraded_artifact, note.degraded_side)
       ok(row.picked === picked, `${row.trial_id}: ledger records picked=${JSON.stringify(row.picked)}, the response yields ${JSON.stringify(picked)} — re-parse`)
       ok(row.detected === detected, `${row.trial_id}: ledger records detected=${row.detected}, the response yields ${detected} — re-parse`)
       ok(row.named_defect === namedDefect(text, note), `${row.trial_id}: ledger records named_defect=${row.named_defect}, the response yields ${namedDefect(text, note)} — re-parse`)

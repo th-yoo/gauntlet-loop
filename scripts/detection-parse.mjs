@@ -139,3 +139,86 @@ export function namedDefect(text, note) {
 export function declaredNoDifference(text) {
   return /byte-identical|identical byte|no dimension separates|carries zero signal|coin-flip|coin flip|\bidentical\b/i.test(String(text))
 }
+
+// ---------------------------------------------------------------------------
+// WHICH DIRECTORY IS ON THE `ARTIFACT A` LINE — read from the prompt, never
+// assumed from the argument order.
+//
+// THIS IS THE DEFECT THAT INVERTED THE #29 RATE. The runner staged the degraded
+// copy under `a/` or `b/` and recorded that DIRECTORY letter as
+// `degraded_side`. The critic answers in ARTIFACT letters, because that is what
+// the prompt calls them. Those are two coordinate systems, and `loop.js`
+// alternates the candidate's side by (round + critic index) parity — so on the
+// round the runner captures, the path passed as `candidate` is rendered on the
+// `ARTIFACT B` line. Every one of the twenty trials was judged under
+//
+//     ARTIFACT A: <trial>/b/subject.md
+//     ARTIFACT B: <trial>/a/subject.md
+//
+// and `detected: picked !== degraded_side` compared a letter from one system
+// against a letter from the other. It computed the exact complement of
+// detection: 2/12 recorded, 10/12 actual.
+//
+// The general rule this file was missing, and the reason the fix is a DERIVATION
+// rather than a flipped constant: the mapping is a fact about the prompt that
+// was actually sent, so it must be read out of that prompt. A constant that says
+// "A means b/" is right for the rounds where it is right and silently wrong the
+// day the parity, the round index or `args.critics` changes — which is the same
+// stored-derivable-fact shape as the three `trial_id`/`opaque` key bugs already
+// recorded in the runner.
+//
+// Returns { A: 'a'|'b', B: 'a'|'b' } — the ARTIFACT letter mapped to the
+// directory letter — or null when it cannot be read. NULL IS THE POINT: a run
+// that cannot establish the mapping must refuse the trial, because the
+// alternative is assuming it, and assuming it is what produced the inverted
+// rate.
+export function artifactSides(prompt, aPath, bPath) {
+  if (!prompt || !aPath || !bPath || aPath === bPath) return null
+  const out = {}
+  for (const line of String(prompt).split('\n')) {
+    const m = /^ARTIFACT ([AB]):\s*(.+?)\s*$/.exec(line)
+    if (!m) continue
+    // A second ARTIFACT line for the same letter means the prompt is not one
+    // this can read — loop.js already refuses a path with a newline in it for
+    // this reason, and reading the first of two would be guessing.
+    if (out[m[1]] !== undefined) return null
+    out[m[1]] = m[2] === aPath ? 'a' : m[2] === bPath ? 'b' : null
+  }
+  if (out.A === undefined || out.B === undefined) return null
+  if (out.A === null || out.B === null) return null
+  // Both letters pointing at the same directory is not a mapping.
+  if (out.A === out.B) return null
+  return { A: out.A, B: out.B }
+}
+
+// The ARTIFACT letter the degraded copy was rendered as, which is the only
+// letter comparable with what the critic answered. `sides` comes from
+// artifactSides; `degradedDir` is the sealed note's directory letter.
+export function degradedArtifact(sides, degradedDir) {
+  if (!sides || (degradedDir !== 'a' && degradedDir !== 'b' && degradedDir !== 'A' && degradedDir !== 'B')) return null
+  const d = degradedDir.toLowerCase()
+  return sides.A === d ? 'A' : sides.B === d ? 'B' : null
+}
+
+// ONE RULE FOR WHAT COUNTS AS A DETECTION, because it had been written three
+// times — in the drawer, in the re-parser, and in a test that was meant to audit
+// them — and all three copies carried the same defect. A derivation duplicated
+// per call site is the 1:1 growth this project calls cheating: three copies
+// means three places for the next correction to miss.
+//
+// `picked` and `degArtifact` are BOTH artifact letters. Passing a directory
+// letter for the second is the original bug, and there is no signature that can
+// stop that, so the argument is named for what it must be and the ledger records
+// it under the same name.
+//
+//   null  — nothing was established: a control, an unreadable answer, a critic
+//           that answered "neither", or a trial whose mapping could not be read.
+//           NOT false. Recording an unestablished value as the negative answer
+//           pushes a rate down using trials that never spoke, which this file's
+//           header already records as a defect it has had.
+export function scoreDetection(picked, degArtifact, degradedDir) {
+  if (degradedDir === 'none' || degradedDir === undefined || degradedDir === null) return null
+  if (picked === null || picked === undefined || picked === 'neither') return null
+  if (degArtifact !== 'A' && degArtifact !== 'B') return null
+  return picked !== degArtifact
+}
