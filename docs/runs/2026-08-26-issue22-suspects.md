@@ -1,0 +1,92 @@
+# Issue 22 — suspects, after the reproducible
+
+**The reproducible came first** (`cd66a9f`, `test/saturation.test.mjs`), and it fails: an
+instrument reporting a discrimination says nothing about what a trivial confound scores on
+the same set. Everything below was found while building it or while checking what the issue
+claims against the tree.
+
+Statuses use the discipline the #28 ledger had to be corrected into
+(`docs/runs/2026-08-26-rc-28-shape-confound.md`): a fact established by inspection is not a
+cause, and only something watched to fail earns the word.
+
+## S1 — the one site #22 calls guarded is not guarded any more. VERIFIED FACT
+
+#22's framing is *"one mechanism, three sites, and only the first is currently guarded"* —
+the guarded one being gate 6's rule about acceptance criteria, *"a saturated corpus never
+engages the clause."*
+
+```
+$ grep -rn "saturated" --include='*.md' --include='*.mjs' --include='*.js' . | grep -v docs/runs
+test/saturation.test.mjs:...      (the file added today, and nothing else)
+```
+
+The word does not appear anywhere else in the tree. Gate 6 went with the gate sequence when
+it was deleted on `drop-judge-lane`, and the rule went with it. **Zero of three sites are
+guarded, not one of three** — the issue understates itself, and would have kept understating
+itself for as long as nobody re-ran its premise.
+
+## S2 — an accurate instrument and an easy corpus produce identical output. REPRODUCED
+
+The only status here that earns "cause", because it was watched to fail rather than read:
+
+```
+saturated ledger   per-side rate printed, trivial baseline named: none   (computed: 12/12)
+crossed ledger     per-side rate printed, trivial baseline named: none   (computed: 10/12)
+```
+
+Two sets that differ exactly in whether a confound predicts the label produce reports that
+differ in nothing. Nothing in `scripts/` or `test/` computes a baseline of any kind — checked
+by grep, and the only hits are the two test files added today.
+
+## S3 — the corpus grows by adding clear examples, so saturation is a by-product of how rows
+are chosen. VERIFIED FACT, causal half UNTESTED
+
+Computed from the corpus this morning: every `produces-an-instruction` row was a markdown
+document, 6 of 6, and the code-shaped writer cell was empty until `brief-emitter` was built
+for #28. Nobody chose a confounded corpus. Rows get added because they are unambiguous
+examples of their class, and unambiguous is exactly what saturated means from the other side.
+
+What is NOT established: that this is why the arm was confounded rather than an accident of
+which four artifacts came to hand first. The generator of the selection is one person, which
+is #38, and #38 cannot be closed by adding rows of the same kind.
+
+## S4 — pre-registration guards the READING, not the design's capacity to disagree. VERIFIED,
+and it recurred TODAY in this session's own work
+
+#22 records its author pre-registering a reading — *"all three agree → weak evidence for
+small q"* — and being wrong, because the design could not have produced disagreement. Its own
+sentence: **a pre-registered reading of an uninformative design is still uninformative.**
+
+The same shape recurred here on 2026-08-26 and is recorded rather than smoothed over.
+`docs/runs/2026-08-26-pairing-stability.md` pre-registers, before drawing, what counts as a
+flip and what each outcome implies. It never asks the prior question: **could these eight
+pairings have flipped?** Five of the six in the false-refusal cell put an unambiguous worker
+against an unambiguous worker. A zero-flip result on a set chosen for clarity is exactly the
+unanimity #22 is about, and the pre-registration did not catch it because pre-registration
+was pointed at the conclusion rather than at the design.
+
+That does not make the stability result false. It bounds what it shows: the verdicts are
+stable **on pairings nobody expected to be marginal**, which is weaker than the sentence a
+reader takes away.
+
+## S5 — the difficulty rule exists in prose and in no instrument. VERIFIED FACT
+
+```
+runs/README.md:128  Gate-7 1-in-3 rule. Sample the deployed critic three times on the seeded
+                    copy and accept the plant only if it is missed at least once
+```
+
+Written down, never implemented, and the gate it was written for no longer exists. It is the
+one concrete difficulty measure this repository has ever proposed, and it lives where nothing
+executes.
+
+## What follows
+
+The fix the reproducible pins is narrow on purpose: report what one trivial confound scores,
+beside the instrument's score, and call the number uninformative when they match. That is
+computable. "Is this case near the decision boundary" in general is not, and a check that
+claimed it would be the kind of unfalsifiable instrument this repository keeps removing.
+
+**The residual the fix cannot close, stated where the verdict is:** one confound is not all
+confounds. A corpus crossed against file extension can still be saturated on length, subject
+or authorship, and the check would call it clean.
