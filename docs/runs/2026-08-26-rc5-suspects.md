@@ -273,6 +273,39 @@ What the cron would still catch, given the repo has no dependencies and pins its
 runner image changes, node 22 patch releases, and GitHub's own behaviour. Narrow, real, and
 so far entirely hypothetical.
 
+## THE BASE RATE OF THE SIGNAL ITSELF — a NOT CAUGHT has never occurred
+
+Seven passes investigated the transport. None asked how often the thing being transported
+has ever existed. Every completed sweep in the repository's history:
+
+```
+32928172660   117 — 0 unpinned, 0 could not be tested      (3709cef, after the masking fix)
+32920531612   117 — 0 unpinned, 0 could not be tested      \
+32918187369   117 — 0 unpinned, 0 could not be tested       |  MASKED — ran between be5ab0d
+32913794661   117 — 0 unpinned, 1 could not be tested      /   and 3709cef, 113/117 verdicts
+32902249927   117 — 0 unpinned, 0 could not be tested          worthless. Establish nothing.
+32900618692   117 — 0 unpinned, 0 could not be tested
+```
+
+Discounting the three masked runs, and adding today's two local sweeps: **a `NOT CAUGHT` has
+never been observed, in any run whose verdict can be trusted.** The only finding the sweep
+has ever produced is one `COULD NOT RUN` — a stale needle, caused by a rename in this
+session — and that class is now caught at push time in milliseconds by
+`test/sweep-needles.test.mjs`.
+
+**What that does to the decision.** #46 asks which reader to build for a signal that has
+never fired, while the signal that HAS fired is now caught upstream by a check costing
+milliseconds. Every coded option is machinery for an event with zero observed instances.
+
+It does not make the question empty — a coverage regression is exactly the kind of thing
+that is rare, silent, and expensive when it happens, which is why the sweep exists at all.
+But it does mean the honest framing is insurance against an unobserved event, not repair of
+a recurring loss, and #46's four options should be costed that way.
+
+**And it sharpens what would change the answer:** the first genuine `NOT CAUGHT` in this
+repository's history. Until one occurs, every argument here — including this whole ledger —
+is about a transport for a package that has never been posted.
+
 ## The base rate — how findings have actually travelled
 
 Three recorded instances, and the mechanism each time:
