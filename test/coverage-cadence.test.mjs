@@ -83,7 +83,7 @@ const PROPERTY_COUNT = PROPERTIES.length
 // place: coverage-sweep exists because a structural edit once removed four cases beyond the
 // one being rewritten and the suite went green at a lower count. A drop is exactly the
 // event worth stopping on.
-const FLOOR = 122
+const FLOOR = 125
 
 // THE COST IS AN OBSERVATION, NOT AN EXTRAPOLATION.
 //

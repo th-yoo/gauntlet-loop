@@ -529,6 +529,32 @@ const BUILD_SCHEMA = {
     where: { type: 'string', description: 'files and locations touched' },
     ambiguity: { type: 'string', description: 'if the gap as stated was ambiguous, how you read it' },
     failed: { type: 'string', description: 'anything you tried that did not work' },
+    snapshot: { type: 'string', description: 'absolute path of the copy you took of the artifact BEFORE editing it, or the word NONE with the reason in `failed`' },
+  },
+}
+
+// THE RATCHET COMPARISON — #18, and only its measuring half.
+//
+// Every other A/B in this loop compares the candidate against the REFERENCE. Nothing
+// has ever asked whether round N is better than round N-1, so a round that made the
+// artifact worse is invisible: the next round's critic sees the damaged version as the
+// baseline and names a gap relative to that. `references.md` records the source
+// method's own run regressing 4.14 -> 4.05, and this loop could not have seen it.
+//
+// WHAT THIS DOES AND DOES NOT DO. It measures and records. It does NOT revert.
+// Reverting hands rollback authority to an evaluator whose detection rate is n=1
+// (#29), and a wrong revert is worse than a wrong refusal: a refusal is loud and stops
+// the run, while a revert silently discards work and the next round's critic never
+// sees what went. The rate at which rounds actually regress is the number nobody has;
+// this produces it. Turn automatic revert on when that rate and #29 say the critic can
+// be trusted with the decision — which is the discipline #28 arrived at the hard way.
+const RATCHET_SCHEMA = {
+  type: 'object',
+  required: ['winner', 'why'],
+  additionalProperties: false,
+  properties: {
+    winner: { type: 'string', enum: ['A', 'B'], description: 'which of the two versions is closer to the goal' },
+    why: { type: 'string', description: 'what decides it, in terms of the goal' },
   },
 }
 
@@ -1112,6 +1138,12 @@ look again.`
 phase('Loop')
 
 let criticSpawns = 0 // every agent() call for a critic, including ones that return null — NOT history.length
+// COUNTED SEPARATELY, and that is the point. The ratchet critic is a critic spawn, but
+// it answers a different question — this version against the previous one, not the
+// candidate against the reference. Folding it into criticSpawns would inflate the number
+// the freshness bullet is about, and a reader checking "one fresh critic per round"
+// against the record would find two and no explanation.
+let ratchetSpawns = 0
 let breakerSpawns = 0 // every breaker probe, including the one that reports the cancel
 
 // The breaker goes FIRST, before the lead spawns. Decomposition reads both
@@ -1489,6 +1521,13 @@ Not the one you find more interesting, not three while you are in there, not a r
 noticed on the way. The loop closes the biggest gap repeatedly, and a round that changes five
 things makes the next verdict uninterpretable — nobody can tell which change moved it.
 
+BEFORE YOU CHANGE ANYTHING, COPY THE ARTIFACT and report the copy's absolute path as the
+"snapshot" field. A plain cp beside it is enough. This loop compares every round against the
+REFERENCE and has never compared a round against the one before it, so a round that makes
+the artifact worse is currently invisible — the copy is what makes that question askable.
+If the artifact does not exist yet, or the copy fails, report NONE and say why in "failed";
+an invented path is worse than an admitted absence.
+
 Modify the artifact in place at the path above. The critic inspects the real thing, never a
 description of it, so anything you leave only in your report does not exist as far as this
 loop is concerned.
@@ -1508,6 +1547,56 @@ know, and a fresh critic decides next round. Report what you changed, factually.
   // the only place a dead end gets recorded. Without it the next round's builder
   // walks into the same one and the verdict shows an operator nothing.
   entry.built = { changed: built.changed, where: built.where, ambiguity: built.ambiguity || null, failed: built.failed || null }
+
+  // THE RATCHET, MEASURING HALF. Ask one fresh critic which of the two versions is
+  // closer to the goal, and record the answer. The sides alternate exactly as the
+  // reference A/B's do, because the snapshot path is recognisable — a critic that can
+  // tell which file is the new one is not answering the question asked.
+  //
+  // Recorded on every branch, including the ones where it could not be asked: a round
+  // with no snapshot is a round whose regression nobody can see, and saying nothing
+  // would make it look like a round that was checked and found fine.
+  const snapshot = built.snapshot && built.snapshot !== 'NONE' ? built.snapshot : null
+  entry.snapshot = snapshot
+  if (!snapshot) {
+    entry.ratchet = null
+    entry.ratchet_why_not = 'the builder reported no snapshot, so there was no previous version to compare this round against'
+  } else {
+    const rs = sides(round, 0, PC, snapshot)
+    const verdict = await agent(
+      `Two versions of one artifact. They are the same file at two moments, and you are not told which is which.
+
+THE GOAL both are trying to reach:
+${GOAL}
+
+ARTIFACT A: ${rs.A}
+ARTIFACT B: ${rs.B}
+${INSPECT ? `\nHOW TO INSPECT THEM:\n${INSPECT}\n` : ''}
+THE QUESTION: which one is CLOSER TO THE GOAL? Open both and compare them.
+
+This is not "which is newer", "which is longer" or "which changed more" — a version that
+added material can easily be the worse one, and a version that removed some can be the
+better. Judge only against the goal above.
+
+If they are equally close, pick the one you would rather ship and say that they were close.
+There is no draw: a draw here would be read as "no regression", which is a claim about the
+artifact rather than about your uncertainty.`,
+      { label: `${TAG}:ratchet`, phase: 'Loop', schema: RATCHET_SCHEMA, agentType: 'gauntlet-loop:gauntlet-ab-critic' }
+    )
+    ratchetSpawns++
+    if (!verdict) {
+      entry.ratchet = null
+      entry.ratchet_why_not = 'the ratchet critic returned nothing' + silenceNote('gauntlet-loop:gauntlet-ab-critic')
+    } else {
+      const prefers = verdict.winner === rs.candidateSide ? 'new' : 'previous'
+      entry.ratchet = { prefers, why: verdict.why, snapshot }
+      entry.regressed = prefers === 'previous'
+      if (prefers === 'previous') {
+        log(`REGRESSION at round ${round}${piece.name ? ` of piece "${piece.name}"` : ''}: a fresh critic preferred the version from before this round. ${verdict.why}\n` +
+            `NOT REVERTED — this loop measures regressions and does not roll them back (#18). The previous version is at ${snapshot}; the next round builds on the current one.`)
+      }
+    }
+  }
   } finally { roundsInFlight-- }
   }
 
@@ -1950,6 +2039,7 @@ return {
       ? 'the exit was ONE critic picking the candidate in one round — a line of one, which satisfies "every judge" vacuously (args.critics defaults to 1)'
       : `the exit required ALL ${CRITICS} critics in a single round to pick the candidate, each spawned fresh, with positions split across the line by (round + index) parity`,
     `a FRESH critic every round (${criticSpawns} separate critic spawn(s); ${recordedVerdicts} produced a recorded verdict), so none defended its own prior verdict`,
+    `${ratchetSpawns} further critic spawn(s) answered the ratchet question — this round's version against the copy taken before it — counted separately because it is a different question from the blind A/B above`,
     'the critic ran as an agent type whose tool allowlist has no Write or Edit — it could not use those TOOLS to alter either artifact (it still holds Bash; see not_enforced)',
     'the builder ran as an agent type with no Agent/ListAgents/SendMessage — it could not reach or spawn a critic',
     'the builder was handed the gap STRING and nothing else from the verdict — the critic\'s `why` field is not forwarded (it is collected and recorded, but never reaches the build prompt), and the builder never learned the sides, the critic\'s identity, or the run\'s history',
@@ -1993,7 +2083,7 @@ return {
       ? null
       : `this run's args.reference/args.candidate pair was not a comparable filesystem path pair (reference read as ${shapeOf(REFERENCE)}, candidate as ${shapeOf(CANDIDATE)}). The two ARTIFACT lines rendered in visibly different shapes, so this run's A/B was NOT blind — the loop's own formatting gave away which side was the candidate before the critic looked at either one.`,
     'The critic is instructed to be a really harsh critic — the source\'s one requirement on the judge — in both its standing agent definition and the round prompt. Nothing verifies that a harsh INSTRUCTION produced a harsh CRITIC. A lenient verdict and an exacting one are indistinguishable from here: no calibration trial ran, and the loop reads only the letter that came back.',
-    'NO RATCHET, and that is a decision rather than an omission (issue #18, 2026-08-24). The builder edits the candidate in place, so a round that makes it worse is permanent, and the loop holds no prior version to compare against: a Workflow script has no filesystem, so a snapshot and a revert would both be spawned-agent actions this script cannot observe. It therefore cannot tell an improvement from a regression from a lateral move — read `gaps_in_order` for that, and stop the run yourself if the gaps stop getting smaller.',
+    'REGRESSIONS ARE MEASURED AND NOT REVERTED (issue #18). Each built round asks one fresh critic which is closer to the goal — the version this round produced, or the copy taken before it — and the answer is recorded per round as `ratchet`, with `regressed: true` on any round the critic judged worse than what it replaced. Nothing is rolled back: revert would hand rollback authority to an evaluator whose detection rate is n=1 (#29), and a wrong revert is worse than a wrong refusal, which at least stops the run loudly. The previous version is named in the record, so a regression is recoverable by hand. What this still cannot do: VERIFY the snapshot — a Workflow script has no filesystem, so the copy is the builder\'s word, exactly as sizes are the breaker\'s — and tell an improvement from a lateral move, since one judge on one day is the whole of the comparison. A round whose builder reported no snapshot says so in `ratchet_why_not` rather than reading as a round that was checked and found fine.',
     CRITICS === 1
       ? 'Position bias is averaged across rounds by alternation, not eliminated within a round.'
       : 'Position bias is split across the line within each round, which measures it rather than eliminating it. It is not removed.',

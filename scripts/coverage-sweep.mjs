@@ -53,6 +53,10 @@ export const PROPERTIES = [
   ['an unrecognised on_refusal is refused, not ignored', L, 'if (!ON_REFUSAL_VALUES.includes(ON_REFUSAL)) throw new Error(', 'if (false) throw new Error('],
   ['a downgraded refusal is recorded, not laundered', L, 'proceeded_over_refusal = { verdict: comparability.verdict, side, reasoning: comparability.reasoning }', 'proceeded_over_refusal = null'],
   ['an unopenable artifact is not downgradable', L, "if (comparability && comparability.verdict === 'unreadable') {", "if (comparability && comparability.verdict === 'unreadable' && ON_REFUSAL !== 'warn') {"],
+  // --- the ratchet's measuring half (#18) ------------------------------------
+  ['a round with no snapshot is named, not silently skipped', L, '  if (!snapshot) {', '  if (false) {'],
+  ['a regressed round is marked', L, "entry.regressed = prefers === 'previous'", "entry.regressed = false"],
+  ['the ratchet critic does not always see the new version on the same side', L, 'const rs = sides(round, 0, PC, snapshot)', 'const rs = { A: PC, B: snapshot, candidateSide: \'A\' }'],
   ['a candidate cannot be compared against itself', L, 'if (CANDIDATE && REFERENCE && String(CANDIDATE).trim() === String(REFERENCE).trim())', 'if (false)'],
   ['artifact paths cannot forge prompt structure', L, '  if (value && /[\\r\\n]/.test(String(value))) throw new Error(', '  if (false) throw new Error('],
   ['paths reach shell-running agents single-quoted', L, 'test -e ${shq(TOKEN)}', 'test -e ${JSON.stringify(TOKEN)}'],

@@ -112,9 +112,12 @@ deleted.
 
 - **No live progress page.** His meta-prompt asks the lead to maintain one as the
   work evolves; this reports once, at the end, in the verdict.
-- **No ratchet.** The builder edits in place. A bad round is permanent and the
-  loop holds no prior version — a Workflow script has no filesystem, so both the
-  snapshot and the restore would be spawned-agent actions it cannot verify.
+- **Regressions are measured, not reverted.** The builder copies the artifact before
+  editing and one fresh critic says which version is closer to the goal, so a round that
+  made things worse is named in the record (`regressed`) with the path of what it lost to.
+  Nothing rolls back: that would hand rollback authority to an evaluator whose detection
+  rate is n=1 (#29). The rate at which rounds actually regress is what this produces, and
+  it is what would justify turning revert on.
 - **k critics on one piece is ours, not his.** Both source texts say one critic
   per piece, singular. It is disclosed in every run rather than presented as
   fidelity.
