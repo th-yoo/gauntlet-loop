@@ -128,7 +128,7 @@ const ARGS = { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TO
   eq(builders.length, 1, 'the disarming round is the only one that builds — an arming win and a confirming win both skip the builder')
 
   // The build must be driven by the DISARMING critic's gap, not the armed one's.
-  const buildPrompt = r.prompts.find(p => /GAP-2-DISARMS/.test(p.text))
+  const buildPrompt = r.prompts.find(p => p.label.endsWith(':build') && /GAP-2-DISARMS/.test(p.prompt))
   ok(buildPrompt, 'the builder was given the disarming critic\'s gap — the round that disagreed is the one that says what to fix')
 
   console.log('exit-confirmation: a confirming critic that picks the reference disarms and the run continues OK')
@@ -169,4 +169,7 @@ const ARGS = { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TO
   console.log('exit-confirmation: the verdict states the exit reached and the four ways it can still be wrong OK')
 }
 
-console.log('\nexit-confirmation: OK — a win arms, a fresh critic on the opposite side confirms, and a disagreement disarms.')
+// No trailing summary line. drift-guard requires an assertion behind every
+// printed pass, and a global "OK" after the last block has none — the
+// throwing-assertion suites in this repo (loop.test.mjs) end on their last
+// case for exactly that reason. Caught by the guard, not by review.

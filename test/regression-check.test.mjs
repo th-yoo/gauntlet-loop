@@ -70,7 +70,12 @@ const THREE_ROUNDS = {
   rounds: [
     { candidateWins: false, gap: 'round 1 gap' },
     { candidateWins: false, gap: 'round 2 gap' },
+    // TWO consecutive wins, because the exit arms rather than fires (#18's
+    // second half). Round 3 arms and round 4 confirms; before that change one
+    // win ended a run and this fixture was one line. What the file measures is
+    // unchanged — it needs a run that built repeatedly and then ended on a win.
     { candidateWins: true, gap: 'round 3 gap', margin: 'clear' },
+    { candidateWins: true, gap: 'round 4 confirms the win', margin: 'clear' },
   ],
 }
 

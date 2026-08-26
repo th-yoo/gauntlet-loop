@@ -10,8 +10,17 @@ const REFERENCE = '/tmp/x/theoriginal.html'
 const TOKEN = '/tmp/x/run.token'
 const GOAL = 'a goal worth looping over'
 
-// It stops when the candidate wins. Steered to win at round 3: exactly 3
-// critics and 2 builders must have been spawned — a win must not trigger
+// It stops when the candidate wins TWICE IN A ROW. Steered to win at rounds 3
+// and 4: 4 critics and 2 builders — neither the arming round nor the confirming
+// round triggers a build, so the artifact is unchanged across the confirmation.
+//
+// UPDATED DELIBERATELY for #18's second half. This asserted `outcome.round === 3`
+// with 3 critics and 2 builders, which was the old policy — one blind A/B win
+// ended a run — written down as an assertion. It is not a regression that it
+// changed; the change is the point, and leaving the old numbers would have meant
+// the exit could not be made stricter without a test calling it a defect.
+// test/exit-confirmation.test.mjs owns the arm-then-confirm behaviour itself;
+// what stays here is this file's original question: a win does not trigger
 // another build.
 {
   const r = await runLoop({
@@ -19,16 +28,17 @@ const GOAL = 'a goal worth looping over'
     rounds: [
       { candidateWins: false, gap: 'GAP-ROUND-1' },
       { candidateWins: false, gap: 'GAP-ROUND-2' },
-      { candidateWins: true, gap: 'GAP-ROUND-3-unused-because-it-won' },
+      { candidateWins: true, gap: 'GAP-ROUND-3-arms-the-exit' },
+      { candidateWins: true, gap: 'GAP-ROUND-4-confirms-it' },
     ],
   })
-  eq(r.result.outcome.status, 'WON', 'candidate winning stops the loop with status WON')
-  eq(r.result.outcome.round, 3, 'the win is reported at round 3')
+  eq(r.result.outcome.status, 'WON', 'two consecutive candidate wins stop the loop with status WON')
+  eq(r.result.outcome.round, 4, 'the win is reported at the CONFIRMING round, 4')
   const criticLabels = r.labels.filter(l => l.endsWith(':ab'))
   const builderLabels = r.labels.filter(l => l.endsWith(':build'))
-  eq(criticLabels.length, 3, 'exactly 3 critics were spawned')
-  eq(builderLabels.length, 2, 'exactly 2 builders were spawned — the winning round never triggers a build')
-  console.log('loop: candidate win at round 3 stops the loop, no extra build OK')
+  eq(criticLabels.length, 4, 'exactly 4 critics were spawned — the fourth is the confirmation')
+  eq(builderLabels.length, 2, 'exactly 2 builders were spawned — neither the arming nor the confirming round triggers a build')
+  console.log('loop: two consecutive candidate wins stop the loop, no extra build OK')
 }
 
 // Sides alternate. Over 4 non-winning rounds the candidate must be A on even
@@ -494,16 +504,22 @@ console.log('loop: required args throw, and the reference error explains why a b
       ],
     ],
   })
-  eq(r.result.outcome.status, 'WON', 'the candidate wins at round 2 with both critics')
-  eq(r.result.history.length, 2, 'two rounds ran')
+  // Counts updated deliberately for #18's second half: the exit arms on the
+  // first winning round and fires on a second. Round 1 loses with 1 critic
+  // (escalation declines to buy the second), round 2 wins on both and ARMS,
+  // round 3 wins on both and CONFIRMS. What this case is about — that the
+  // bullet counts actual spawns rather than history.length — is unchanged, and
+  // the divergence it needs is wider now, not narrower.
+  eq(r.result.outcome.status, 'WON', 'the candidate wins with both critics, confirmed at round 3')
+  eq(r.result.history.length, 3, 'three rounds ran — lose, arm, confirm')
   const spawned = r.labels.filter(l => /:ab:\d+$/.test(l)).length
-  eq(spawned, 3, 'escalation spawned 1 critic on the losing round and 2 on the winning one')
+  eq(spawned, 5, 'escalation spawned 1 critic on the losing round and 2 on each of the two winning ones')
   const recorded = r.result.history.reduce((n, h) => n + h.split.positions.length, 0)
-  eq(recorded, 3, 'all three critics produced a recorded verdict')
+  eq(recorded, 5, 'all five critics produced a recorded verdict')
   const spawnBullet = r.result.enforced.find(b => /separate critic spawn/i.test(b))
   ok(spawnBullet, 'a spawn-count bullet is present')
-  ok(/\b3 separate critic spawn/.test(spawnBullet), 'the bullet reports 3 spawns')
-  ok(/3 produced a recorded verdict/.test(spawnBullet),
+  ok(/\b5 separate critic spawn/.test(spawnBullet), 'the bullet reports 5 spawns')
+  ok(/5 produced a recorded verdict/.test(spawnBullet),
      'the bullet reports 3 recorded verdicts, not history.length (2) — understating them reads as if a critic returned nothing')
   console.log('loop: the spawn bullet counts recorded VERDICTS, not rounds, when escalation fires OK')
 }
@@ -706,7 +722,15 @@ console.log('loop: required args throw, and the reference error explains why a b
   const verdicts = Number(/(\d+) produced a recorded verdict/.exec(bullet)[1])
   eq(verdicts, r.result.history.reduce((n, h) => n + h.split.positions.length, 0) + 1,
      'and its verdict is counted too, since it produced one')
-  eq(r.result.position_balance, '1 as A / 2 as B',
+  // DERIVED, not hardcoded. This read `'1 as A / 2 as B'`, which stopped being
+  // true the moment the exit needed a confirming round per piece (#18). The
+  // claim being made is "covers EVERY critic position", so the check is that
+  // the two sides sum to every critic that ran — a literal string re-asserts a
+  // arithmetic that changes whenever the round count does, and says nothing
+  // about coverage.
+  const bal = /^(\d+) as A \/ (\d+) as B$/.exec(r.result.position_balance)
+  ok(bal, `position_balance is in the expected shape — got ${JSON.stringify(r.result.position_balance)}`)
+  eq(Number(bal[1]) + Number(bal[2]), perRound + wholeSpawns,
      'position_balance covers every critic position in the run, including the whole-artifact one — a balance that silently omits a judge misreports how position bias was spread')
   console.log('loop: the whole-artifact critic is counted in the spawn bullet OK')
 }
@@ -2005,7 +2029,13 @@ console.log('loop: protocol-relative, Windows, relative and tilde references all
     rounds: [{ candidateWins: true, gap: 'unused' }],
   })
   eq(r.result.outcome.status, 'WON', 'a unanimous line ends the run')
-  eq(r.labels.filter(l => /:ab(:\d+)?$/.test(l)).length, 3, 'all three critics were spawned')
+  // PER ROUND, not per run. This asserted a flat 3 when one winning round ended
+  // a run; the exit now arms and confirms (#18), so the line is spawned once per
+  // round. What the case is about is that k critics really are spawned — a total
+  // that happens to equal k only while a run is one round long was measuring the
+  // round count as much as the line width.
+  eq(r.labels.filter(l => /:ab(:\d+)?$/.test(l)).length, 3 * r.result.history.length,
+     `the full line of 3 was spawned in each of the ${r.result.history.length} round(s)`)
   eq(r.labels.filter(l => l.endsWith(':build')).length, 0, 'a win never triggers a build')
   eq(r.result.history[0].split.for_candidate, 3, 'the split records three for the candidate')
   eq(r.result.history[0].split.against_candidate, 0, 'and none against')
@@ -2213,13 +2243,17 @@ console.log('loop: args.critics is validated OK')
   eq(r.result.outcome.status, 'WON', 'the run wins only after every piece does')
   ok(/every one of the 2 pieces/.test(r.result.outcome.why), 'the verdict is about the SET, not one piece')
   const order = r.result.history.map(h => h.piece)
-  eq(order.filter(x => x === 'render').length, 2, 'render ran its own two rounds')
-  eq(order.filter(x => x === 'audio').length, 2, 'audio ran its own two rounds')
+  // Three each since #18's exit arms and confirms: round 1 loses, round 2 wins
+  // and arms, round 3 wins and confirms. The subject is that each piece runs its
+  // OWN rounds, so the assertion is that the two pieces ran the same number of
+  // them and that the number is what this critic stub implies.
+  eq(order.filter(x => x === 'render').length, 3, 'render ran its own three rounds — lose, arm, confirm')
+  eq(order.filter(x => x === 'audio').length, 3, 'audio ran its own three rounds — lose, arm, confirm')
   ok(r.labels.includes('render-round-1:ab') && r.labels.includes('audio-round-2:ab'), 'labels carry the piece')
   // Different files, so nothing can collide: they run CONCURRENTLY, and the
   // interleaving is the evidence. Strict piece-major order would mean the
   // groups were walked one at a time.
-  ok(order.join(',') !== 'render,render,audio,audio', 'independent pieces interleave — they ran concurrently, not one group after the other')
+  ok(!/^(render,)+audio(,audio)*$/.test(order.join(',')), 'independent pieces interleave — they ran concurrently, not one group after the other')
   console.log('loop: independent pieces run concurrently and the run ends only when both win OK')
 }
 
@@ -2450,7 +2484,17 @@ console.log('loop: args.critics is validated OK')
   })
   eq(r.result.outcome.status, 'WON', 'both coupled pieces won')
   const order = r.result.history.map(h => h.piece)
-  eq(order, ['frontmatter', 'frontmatter', 'body', 'body'], 'pieces sharing a path run strictly in sequence — no interleaving, so no two builders write one file at once')
+  // ASSERTED AS A SHAPE, not a literal. This read
+  // ['frontmatter','frontmatter','body','body'] and went stale the moment the
+  // exit needed a confirming round per piece (#18). The property is that the
+  // two pieces do not INTERLEAVE — every round of one, then every round of the
+  // other — which is what keeps two builders off one file, and it holds at any
+  // round count.
+  ok(order.length >= 4, `both coupled pieces ran more than once — got ${order.join(',')}`)
+  const firstPiece = order[0]
+  const boundary = order.findIndex(x => x !== firstPiece)
+  ok(boundary > 0 && order.slice(0, boundary).every(x => x === firstPiece) && order.slice(boundary).every(x => x !== firstPiece),
+     `pieces sharing a path run strictly in sequence — no interleaving, so no two builders write one file at once. Got: ${order.join(',')}`)
   console.log('loop: pieces sharing a file stay sequential while independent ones do not OK')
 }
 

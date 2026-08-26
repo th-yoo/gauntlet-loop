@@ -735,6 +735,15 @@ const LOOP_PINNED = [
 // without failing a test is not a disclosure.
 const LOOP_DISCLOSURES = [
   'Nothing verifies that a harsh INSTRUCTION produced a harsh CRITIC',
+  // THE FOUR WAYS A CONFIRMED EXIT CAN STILL BE WRONG (#18's second half).
+  // The exit got stricter — one win arms, a second from a fresh critic on the
+  // opposite side fires — and every one of these is a limit that strictness does
+  // NOT buy. A stricter mechanism is exactly the kind that gets quoted past its
+  // limits, so the limits are pinned rather than trusted to survive an edit.
+  'BOTH CRITICS SHARE A MODEL FAMILY',
+  'A NARROW WIN STILL EXITS',
+  'THE CONFIRMATION MEASURES JUDGE REPRODUCIBILITY, NOT ARTIFACT IMPROVEMENT',
+  'A RUN CANCELLED WHILE ARMED STOPPED WITH ONE UNCONFIRMED WIN, WHICH IS NOT A WIN',
   // REPOINTED when the regression check landed, and again when it was renamed off
   // "ratchet". The claim moved from "there is no ratchet" to "there is no ratchet AND
   // regressions are measured", and a pin that does not move with a claim guards a

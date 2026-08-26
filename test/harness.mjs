@@ -88,7 +88,35 @@ export async function runLoop(opts) {
   function specForRound(round) {
     const rounds = opts.rounds || []
     if (round - 1 < rounds.length && rounds[round - 1] !== undefined) return rounds[round - 1]
-    return opts.roundFallback || DEFAULT_ROUND_FALLBACK
+    if (opts.roundFallback) return opts.roundFallback
+
+    // A SPECIFIED WIN KEEPS WINNING PAST THE END OF THE ARRAY.
+    //
+    // Added for #18's second half, and it preserves what ~40 existing fixtures
+    // already meant rather than changing any of them. `rounds: [{ candidateWins:
+    // true }]` says "a run that wins" — the test then inspects fairness, sizes,
+    // disclosures, whatever it is actually about. How MANY wins a run needs is
+    // loop.js's decision, not the fixture's, and it just became two: the exit
+    // arms on the first win and fires on a second from a fresh critic.
+    //
+    // Without this, every such fixture arms at its last specified round, meets a
+    // lose-forever fallback, disarms, builds, and spins to the runaway guard —
+    // ~40 tests failing for a policy change none of them was asserting about.
+    //
+    // The lose-forever default is kept for fixtures that never won, because that
+    // is what makes the runaway guard able to fire at all: a test that forgot to
+    // bound its run still hits it.
+    // A round spec is either one critic (an object) or k critics (an array).
+    // At k>1 loop.js needs EVERY critic to pick the candidate for the round to
+    // win, so the array form only counts as a win when all of them do — the
+    // same rule the loop applies, rather than a second one written here.
+    const last = rounds.length ? rounds[rounds.length - 1] : null
+    const lastWon = Array.isArray(last)
+      ? last.length > 0 && last.every(c => c && c.candidateWins)
+      : !!(last && last.candidateWins)
+    if (lastWon) return last
+
+    return DEFAULT_ROUND_FALLBACK
   }
 
   // loop.js has no round cap by design, so a stub whose breaker never trips and

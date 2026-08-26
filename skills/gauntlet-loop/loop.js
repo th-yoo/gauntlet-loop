@@ -1283,6 +1283,22 @@ async function runPiece(piece) {
   const PR = piece.reference || REFERENCE
   let round = 0
   let pieceOutcome = null
+  // THE EXIT ARMS RATHER THAN FIRES — #18's second half.
+  //
+  // A win used to break the loop. #18's second comment measured what one win is
+  // worth: five critics, byte-identical prompt, one unchanged pair, same side
+  // assignment — 3 for A, 2 for B. A single fresh judge picks the minority side
+  // with probability ~0.4, so one win is one sample from a near-coin.
+  //
+  // So a win sets this instead. The next round spawns a FRESH critic against an
+  // UNCHANGED artifact — no build happens while armed — and sides() flips the
+  // candidate by round parity, so the confirmation cannot inherit the arming
+  // round's position bias. Two in a row exits; a disagreement disarms and the
+  // run builds on the disagreeing critic's gap.
+  //
+  // `armedAt` is the round that armed it, kept so the verdict can say which two
+  // rounds agreed rather than only that two did.
+  let armedAt = null
 
   while (true) {
   round++
@@ -1474,14 +1490,34 @@ async function runPiece(piece) {
       `\n  gap: ${gapShown || '(the critic recorded no gap text)'}`)
 
   if (candidateWon) {
+    if (armedAt === null) {
+      // ARM. Do not build: the confirming critic must judge the same bytes, or
+      // it is measuring a different artifact and confirms nothing.
+      armedAt = round
+      history[history.length - 1].armed = true
+      log(`round ${round}${piece.name ? ` [${piece.name}]` : ''}: candidate won — ARMED, not won. A fresh critic judges the same unchanged artifact next round with the candidate on the opposite side; two in a row is the exit.`)
+      continue
+    }
     pieceOutcome = {
       status: 'WON',
       why: CRITICS === 1
-        ? `the candidate beat the reference in a blind A/B at round ${round}`
-        : `all ${CRITICS} critics picked the candidate over the reference in a blind A/B at round ${round}`,
+        ? `the candidate beat the reference in two consecutive blind A/Bs, at rounds ${armedAt} and ${round}, judged by two separately spawned critics with the candidate on opposite sides and the artifact unchanged between them`
+        : `all ${CRITICS} critics picked the candidate in two consecutive rounds, ${armedAt} and ${round}, with the artifact unchanged between them`,
       round,
+      armed_at: armedAt,
+      confirmed_at: round,
     }
+    history[history.length - 1].confirmed = true
     break
+  }
+
+  // DISARM. A win that a fresh critic will not reproduce is not a win, and it is
+  // not banked: the run builds on THIS critic's gap, and a later win has to be
+  // armed and confirmed again from scratch.
+  if (armedAt !== null) {
+    log(`round ${round}${piece.name ? ` [${piece.name}]` : ''}: the confirming critic picked the reference — DISARMED. The win at round ${armedAt} stands unconfirmed and is discarded; building on this critic's gap.`)
+    history[history.length - 1].disarmed_win_at = armedAt
+    armedAt = null
   }
 
   // --- build -------------------------------------------------------------
@@ -2034,6 +2070,13 @@ return {
       },
 
   enforced: [
+    // THE EXIT REACHED, stated as the mechanism rather than as a lineage. The
+    // source's exit is universal over judges; this is `exists twice
+    // consecutively`, a step from exists toward for-all and not a claim of
+    // fidelity to it.
+    outcome && outcome.status === 'WON' && outcome.armed_at
+      ? `the run ended on TWO CONSECUTIVE blind A/B wins, at rounds ${outcome.armed_at} and ${outcome.confirmed_at}, judged by two separately spawned critics with the candidate on OPPOSITE sides and the artifact byte-unchanged between them — no build ran while the exit was armed`
+      : 'the exit arms rather than fires: one win is not terminal, and a second fresh critic must agree with the candidate on the opposite side before a run can end WON',
     ...(SIDES_LOOK_ALIKE && !CONTENT_LEAKS ? [
       'the critic was never TOLD which artifact was the candidate — sides alternate by round parity and the prompt never uses the word "candidate"',
     ] : []),
@@ -2055,6 +2098,13 @@ return {
   ],
 
   not_enforced: [
+    // The four ways a CONFIRMED exit can still be wrong. #18's decided design
+    // named each, and a mechanism whose limits are unwritten gets quoted past
+    // them.
+    'BOTH CRITICS SHARE A MODEL FAMILY, so a blind spot they hold in common survives confirmation. Two agreeing judges of the same stock is not two independent judgments, and this loop cannot buy a second family.',
+    'A NARROW WIN STILL EXITS. `margin` is recorded and gates nothing, and that is on evidence rather than oversight: across five spawns on one unchanged pair, four judges reported margin `clear` on BOTH sides of a 3-2 split, so the field reported high confidence for either answer and cannot separate a stable verdict from a coin flip.',
+    'THE CONFIRMATION MEASURES JUDGE REPRODUCIBILITY, NOT ARTIFACT IMPROVEMENT. The artifact is identical across the two rounds by construction, so what the second critic establishes is that the first verdict replicates — never that the work got better between them.',
+    'A RUN CANCELLED WHILE ARMED STOPPED WITH ONE UNCONFIRMED WIN, WHICH IS NOT A WIN. The armed round is recorded, and reading it as a result is reading a coin flip that was never checked.',
     // THE PAIRING CHECK COVERS args.candidate/args.reference AND NOTHING ELSE.
     //
     // It runs before decompose(), which is the only place it CAN run — refusing a
