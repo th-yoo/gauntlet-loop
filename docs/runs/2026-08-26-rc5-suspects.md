@@ -232,11 +232,42 @@ today:                              Wednesday 2026-08-26
 
 Node is pinned in `coverage.yml` (line 79), checked rather than assumed.
 
-**Both recorded instances of the reader problem were push-triggered runs** — run
-`32900618692` concluding success with two defects in its log, and `843b3ac` standing red for
-three commits. So gating the sweep in `ci.yml` is not a partial remedy that leaves the cron
-uncovered: it covers **every instance of RC5 that has ever occurred**, and the case it does
-not cover has never occurred once.
+**Both recorded instances were push-triggered runs**, so the cron's never having fired does
+not leave a real case uncovered.
+
+**But the claim this file made here first — that gating therefore covers every instance that
+has ever occurred — was wrong, and counting triggers was the wrong test.** What matters is
+whether each instance made the sweep RED:
+
+| instance | conclusion | would a gate have fired? |
+|---|---|---|
+| `843b3ac`, a stale needle, red for three commits | failure | **yes** |
+| run `32900618692`, two defects in its log | **success** | **no** |
+
+A gate fires on a non-zero exit. That run exited 0. #46 says exactly this and I read past it:
+
+> The gap is not "the sweep might go red and be missed" … **a sweep can pass and still be the
+> only place a defect is visible.**
+
+So gating covers **one of the two** instances, and the one it misses is the one the issue was
+filed on. There are two problems wearing one name:
+
+- **a finding that makes the sweep red** — `NOT CAUGHT`, `COULD NOT RUN`. Gating solves it
+  outright, because a gate cannot be ignored.
+- **a finding that rides along in a green run** — a number in the output that nothing
+  compares against anything. No gate fires. This needs the exit code to move (that is #46's
+  option 2, "fail the run on a surprising summary"), or the finding rendered where someone
+  reads it.
+
+#46's four options do not distinguish these, and neither did this ledger until the fifth
+pass.
+
+Worth noting what has already changed for the second class: instance 1's two findings were a
+property count that disagreed with a hand-copied constant, and a cost estimate wrong by four
+times. RC4's fix retires the constant by importing the list, and the estimate was corrected
+today. Both of *those* particular findings are now structurally impossible. The class is not:
+any future number in the output that nothing checks is still invisible while the run is
+green.
 
 What the cron would still catch, given the repo has no dependencies and pins its runtime:
 runner image changes, node 22 patch releases, and GitHub's own behaviour. Narrow, real, and
