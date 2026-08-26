@@ -217,7 +217,7 @@ if (pairing) {
 // about has not changed underneath it. A row whose ground truth is "there is nothing
 // there" is invalidated by a file appearing, exactly as a hashed row is by an edit.
 const abs = existsSync(resolve(ROOT, row.artifact)) ? resolve(ROOT, row.artifact) : row.artifact
-const isAbsence = row.arm === 'could-not-open'
+const isAbsence = row.expected_role === 'could-not-open'
 if (isAbsence) {
   if (existsSync(abs)) {
     console.error(`record: row "${rowId}" is a could-not-open row, but ${row.artifact} now EXISTS.`)
@@ -269,7 +269,10 @@ if (live.prompt_hash !== promptHash || live.schema_fingerprint !== schemaFp) {
 
 const rec = {
   row: rowId,
-  arm: row.arm,
+  // HOW the row was established, carried so a reader of the ledger alone can see it. What
+  // the report groups by is expected_role, below: that is the answer being scored, and it
+  // used to be conflated with the grounding in one field.
+  grounding: row.grounding,
   artifact: row.artifact,
   expected_role: row.expected_role,
   // Carried from the row. A DISPUTED row is one whose two independent classifiers

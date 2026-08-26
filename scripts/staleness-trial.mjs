@@ -82,7 +82,7 @@ function buildFixture(dir) {
   const { dir, env } = sandbox()
   const fx = buildFixture(dir)
   const acceptance = `sh ${fx.script} | grep -qx ok`
-  const add = run(ADD, ['--arm', 'does-the-work', '--artifact', fx.script, '--goal', 'the deliverable prints ok',
+  const add = run(ADD, ['--grounding', 'mechanical', '--artifact', fx.script, '--goal', 'the deliverable prints ok',
                         '--acceptance', acceptance, '--id', 'unpinned-dep', '--note', 'staleness trial'], env)
   if (add.code !== 0) { console.log(`SETUP FAILED (A): ${add.out.slice(0, 300)}`); failures++ }
   else {
@@ -111,8 +111,10 @@ function buildFixture(dir) {
   const emission = join(f, 'OUTPUT.md')
   writeFileSync(artifact, '# Please write the thing\n\nSomeone should implement this.\n')
   writeFileSync(emission, '# A prompt addressed to a further party\n')
-  const add = run(ADD, ['--arm', 'generator', '--artifact', artifact, '--goal', 'the thing exists',
-                        '--emission', emission, '--id', 'gen-row', '--note', 'staleness trial'], env)
+  const classification = join(f, 'classification.json')
+  writeFileSync(classification, JSON.stringify({ verdict: 'addressed-to-a-further-party', reasoning: 'it asks someone else to act' }) + '\n')
+  const add = run(ADD, ['--grounding', 'agentic', '--artifact', artifact, '--goal', 'the thing exists',
+                        '--emission', emission, '--classification', classification, '--id', 'gen-row', '--note', 'staleness trial'], env)
   if (add.code !== 0) { console.log(`SETUP FAILED (B): ${add.out.slice(0, 300)}`); failures++ }
   else {
     rmSync(emission)   // the file that IS this row's ground truth
@@ -128,7 +130,7 @@ function buildFixture(dir) {
 // A row plus one recorded observation, for the two cases that need results.
 function rowWithObservation(dir, env, { expected = 'does-the-work' } = {}) {
   const fx = buildFixture(dir)
-  const add = run(ADD, ['--arm', 'does-the-work', '--artifact', fx.script, '--goal', 'the deliverable prints ok',
+  const add = run(ADD, ['--grounding', 'mechanical', '--artifact', fx.script, '--goal', 'the deliverable prints ok',
                         '--acceptance', `sh ${fx.script} | grep -qx ok`, '--id', 'r1', '--note', 'staleness trial'], env)
   if (add.code !== 0) return { ok: false, why: add.out }
   const ex = run(EXTRACT, ['--artifact', fx.script, '--goal', 'the deliverable prints ok', '--json'], env)
@@ -216,9 +218,11 @@ function editRow(env, mutate) {
   writeFileSync(artifact, '# Produce the teardown and send it on\n')
   writeFileSync(first, '# The teardown itself\n')
   writeFileSync(second, '# Cover note: please forward this, the build is not ours\n')
-  const add = run(ADD, ['--arm', 'generator', '--artifact', artifact, '--goal', 'the thing exists',
-                        '--emission', first, '--emission', second, '--id', 'two-file-emission',
-                        '--note', 'staleness trial'], env)
+  const classification = join(f, 'classification.json')
+  writeFileSync(classification, JSON.stringify({ verdict: 'addressed-to-a-further-party', reasoning: 'the cover note routes it onward' }) + '\n')
+  const add = run(ADD, ['--grounding', 'agentic', '--artifact', artifact, '--goal', 'the thing exists',
+                        '--emission', first, '--emission', second, '--classification', classification,
+                        '--id', 'two-file-emission', '--note', 'staleness trial'], env)
   if (add.code !== 0) { console.log(`SETUP FAILED (E): ${add.out.slice(0, 300)}`); failures++ }
   else {
     // Break the SECOND file — the one a row that pins only the first has nothing to say

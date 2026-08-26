@@ -1,0 +1,6 @@
+{
+  "verdict": "addressed-to-a-further-party",
+  "reasoning": "Titled 'Implementation specification \u2014 request form', and states in its own header that 'The specification is then handed to whichever engineering team picks the work up in the following quarter; they build from it. Nothing is built by completing this form.' There is no export mechanism here \u2014 no code, no CSV, no billing-page change. An entire section is 'Open questions for the implementing team to resolve', and the closing line is an instruction to a further party: 'Do not begin implementation; scheduling is decided at planning.'",
+  "what_it_is": "A filled-out feature request / implementation-spec intake form for an invoice-history CSV export. It is the brief for building the feature, not the feature.",
+  "asked": "2026-08-26, blind: the classifier saw only the emission and was never shown the artifact"
+}

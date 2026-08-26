@@ -103,7 +103,7 @@ const unresolvable = rows.filter(r => {
   if (!r.artifact) return false
   // The absence arm's whole claim is that nothing is there, so a missing file is
   // its ground truth rather than a defect. It still must not be absolute (RC1).
-  if (r.arm === 'could-not-open') return false
+  if (r.expected_role === 'could-not-open') return false
   return !existsSync(resolve(ROOT, r.artifact))
 })
 if (unresolvable.length) {
@@ -139,7 +139,7 @@ const realFixture = 'oracle/fixtures/make-hello/Makefile'
 if (!existsSync(resolve(ROOT, realFixture))) {
   fail(`the fixture this check is built on is missing at ${realFixture} — the check itself cannot run, which is not the same as passing`)
 } else {
-  const template = rows.find(r => r.arm !== 'could-not-open') || rows[0]
+  const template = rows.find(r => r.expected_role !== 'could-not-open') || rows[0]
   const trueHash = 'sha256:' + createHash('sha256').update(readFileSync(resolve(ROOT, realFixture))).digest('hex')
 
   // Row A: the artifact is genuinely absent — the refusal that actually fired.
@@ -238,7 +238,7 @@ console.log('corpus-portability: a new observation inherits the row\'s relative 
 console.log('corpus-portability: the cohort key does not depend on where the checkout is')
 {
   const EXTRACT = join(ROOT, 'scripts', 'oracle-extract.mjs')
-  const probe = rows.find(r => r.arm !== 'could-not-open' && !r.inspect)
+  const probe = rows.find(r => r.expected_role !== 'could-not-open' && !r.inspect)
   if (!probe) {
     console.log('          NOT MEASURED: no corpus row is an ordinary present-artifact row, so there is nothing to spell two ways')
   } else {
@@ -270,7 +270,7 @@ console.log('corpus-portability: the cohort key does not depend on where the che
 // rather than the mechanism underneath it.
 console.log('corpus-portability: a fresh observation lands in the live cohort')
 {
-  const probe = rows.find(r => r.arm !== 'could-not-open' && !r.inspect)
+  const probe = rows.find(r => r.expected_role !== 'could-not-open' && !r.inspect)
   if (!probe) {
     console.log('          NOT MEASURED: no ordinary present-artifact row to extract')
   } else {
@@ -313,7 +313,7 @@ console.log('corpus-portability: a fresh observation lands in the live cohort')
 // silently compared against the last commit.
 console.log('corpus-portability: an observation recorded here can be validated elsewhere')
 {
-  const probe = rows.find(r => r.arm !== 'could-not-open' && !r.inspect)
+  const probe = rows.find(r => r.expected_role !== 'could-not-open' && !r.inspect)
   const away = mkdtempSync(join(tmpdir(), 'corpus-elsewhere-'))
   try {
     if (!probe) {

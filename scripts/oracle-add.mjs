@@ -38,7 +38,7 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const CORPUS = process.env.ORACLE_CORPUS || join(ROOT, 'oracle', 'corpus.jsonl')
 
 const argv = process.argv.slice(2)
-const FLAGS = ['--arm', '--artifact', '--goal', '--acceptance', '--id', '--note', '--inspect', '--emission']
+const FLAGS = ['--grounding', '--artifact', '--goal', '--acceptance', '--id', '--note', '--inspect', '--emission', '--classification', '--expected-role']
 const arg = n => {
   const i = argv.indexOf(n)
   if (i === -1) return null
@@ -46,7 +46,7 @@ const arg = n => {
   return v === undefined || FLAGS.includes(v) ? null : v
 }
 
-const arm = arg('--arm')
+const grounding = arg('--grounding')
 let artifact = arg('--artifact')
 const goal = arg('--goal')
 const acceptance = arg('--acceptance')
@@ -54,34 +54,51 @@ const note = arg('--note')
 const inspect = arg('--inspect')
 const force = argv.includes('--force')
 
-// THE ABSENCE ARM. `could-not-open` is the third thing the probe can answer and the third
-// way a run gets refused, and it had zero observations of thirty-eight — not because nobody
-// added the row but because the row could not be added. Two refusals stood in front of it,
-// both correct for the arms that existed: the arm list was closed, and a missing artifact
-// was rejected in a message that named this very verdict.
+// GROUNDING AND ANSWER ARE SEPARATE, and they used to be one flag.
 //
-// What made it unaddable is that `arm` meant three things at once — which answer the row
-// expects, how it was grounded, and what evidence it carries — so a third answer needed a
-// third grounding even though this one's is the cheapest in the corpus. The deliverable of
-// a could-not-open row is an ABSENCE, and `test ! -e` settles an absence with no judgement
-// in it at all. So the grounding is inverted rather than new: the acceptance command must
-// still exit 0, and what it must establish is that the path is not there.
-const ARMS = ['does-the-work', 'generator', 'could-not-open']
-if (!ARMS.includes(arm)) {
-  console.error('usage: node scripts/oracle-add.mjs --arm does-the-work --artifact <path> --goal "<text>" --acceptance "<shell command>" [--id <id>] [--note "<why>"] [--force]')
+// `--arm` meant three things at once — which answer the row expects, how it was grounded,
+// and what evidence it carries. This file's own header said so, about the absence case:
+// "a third answer needed a third grounding even though this one's is the cheapest in the
+// corpus". The same conflation then made a whole combination unstorable: an artifact only
+// an AGENT can execute whose emission turns out to be a COMPLETED ANSWER. Two of those
+// exist — a handoff message to a named studio and a hiring ad, both executed into landing
+// pages and both classified as completed answers by a blind second agent — and neither
+// could be added, because the generator path wrote `produces-an-instruction` from the flag.
+// #49.
+//
+// A FOURTH ARM WOULD BE ONE ENTRY PER CASE, which this project calls cheating. So the flag
+// now names only HOW the row is grounded, and the expected role is READ OFF the evidence:
+//
+//   mechanical  an acceptance command that is RUN here and must exit 0. What that
+//               establishes is that executing the artifact reaches the deliverable, so the
+//               answer is does-the-work. No model is consulted and one is refused.
+//   absence     the same command, establishing that there is nothing at the path
+//               (`test ! -e`). The answer is could-not-open, and the grounding is inverted
+//               rather than new.
+//   agentic     the artifact is executed by an agent, the emission is kept, and a SECOND
+//               agent classifies that emission with a different question — see
+//               oracle/generator-procedure.md. The answer comes from THAT classification,
+//               whichever way it went.
+//
+// scripts/rowmodel-trial.mjs case C is the check, and it crosses the label against the
+// evidence rather than asking for a shape: two rows identical except for what the blind
+// classification says, required to come back with different expected roles. No arrangement
+// of flags can pass that while taking the label from a flag.
+const GROUNDINGS = ['mechanical', 'agentic', 'absence']
+if (!GROUNDINGS.includes(grounding)) {
+  console.error('usage: node scripts/oracle-add.mjs --grounding mechanical --artifact <path> --goal "<text>" --acceptance "<shell command>" [--id <id>] [--note "<why>"] [--force]')
   console.error('')
-  console.error('Only --arm does-the-work is implemented. The generator arm has no mechanical acceptance test —')
-  console.error('"this document is a request to someone else" is not a shell exit code — so its rows come from the')
-  console.error('execute-and-observe procedure in oracle/generator-procedure.md, not from this tool. Adding a')
-  console.error('--arm generator path here that took the caller\'s word for the label would rebuild the exact')
-  console.error('authored answer key this corpus exists to replace.')
-  console.error('')
-  console.error('--arm could-not-open takes an artifact path that must NOT exist, and an --acceptance that')
-  console.error('establishes the absence (test ! -e <path>). Its ground truth is that there is nothing there.')
+  console.error('--grounding names HOW the row is established, never what answer it expects:')
+  console.error('  mechanical  --acceptance "<command>" — run here, must exit 0. Answer: does-the-work.')
+  console.error('  absence     --acceptance "test ! -e <path>" on a path that is not there. Answer: could-not-open.')
+  console.error('  agentic     --emission <file> (once per file) and --classification <file>, the blind')
+  console.error('              second agent\'s response. The ANSWER IS READ FROM IT — this tool does not')
+  console.error('              decide it, because a label written from a flag is the authored answer key')
+  console.error('              this corpus exists to replace. See oracle/generator-procedure.md.')
   process.exit(2)
 }
-if (!artifact || !goal || (arm === 'does-the-work' && !acceptance)) {
-  console.error('usage: node scripts/oracle-add.mjs --arm does-the-work --artifact <path> --goal "<text>" --acceptance "<shell command>" [--id <id>] [--note "<why>"] [--force]')
+if (!artifact || !goal || (grounding !== 'agentic' && !acceptance)) {
+  console.error('usage: node scripts/oracle-add.mjs --grounding mechanical --artifact <path> --goal "<text>" --acceptance "<shell command>" [--id <id>] [--note "<why>"] [--force]')
   process.exit(2)
 }
 
@@ -111,9 +128,9 @@ if (!artifact || !goal || (arm === 'does-the-work' && !acceptance)) {
 // scripts/staleness-trial.mjs case E builds the two-file case.
 const emissions = argv.reduce((acc, v, i) => (v === '--emission' && argv[i + 1] && !FLAGS.includes(argv[i + 1]) ? [...acc, argv[i + 1]] : acc), [])
 const disputed = argv.includes('--disputed')
-if (arm === 'generator') {
+if (grounding === 'agentic') {
   if (!emissions.length) {
-    console.error('add: --arm generator needs --emission <path>, the file the artifact PRODUCED when it was executed.')
+    console.error('add: --grounding agentic needs --emission <path>, the file the artifact PRODUCED when it was executed.')
     console.error('Its label comes from what it emitted, not from anyone saying so — see oracle/generator-procedure.md.')
     console.error('Pass --emission once per file if the execution produced several: the label rests on all of them,')
     console.error('so a row that pins one of three leaves two able to change with nothing noticing.')
@@ -126,6 +143,95 @@ if (arm === 'generator') {
       process.exit(2)
     }
   }
+}
+
+// THE ANSWER IS READ OFF THE BLIND CLASSIFICATION, NOT TAKEN FROM A FLAG.
+//
+// oracle/generator-procedure.md puts one question to a second agent that has never seen the
+// artifact — is this output a completed answer to the goal, or is it addressed to a further,
+// unspecified party as something for them to act on — and step 3 says agreement between the
+// two gives the row its expected role. The tool used to skip that and write the label from
+// `--arm generator`, which is the authored answer key this corpus exists to replace, and it
+// made the completed-answer outcome unstorable.
+//
+// The response file is required and its verdict is what decides, exactly as oracle-record
+// requires --raw and checks the fields against it. The mapping is one fixed rule, not a
+// registry: what the classifier can say is what the procedure asks, and each answer means
+// one role.
+const CLASSIFICATION_ROLE = {
+  'completed-answer': 'does-the-work',
+  'addressed-to-a-further-party': 'produces-an-instruction',
+}
+let classifications = null
+let agenticRole = null
+if (grounding === 'agentic') {
+  // Repeatable, like --emission and for the same reason: the procedure can be run more than
+  // once on one emission, and when two blind classifiers disagree that disagreement IS the
+  // row's ground truth. Storing one of them and dropping the other would resolve a dispute
+  // by discarding half of it.
+  const cPaths = argv.reduce((acc, v, i) => (v === '--classification' && argv[i + 1] && !FLAGS.includes(argv[i + 1]) ? [...acc, argv[i + 1]] : acc), [])
+  const cPath = cPaths[0]
+  if (!cPath) {
+    console.error('add: --grounding agentic needs --classification <file>, the blind second agent\'s response.')
+    console.error('Its verdict is what decides this row\'s expected role. Writing the label from the flag instead is')
+    console.error('the authored answer key this corpus exists to replace — see oracle/generator-procedure.md.')
+    process.exit(2)
+  }
+  const cAbs = existsSync(resolve(ROOT, cPath)) ? resolve(ROOT, cPath) : cPath
+  if (!existsSync(cAbs)) {
+    console.error(`add: the classification file ${cPath} does not exist, so nothing shows how the emission was classified.`)
+    process.exit(2)
+  }
+  classifications = []
+  for (const cp of cPaths) {
+    const abs2 = existsSync(resolve(ROOT, cp)) ? resolve(ROOT, cp) : cp
+    if (!existsSync(abs2)) { console.error(`add: the classification file ${cp} does not exist, so nothing shows how the emission was classified.`); process.exit(2) }
+    const cText = readFileSync(abs2, 'utf8')
+    let body
+    try { body = JSON.parse(cText.slice(cText.indexOf('{'), cText.lastIndexOf('}') + 1)) } catch {
+      console.error(`add: ${cp} holds no JSON object, so there is no verdict in it to read.`)
+      process.exit(2)
+    }
+    if (!CLASSIFICATION_ROLE[body.verdict]) {
+      console.error(`add: the classification ${cp} says ${JSON.stringify(body.verdict)}, which is not one of the two answers the procedure asks for.`)
+      console.error(`Expected one of: ${Object.keys(CLASSIFICATION_ROLE).map(k => JSON.stringify(k)).join(', ')}.`)
+      console.error('An answer outside the question is not a classification of this emission.')
+      process.exit(2)
+    }
+    classifications.push({ path: cp, hash: 'sha256:' + createHash('sha256').update(cText).digest('hex'), verdict: body.verdict })
+  }
+  const verdicts = [...new Set(classifications.map(c => c.verdict))]
+  if (verdicts.length > 1 && !disputed) {
+    console.error(`add: the classifications disagree (${verdicts.join(' vs ')}), so this row's ground truth is contested.`)
+    console.error('Pass --disputed. The procedure is explicit that a disagreement is itself the finding and must not be')
+    console.error('resolved by preferring whichever answer was expected — see oracle/generator-procedure.md.')
+    process.exit(2)
+  }
+  agenticRole = CLASSIFICATION_ROLE[classifications[0].verdict]
+}
+
+// A CALLER MAY STATE THE LABEL ONLY ON A ROW NOTHING WILL BE SCORED AGAINST.
+//
+// `--expected-role` exists for one situation: a row whose ground truth is CONTESTED, where
+// the label rests on a classification that is not on disk and a pinned one disagrees with
+// it. `partial-handoff` is that row — its own note records an earlier blind classifier
+// saying "addressed-onward", whose response was never kept, and a second one run on
+// 2026-08-26 called the same emission a completed answer.
+//
+// It is refused without --disputed, and a disputed row is excluded from every rate the
+// report computes. So an asserted label can never reach a number — which is the only reason
+// accepting one here is not the authored answer key this corpus exists to replace.
+const assertedRole = arg('--expected-role')
+if (assertedRole && !disputed) {
+  console.error('add: --expected-role is only accepted with --disputed.')
+  console.error('On any other row the label is READ from the evidence — a command that exits 0, an absence, or the')
+  console.error('blind classification. Asserting it is the answer key this corpus exists to replace. A disputed row')
+  console.error('is excluded from every rate, so a label on one cannot reach a number.')
+  process.exit(2)
+}
+if (assertedRole && !['does-the-work', 'produces-an-instruction', 'could-not-open'].includes(assertedRole)) {
+  console.error(`add: ${JSON.stringify(assertedRole)} is not a role the schema allows.`)
+  process.exit(2)
 }
 
 // THE PATH IS STORED REPO-RELATIVE, AND THE ROW IS REFUSED IF IT CANNOT BE.
@@ -167,19 +273,19 @@ if (insideRepo) {
   process.exit(2)
 }
 // else: sandbox corpus, outside path — stored absolute, as given. It dies with the sandbox.
-if (arm === 'could-not-open' && existsSync(abs)) {
-  console.error(`add: ${artifact} EXISTS, and this arm's ground truth is that it does not.`)
+if (grounding === 'absence' && existsSync(abs)) {
+  console.error(`add: ${artifact} EXISTS, and this row's ground truth is that it does not.`)
   console.error('A could-not-open row records an absence. If the file is there, the probe can open it, and')
   console.error('whatever it answers is not this verdict. Point the row at a path that is genuinely not there.')
   process.exit(2)
 }
-if (arm !== 'could-not-open' && !existsSync(abs)) {
+if (grounding !== 'absence' && !existsSync(abs)) {
   console.error(`add: ${artifact} does not exist. A row whose artifact cannot be opened measures nothing — this is the same refusal the pairing check makes as "could-not-open".`)
-  console.error('If an absent path is the POINT of the row, that is --arm could-not-open, whose ground truth is the absence.')
+  console.error('If an absent path is the POINT of the row, that is --grounding absence, whose ground truth is the absence.')
   process.exit(2)
 }
-// Skipped for the absence arm: there is nothing to stat, which is the row's whole claim.
-if (arm !== 'could-not-open' && statSync(abs).isDirectory()) {
+// Skipped for an absence: there is nothing to stat, which is the row's whole claim.
+if (grounding !== 'absence' && statSync(abs).isDirectory()) {
   console.error(`add: ${artifact} is a directory. The pairing check reads one file per side; a directory row would test something the probe never sees.`)
   process.exit(2)
 }
@@ -189,9 +295,9 @@ if (arm !== 'could-not-open' && statSync(abs).isDirectory()) {
 // passes it. Stated rather than papered over: it stops the careless case, not the
 // determined one, and the corpus's own note field is where a reader should look.
 const MODEL_SHAPED = /\b(claude|anthropic|openai|gpt|llm|ollama|gemini)\b/i
-if (arm === 'does-the-work' && MODEL_SHAPED.test(acceptance)) {
+if (grounding === 'mechanical' && MODEL_SHAPED.test(acceptance)) {
   console.error(`add: the acceptance command mentions a model ("${acceptance}").`)
-  console.error('Ground truth for this arm has to be established WITHOUT the kind of judgement being tested — a')
+  console.error('A mechanical grounding has to be established WITHOUT the kind of judgement being tested — a')
   console.error('quantity derived downstream of the decision under test cannot audit that decision. Use a command')
   console.error('that settles the deliverable mechanically, or add the row through the generator procedure instead.')
   process.exit(2)
@@ -211,7 +317,7 @@ if (arm === 'does-the-work' && MODEL_SHAPED.test(acceptance)) {
 // load-bearing safety property added after the fork bomb, which makes an unverified
 // timeout the worst thing in this file to leave unverified. The default is unchanged.
 const ACCEPTANCE_TIMEOUT_MS = Number(process.env.ORACLE_ACCEPTANCE_TIMEOUT_MS || 120_000)
-const res = arm === 'generator' ? { status: 0, stdout: '' } : spawnSync(acceptance, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: ACCEPTANCE_TIMEOUT_MS, killSignal: 'SIGKILL' })
+const res = grounding === 'agentic' ? { status: 0, stdout: '' } : spawnSync(acceptance, { shell: true, cwd: ROOT, encoding: 'utf8', timeout: ACCEPTANCE_TIMEOUT_MS, killSignal: 'SIGKILL' })
 if (res.error?.code === 'ETIMEDOUT' || res.signal === 'SIGKILL') {
   console.error(`add: the acceptance command did not finish within ${ACCEPTANCE_TIMEOUT_MS / 1000}s and was killed.`)
   console.error(`    ${acceptance}`)
@@ -232,9 +338,9 @@ if (res.error || res.status !== 0) {
 
 const sha = s => 'sha256:' + createHash('sha256').update(s).digest('hex')
 // No hash for an absence. artifact_hash exists so oracle-record can refuse an observation
-// made against different content; for this arm the content IS that there is none, and
+// made against different content; for an absence the content IS that there is none, and
 // oracle-record re-checks that the path is still missing instead.
-const artifactHash = arm === 'could-not-open' ? null : sha(readFileSync(abs))
+const artifactHash = grounding === 'absence' ? null : sha(readFileSync(abs))
 const id = arg('--id') || artifact.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').toLowerCase()
 
 mkdirSync(join(ROOT, 'oracle'), { recursive: true })
@@ -257,19 +363,22 @@ if (clash && !force) {
 
 const row = {
   id,
-  arm,
+  // HOW it was established, and separately WHAT it expects. One field used to carry both.
+  grounding,
   artifact,
   artifact_hash: artifactHash,
   goal,
   inspect: inspect || null,
-  expected_role: arm === 'generator' ? 'produces-an-instruction' : arm === 'could-not-open' ? 'could-not-open' : 'does-the-work',
+  // Read off the evidence in every case: from the blind classification where an agent
+  // executed the artifact, and from what a command that exits 0 establishes otherwise.
+  expected_role: assertedRole || (grounding === 'agentic' ? agenticRole : grounding === 'absence' ? 'could-not-open' : 'does-the-work'),
   // DISPUTED is recorded, not resolved. When the executing agent and the classifying
   // agent disagree about what the emission was, that disagreement IS the finding — a
   // row silently resolved toward the expected label is the answer key again.
-  disputed: arm === 'generator' ? disputed : false,
-  evidence: arm === 'could-not-open'
+  disputed: grounding === 'agentic' ? disputed : false,
+  evidence: grounding === 'absence'
     ? { method: 'mechanical-absence', acceptance_command: acceptance, exit_code: res.status, stdout_head: null }
-    : arm === 'generator'
+    : grounding === 'agentic'
     // THE EMISSION IS HASHED, like the artifact. It used to be a bare path, and a bare
     // path is a promise rather than evidence: deleting the file outright changed nothing
     // any tool could see. oracle-report re-checks both existence and this hash on every
@@ -283,6 +392,9 @@ const row = {
           path: em,
           hash: 'sha256:' + createHash('sha256').update(readFileSync(existsSync(resolve(ROOT, em)) ? resolve(ROOT, em) : em)).digest('hex'),
         })),
+        // The response the expected role was READ FROM, pinned like the emissions. Without
+        // it on disk the label is an assertion again, whichever flag produced it.
+        classifications,
         classified_by: 'a second agent, asked about the OUTPUT rather than the artifact — see oracle/generator-procedure.md',
       }
     : {
@@ -299,9 +411,9 @@ appendFileSync(CORPUS, JSON.stringify(row) + '\n')
 // Each arm says what actually grounded it. The generator arm runs no acceptance command,
 // so claiming one exited 0 would assert evidence that does not exist; the absence arm has
 // no artifact to hash, because its claim is that there is no artifact.
-console.log(`added ${id} (${arm}) — ${
-  arm === 'generator' ? `grounded on ${emissions.length} emission file(s): ${emissions.join(', ')}`
-  : arm === 'could-not-open' ? `acceptance exited 0, and ${artifact} is not there — which is the row`
+console.log(`added ${id} (${grounding}, expects ${row.expected_role}) — ${
+  grounding === 'agentic' ? `${emissions.length} emission file(s) and ${classifications.length} classification(s): ${classifications.map(c => c.verdict).join(', ')}${disputed ? ' — CONTESTED' : ''}`
+  : grounding === 'absence' ? `acceptance exited 0, and ${artifact} is not there — which is the row`
   : `acceptance exited 0, artifact ${artifactHash.slice(0, 23)}…`}`)
 if (!note) {
   console.error('note: no --note given. Why this row is in the corpus is the part a later reader cannot reconstruct, and')

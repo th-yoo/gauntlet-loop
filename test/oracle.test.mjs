@@ -210,7 +210,7 @@ function run(script, args, extraEnv) {
 // test could reach it without waiting two minutes, which meant it never had. A safety
 // property nobody has watched fire is a safety property nobody has.
 {
-  const r = run(ADD, ['--arm', 'does-the-work', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
+  const r = run(ADD, ['--grounding', 'mechanical', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
                       '--goal', 'g', '--acceptance', 'sleep 60', '--id', 'should-not-exist'],
                 { ORACLE_ACCEPTANCE_TIMEOUT_MS: '1500' })
   eq(r.code, 1, `a hanging acceptance command is killed and refused rather than waited on — got ${r.code}`)
@@ -326,7 +326,7 @@ function run(script, args, extraEnv) {
 
 // GROUND TRUTH MUST NOT BE DOWNSTREAM OF THE JUDGEMENT UNDER TEST.
 {
-  const r = run(ADD, ['--arm', 'does-the-work', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
+  const r = run(ADD, ['--grounding', 'mechanical', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
                       '--goal', 'g', '--acceptance', '/nonexistent/claude-ORACLE-CANARY-DO-NOT-EXECUTE', '--id', 'should-not-exist'])
   eq(r.code, 2, `an acceptance command that consults a model is refused — got ${r.code}`)
   ok(/cannot audit that decision/.test(r.out), 'on the ground that it cannot audit the decision under test')
@@ -335,7 +335,7 @@ function run(script, args, extraEnv) {
 
 // AN ACCEPTANCE COMMAND THAT DOES NOT PASS IS NOT GROUND TRUTH.
 {
-  const r = run(ADD, ['--arm', 'does-the-work', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
+  const r = run(ADD, ['--grounding', 'mechanical', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
                       '--goal', 'g', '--acceptance', 'false', '--id', 'should-not-exist'])
   eq(r.code, 1, `a failing acceptance command is refused — got ${r.code}`)
   ok(/did not succeed/.test(r.out) && /do not record the row anyway/.test(r.out),
@@ -343,26 +343,36 @@ function run(script, args, extraEnv) {
   console.log('oracle: a row whose acceptance command fails is refused OK')
 }
 
-// THE GENERATOR ARM CANNOT BE ADDED BY ASSERTION.
+// AN AGENTICALLY GROUNDED ROW CANNOT BE ADDED BY ASSERTION.
 //
 // It has no mechanical acceptance test — "this document's deliverable is a request
 // addressed to someone else" is not a shell exit code — so its label comes from
 // EXECUTION: hand the artifact to an agent, keep what it emits, have a second agent
-// classify that emission. The refusal here is the shortcut: a row offered without the
-// emission it was derived from is exactly the opinion this corpus exists to replace.
+// classify that emission. Two refusals hold that shut: a row offered without the emission
+// it was derived from, and a row offered without the CLASSIFICATION its label is read from.
+// Both are the same opinion this corpus exists to replace, one step apart.
 {
-  const r = run(ADD, ['--arm', 'generator', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
+  const r = run(ADD, ['--grounding', 'agentic', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
                       '--goal', 'g', '--id', 'should-not-exist'])
   eq(r.code, 2, `a generator row with no emission is refused — got ${r.code}`)
   ok(/needs --emission/.test(r.out), 'naming what is missing')
   ok(/not from anyone saying so/.test(r.out), 'and why an assertion is not enough')
 
   // And an emission path that does not exist is not an emission.
-  const r2 = run(ADD, ['--arm', 'generator', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
+  const r2 = run(ADD, ['--grounding', 'agentic', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
                        '--goal', 'g', '--emission', '/oracle/no/such/output.md', '--id', 'should-not-exist'])
   eq(r2.code, 2, 'an emission file that is not there is refused')
   ok(/does not exist/.test(r2.out), 'because nothing then shows what executing the artifact produced')
-  console.log('oracle: a generator row without the emission it was derived from is refused OK')
+
+  // AND THE LABEL IS NOT THE CALLER'S TO GIVE. With an emission but no classification there
+  // is nothing the expected role could be read from, and writing it from the flag is what
+  // made a whole combination unstorable — #49.
+  const r3 = run(ADD, ['--grounding', 'agentic', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
+                       '--goal', 'g', '--emission', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
+                       '--id', 'should-not-exist'])
+  eq(r3.code, 2, 'an agentic row with no classification is refused')
+  ok(/needs --classification/.test(r3.out), 'naming what decides the role')
+  console.log('oracle: an agentically grounded row without its emission or its classification is refused OK')
 }
 
 // THE STALENESS REFUSAL — the whole reason observations carry hashes.
@@ -423,14 +433,14 @@ function run(script, args, extraEnv) {
   const rows = readFileSync(join(ROOT, 'oracle', 'corpus.jsonl'), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l))
   ok(rows.length >= 1, 'the corpus has at least one row')
   for (const row of rows) {
-    // Each arm is grounded differently, and each must carry ITS OWN grounding: the
-    // does-the-work arm by a command that was run, the generator arm by the emission
-    // that executing the artifact produced. A row carrying neither is an assertion.
+    // Each grounding is different, and each row must carry ITS OWN: a mechanical row by a
+    // command that was run, an agentic row by the emission executing it produced AND the
+    // classification its label was read from. A row carrying neither is an assertion.
     ok(row.evidence, `row ${row.id} carries evidence at all`)
-    if (row.arm === 'does-the-work') {
+    if (row.grounding === 'mechanical') {
       ok(row.evidence.acceptance_command, `row ${row.id} carries the command that grounded it`)
       eq(row.evidence.method, 'mechanical-execution', `row ${row.id} says how it was grounded`)
-    } else if (row.arm === 'could-not-open') {
+    } else if (row.grounding === 'absence') {
       // The absence arm. Its grounding is the same SHAPE as does-the-work — a command that
       // exited 0 — and the opposite claim: that there is nothing at that path. So it carries
       // an acceptance command and no hash, because there is no content to hash.
@@ -447,7 +457,27 @@ function run(script, args, extraEnv) {
         ok(em.path && em.hash, `generator row ${row.id} pins each emission by path and hash`)
       }
       eq(row.evidence.method, 'agentic-execution', `row ${row.id} says how it was grounded`)
-      eq(row.expected_role, 'produces-an-instruction', `generator row ${row.id} expects the generator role`)
+      // THE ROLE FOLLOWS THE CLASSIFICATION, and is not fixed by the grounding. That is
+      // #49: `arm` decided both at once, so an artifact only an agent can execute could
+      // only ever expect one answer. The row must carry the response its label was read
+      // from, and the two must agree.
+      const cls = row.evidence.classifications
+      ok(Array.isArray(cls) && cls.length, `row ${row.id} pins the blind classification(s) its expected role was read from`)
+      for (const c of cls) ok(c.path && c.hash && c.verdict, `row ${row.id} pins each classification by path, hash and verdict`)
+      const ROLE_OF = { 'completed-answer': 'does-the-work', 'addressed-to-a-further-party': 'produces-an-instruction' }
+      if (!row.disputed) {
+        eq(row.expected_role, ROLE_OF[cls[0].verdict],
+           `row ${row.id}'s expected role is the one its classification says, not one its grounding implies`)
+        eq([...new Set(cls.map(c => c.verdict))].length, 1,
+           `row ${row.id} is not marked disputed, so its classifications must agree`)
+      } else {
+        // DISPUTED MUST NOT BE A FREE PASS. A row excluded from every rate is the one place
+        // a caller may state a label, so something has to actually disagree — otherwise the
+        // flag would excuse exactly the assertion it exists to quarantine.
+        const verdicts = [...new Set(cls.map(c => c.verdict))]
+        ok(verdicts.length > 1 || ROLE_OF[cls[0].verdict] !== row.expected_role,
+           `row ${row.id} is marked disputed but nothing in it disagrees — the flag excludes it from every rate, so it cannot also be a way to assert a label nothing contests`)
+      }
     }
     ok(row.expected_role, `row ${row.id} has an expected role`)
     ok(row.goal, `row ${row.id} carries its goal — role is goal-relative, so a row without one is undefined`)
@@ -464,7 +494,7 @@ function run(script, args, extraEnv) {
     // unchanged on the machine that recorded the observations. The row stays
     // portable; the prompt keeps its shape.
     ok(!row.artifact.startsWith('/'), `row ${row.id} stores a repo-relative path — an absolute one pins the corpus to one machine, and oracle-extract resolves it against ROOT before the prompt is built`)
-    ok(existsSync(join(ROOT, row.artifact)) || row.arm === 'could-not-open', `row ${row.id} resolves from the repo root`)
+    ok(existsSync(join(ROOT, row.artifact)) || row.grounding === 'absence', `row ${row.id} resolves from the repo root`)
   }
   console.log(`oracle: all ${rows.length} corpus row(s) carry goal, expected role and grounding evidence OK`)
 }
@@ -573,7 +603,7 @@ function run(script, args, extraEnv) {
   console.log('oracle: an observation predating the template hash is labelled UNKNOWN INSTRUMENT, not SUPERSEDED OK')
 }
 
-// AN ARM THE REPORT DOES NOT SCORE IS REFUSED, NOT DROPPED.
+// AN ANSWER THE REPORT DOES NOT SCORE IS REFUSED, NOT DROPPED.
 //
 // Before this, an observation carrying a third arm was counted nowhere and printed
 // nowhere: the cohort header rendered with nothing under it and the run exited 0. The
@@ -582,12 +612,14 @@ function run(script, args, extraEnv) {
 {
   const dir = mkdtempSync(join(tmpdir(), 'oracle-arm-'))
   const results = join(dir, 'results.jsonl')
-  // NOT could-not-open any more. This case used that arm when the corpus had no way to
-  // express an absence, so nothing scored it; the corpus gained the arm and the example
-  // stopped being one. The claim is unchanged — an arm the report cannot score must fail
-  // the run rather than vanish — so the example is an arm that is not one.
+  // The example has moved TWICE and the claim has not. It was could-not-open, until the
+  // corpus gained a way to express an absence and that stopped being unscorable. It was
+  // then an `arm` that is not one — until #49 split `arm` into a grounding and an expected
+  // role, and the report started grouping by the answer it scores rather than by how the
+  // row was grounded, which made a bad arm harmless. What must still fail the run is an
+  // observation expecting an answer the report has no column for.
   writeFileSync(results, JSON.stringify({
-    row: 'x', arm: 'not-an-arm', artifact: '/no/such', expected_role: 'does-the-work',
+    row: 'x', grounding: 'mechanical', artifact: '/no/such', expected_role: 'not-a-role',
     predicted_role: 'does-the-work', correct: true, prompt_hash: 'sha256:P',
     template_hash: 'sha256:T', schema_fingerprint: 'sha256:fp', observer: 't',
   }) + '\n')
@@ -598,11 +630,11 @@ function run(script, args, extraEnv) {
   catch (e) { code = e.status; out = String(e.stdout || '') + String(e.stderr || '') }
 
   eq(code, 1, `an unscored arm fails the run rather than vanishing — got exit ${code}\n${out}`)
-  ok(/REFUSING: 1 observation\(s\) carry an arm this report does not score/.test(out), 'and it says how many')
-  ok(/arm "not-an-arm"/.test(out), 'and names the arm, so the reader knows what to add')
+  ok(/REFUSING: 1 observation\(s\) expect a role this report does not score/.test(out), 'and it says how many')
+  ok(/role "not-a-role"/.test(out), 'and names the role, so the reader knows what to add')
   ok(!/per-side error/.test(out), 'and prints no rate computed without it')
   rmSync(dir, { recursive: true, force: true })
-  console.log('oracle: an observation whose arm the report cannot score is refused, not silently dropped OK')
+  console.log('oracle: an observation whose expected role the report cannot score is refused, not silently dropped OK')
 }
 
 // GROUND TRUTH IS RE-DERIVED OR PINNED, NOT READ BACK — the five cases of #40, run as a
@@ -684,13 +716,18 @@ function run(script, args, extraEnv) {
 
 // THE ROW MODEL — what the corpus can and cannot express, run as a suite gate.
 //
-// Two verdicts can refuse a run, and each had zero observations because the corpus could
+// Two verdicts could refuse a run and each had zero observations because the corpus could
 // not hold the row: `could-not-open`, whose ground truth is an absence, and the pairing
 // verdict itself, which is a property of two artifacts under one goal rather than of one
-// artifact. scripts/rowmodel-trial.mjs builds both situations rather than describing them.
+// artifact. The third case is #49: `arm` meant the answer and the grounding at once, so an
+// artifact only an agent can execute could only ever expect one answer, and a row grounded
+// by execution whose emission is a COMPLETED answer had nowhere to live. That case crosses
+// the label against the evidence — two rows identical except for what the blind
+// classification says, required to come back different — so no arrangement of flags passes
+// it while taking the label from a flag. scripts/rowmodel-trial.mjs builds all three.
 {
   const r = run(join(ROOT, 'scripts', 'rowmodel-trial.mjs'), [])
-  eq(r.code, 0, `the corpus can express an absence and a pairing — got exit ${r.code}\n${r.out}`)
-  ok(/Both expressible/.test(r.out), 'and the trial says so in its own terms')
+  eq(r.code, 0, `the corpus can express an absence, a pairing, and a role read off the evidence — got exit ${r.code}\n${r.out}`)
+  ok(/All three expressible/.test(r.out), 'and the trial says so in its own terms')
   console.log('oracle: the corpus can express an absence row and a pairing, so both refusing verdicts can be measured OK')
 }

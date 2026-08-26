@@ -86,7 +86,7 @@ function addWorker(dir, env, { id, goal }) {
   mkdirSync(f, { recursive: true })
   const script = join(f, 'deliver.sh')
   writeFileSync(script, `#!/bin/sh\necho ${id}\n`)
-  const add = run(ADD, ['--arm', 'does-the-work', '--artifact', script, '--goal', goal,
+  const add = run(ADD, ['--grounding', 'mechanical', '--artifact', script, '--goal', goal,
     '--acceptance', `sh ${script} | grep -qx ${id}`, '--id', id, '--note', 'pairing exit test'], env)
   if (add.code !== 0) throw new Error(`setup: could not add row ${id}: ${add.out.slice(0, 400)}`)
   return script
@@ -101,8 +101,10 @@ function addWriter(dir, env, { id, goal }) {
   const emission = join(f, 'OUTPUT.md')
   writeFileSync(artifact, `# Please write the thing\n\nSomeone should do this and send it back.\n`)
   writeFileSync(emission, `# A request addressed to a further party\n`)
-  const add = run(ADD, ['--arm', 'generator', '--artifact', artifact, '--goal', goal,
-    '--emission', emission, '--id', id, '--note', 'pairing exit test'], env)
+  const classification = join(f, 'classification.json')
+  writeFileSync(classification, JSON.stringify({ verdict: 'addressed-to-a-further-party', reasoning: 'it is addressed onward' }) + '\n')
+  const add = run(ADD, ['--grounding', 'agentic', '--artifact', artifact, '--goal', goal,
+    '--emission', emission, '--classification', classification, '--id', id, '--note', 'pairing exit test'], env)
   if (add.code !== 0) throw new Error(`setup: could not add writer row ${id}: ${add.out.slice(0, 400)}`)
   return artifact
 }

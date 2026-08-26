@@ -26,9 +26,13 @@ That is a genuinely different instrument aimed at the same fact — different ob
 likely-effect-of-artifact). Re-asking `roleOf`'s question here would produce agreement
 that means nothing.
 
-**3. Record.** Agreement between the two gives the row its expected role. **Disagreement
-is recorded as `DISPUTED` and is itself a finding** — do not resolve it by preferring
-whichever answer was expected.
+**3. Record.** Agreement between the two gives the row its expected role, and
+`oracle-add` reads it off the classification rather than taking anyone's word: pass
+`--classification <file>`, the second agent's response, and its verdict decides.
+`completed-answer` is a `does-the-work` row and `addressed-to-a-further-party` is a
+`produces-an-instruction` one — **both outcomes are storable**, which they were not before
+#49. **Disagreement between the two agents is recorded as `DISPUTED` and is itself a
+finding** — do not resolve it by preferring whichever answer was expected.
 
 Pin **every file the execution produced**, with `--emission` once per file. The
 classification is of the whole output, so a row that pins one file of two records less

@@ -1,0 +1,6 @@
+{
+  "verdict": "addressed-to-a-further-party",
+  "reasoning": "The directory holds exactly one file (OUTPUT.md), and it contains no landing page \u2014 no headline, body copy, section content, markup, or layout. It is a creative brief with an explicit addressing header ('For: [External design studio]' / 'From: [Account manager]') and it hands the actual work to that studio. Every element describes a page that does not yet exist and asks someone else to produce it.",
+  "what_it_is": "A client-side creative brief for a Cadence landing page, written by an account manager to commission an outside design studio. It is the instruction packet that precedes the landing page, not the landing page.",
+  "asked": "2026-08-26, blind: the classifier saw only the emission and was never shown the artifact"
+}

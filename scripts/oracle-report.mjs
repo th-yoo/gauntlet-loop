@@ -49,7 +49,8 @@ const results = read('results.jsonl')
 
 console.log('oracle report — the pairing check\'s roleOf classifier')
 console.log('')
-console.log(`corpus: ${corpus.length} row(s) — ${corpus.filter(r => r.arm === 'does-the-work').length} does-the-work, ${corpus.filter(r => r.arm === 'generator').length} generator`)
+console.log(`corpus: ${corpus.length} row(s) — ${corpus.filter(r => r.grounding === 'mechanical').length} mechanical, ${corpus.filter(r => r.grounding === 'agentic').length} agentic, ${corpus.filter(r => r.grounding === 'absence').length} absence`)
+console.log(`        expecting — ${['does-the-work', 'produces-an-instruction', 'could-not-open'].map(r => `${corpus.filter(x => x.expected_role === r).length} ${r}`).join(', ')}`)
 
 // A PIN ESTABLISHED LATE IS NOT THE SAME FACT AS A PIN ESTABLISHED AT ADD TIME, and the
 // difference is invisible once both are just hashes. Five generator rows predate emission
@@ -78,7 +79,7 @@ if (latePins.length) {
 // dependency set. There is no list of files to hash. Running the thing is the only check
 // whose scope matches the claim.
 //
-// The generator arm has no command, so its grounding is the emission — everything executing
+// An agentically grounded row has no command, so its evidence is the emission — everything executing
 // the artifact produced. That was a bare path: deleting it outright changed nothing anyone
 // could see. Existence and hash are now checked for EVERY file the execution emitted, which
 // is the half the single-path field could not cover.
@@ -90,7 +91,7 @@ if (latePins.length) {
 if (corpus.length) {
   const ungrounded = []
   for (const row of corpus) {
-    if (row.arm === 'generator') {
+    if (row.grounding === 'agentic') {
       // EVERY FILE THE EXECUTION EMITTED, not the first one. This read `evidence.emission`,
       // a single path, while an agentic execution produces a set — and the one real
       // multi-file case had the blind classifier quoting the file the row did not pin.
@@ -134,30 +135,35 @@ if (!results.length) {
   process.exit(0)
 }
 
-// AN ARM THIS REPORT DOES NOT SCORE IS NOT A ZERO, IT IS A SILENT DROP.
+// AN ANSWER THIS REPORT DOES NOT SCORE IS NOT A ZERO, IT IS A SILENT DROP.
 //
-// The arm loop below iterates a fixed list, so an observation carrying any other arm is
+// The loop below iterates a fixed list, so an observation expecting any other role is
 // counted nowhere and printed nowhere: the cohort header appears with nothing under it and
 // the run exits 0. That is the only silent outcome this tool has, and the observation most
 // likely to land in it is a `could-not-open` one — the very verdict #34 records as having
 // no evidence. Refusing costs a line; a number that quietly excluded an observation costs
 // whatever was decided on it.
 //
-// SCORED_ARMS is the single source for both this refusal and the loop below. Two lists
+// SCORED_ROLES is the single source for both this refusal and the loop below. Two lists
 // would drift, and the drift would restore the silent drop with the guard still green.
 // could-not-open joined these when the corpus gained a way to express an absence. It is a
 // verdict the probe can return and a third way a run gets refused, and it sat at zero
 // observations because the row could not be added, not because nobody drew it.
-const SCORED_ARMS = ['does-the-work', 'generator', 'could-not-open']
-const unscored = results.filter(r => !SCORED_ARMS.includes(r.arm))
+// GROUPED BY THE ANSWER, NOT BY HOW THE ROW WAS GROUNDED. These were one field, `arm`,
+// which meant both at once — so `generator` named a role while `does-the-work` named a
+// grounding, and a row grounded by execution could only ever expect one answer (#49). What
+// this report scores is the answer the probe should have given, so that is what it groups
+// by; the grounding is carried on each observation and is a different fact.
+const SCORED_ROLES = ['does-the-work', 'produces-an-instruction', 'could-not-open']
+const unscored = results.filter(r => !SCORED_ROLES.includes(r.expected_role))
 if (unscored.length) {
   console.log('')
-  console.log(`REFUSING: ${unscored.length} observation(s) carry an arm this report does not score.`)
-  for (const arm of [...new Set(unscored.map(r => r.arm))]) {
-    const hits = unscored.filter(o => o.arm === arm)
-    console.log(`  arm ${JSON.stringify(arm)} — ${hits.length} observation(s), first on row ${hits[0].row}`)
+  console.log(`REFUSING: ${unscored.length} observation(s) expect a role this report does not score.`)
+  for (const role of [...new Set(unscored.map(r => r.expected_role))]) {
+    const hits = unscored.filter(o => o.expected_role === role)
+    console.log(`  role ${JSON.stringify(role)} — ${hits.length} observation(s), first on row ${hits[0].row}`)
   }
-  console.log(`  This report scores ${SCORED_ARMS.join(' and ')}. Add the arm here, or take the observations`)
+  console.log(`  This report scores ${SCORED_ROLES.join(' and ')}. Add the role here, or take the observations`)
   console.log('  out of the ledger — but they are not going to be counted silently.')
   process.exit(1)
 }
@@ -307,8 +313,8 @@ for (const [k, rs] of cohorts) {
   console.log(`── instrument ${ph.slice(0, 23)}… ── ${label}`)
   if (cohorts.size > 1) console.log('   (cohorts are reported separately: a different prompt is a different instrument)')
 
-  for (const arm of SCORED_ARMS) {
-    const all = rs.filter(r => r.arm === arm)
+  for (const arm of SCORED_ROLES) {
+    const all = rs.filter(r => r.expected_role === arm)
     if (!all.length) continue
     // DISPUTED rows are excluded from the rate and reported on their own. Their ground
     // truth is contested — two independent classifiers disagreed about what the

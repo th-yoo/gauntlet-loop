@@ -58,9 +58,9 @@ function sandbox() {
   writeFileSync(join(dir, 'b', 'Makefile'), `count:\n\t@wc -l < ${join(dir, 'data.txt')}\n`)
   const GOAL = 'a reader can get the number of lines in data.txt by running one command'
 
-  const a = add(env, ['--arm', 'does-the-work', '--artifact', join(dir, 'a', 'count.sh'), '--goal', GOAL,
+  const a = add(env, ['--grounding', 'mechanical', '--artifact', join(dir, 'a', 'count.sh'), '--goal', GOAL,
                       '--acceptance', `sh ${join(dir, 'a', 'count.sh')} | grep -q 3`, '--id', 'pair-sh', '--note', 'row model trial'])
-  const b = add(env, ['--arm', 'does-the-work', '--artifact', join(dir, 'b', 'Makefile'), '--goal', GOAL,
+  const b = add(env, ['--grounding', 'mechanical', '--artifact', join(dir, 'b', 'Makefile'), '--goal', GOAL,
                       '--acceptance', `make -C ${join(dir, 'b')} count | grep -q 3`, '--id', 'pair-mk', '--note', 'row model trial'])
   const bothAdded = a.code === 0 && b.code === 0
 
@@ -94,9 +94,9 @@ function sandbox() {
   const { dir, env } = sandbox()
   const absent = join(dir, 'no', 'such', 'artifact.md')
 
-  const asThirdArm = add(env, ['--arm', 'could-not-open', '--artifact', absent, '--goal', 'anything at all',
+  const asThirdArm = add(env, ['--grounding', 'absence', '--artifact', absent, '--goal', 'anything at all',
                                '--acceptance', `test ! -e ${absent}`, '--id', 'cno', '--note', 'row model trial'])
-  const asWorkArm = add(env, ['--arm', 'does-the-work', '--artifact', absent, '--goal', 'anything at all',
+  const asWorkArm = add(env, ['--grounding', 'mechanical', '--artifact', absent, '--goal', 'anything at all',
                               '--acceptance', `test ! -e ${absent}`, '--id', 'cno2', '--note', 'row model trial'])
 
   verdict('B. express a could-not-open row — an artifact whose ground truth is its absence',
@@ -105,8 +105,60 @@ function sandbox() {
   rmSync(dir, { recursive: true, force: true })
 }
 
+// ── C. A ROW WHOSE GROUNDING IS EXECUTION AND WHOSE ANSWER IS does-the-work ─────────
+//
+// `arm` means three things at once — which answer the row expects, how it was grounded,
+// and what evidence it carries — so the grounding you have decides the answer you may
+// record. Mechanical grounding can only produce `does-the-work`; agentic grounding can
+// only produce `produces-an-instruction`, because oracle-add writes that label from the
+// flag rather than reading it off the evidence.
+//
+// The combination that has no home: an artifact only an AGENT can execute, whose emission
+// turns out to be a completed answer. Two of them exist — a handoff message to a named
+// studio and a hiring ad, both executed into landing pages and both classified as
+// completed answers by a blind second agent — and neither can be stored. #49.
+//
+// THE CASE CROSSES THE LABEL AGAINST THE EVIDENCE rather than asking for a shape, which is
+// case A's lesson and CLAUDE.md's rule: two rows identical in every respect except what the
+// blind classification says, required to come back with DIFFERENT expected roles. A tool
+// that takes the label from a flag scores the same on both, whatever flag is added for it,
+// so a fourth arm cannot pass this.
+{
+  const { dir, env } = sandbox()
+  mkdirSync(join(dir, 'exec'))
+  const artifact = join(dir, 'exec', 'HANDOFF.md')
+  const emission = join(dir, 'exec', 'index.html')
+  writeFileSync(artifact, '# Handoff\n\nYou build the page and you ship it. Copy is below and is final.\n')
+  writeFileSync(emission, '<!doctype html><html><body><h1>The deliverable</h1></body></html>\n')
+
+  // The blind classifier's own answer, as a response on disk — the two options
+  // oracle/generator-procedure.md puts to it, and nothing else.
+  const saidDone = join(dir, 'exec', 'classification-done.json')
+  const saidHandoff = join(dir, 'exec', 'classification-handoff.json')
+  writeFileSync(saidDone, JSON.stringify({ verdict: 'completed-answer', reasoning: 'the page is here and nothing is asked of anyone' }) + '\n')
+  writeFileSync(saidHandoff, JSON.stringify({ verdict: 'addressed-to-a-further-party', reasoning: 'it asks the studio to build it' }) + '\n')
+
+  const asDone = add(env, ['--grounding', 'agentic', '--artifact', artifact, '--goal', 'a landing page exists',
+                           '--emission', emission, '--classification', saidDone, '--id', 'exec-done', '--note', 'row model trial'])
+  const asHandoff = add(env, ['--grounding', 'agentic', '--artifact', artifact, '--goal', 'a landing page exists',
+                              '--emission', emission, '--classification', saidHandoff, '--id', 'exec-handoff', '--note', 'row model trial'])
+
+  let roles = {}
+  try {
+    for (const r of readFileSync(join(dir, 'corpus.jsonl'), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l))) roles[r.id] = r.expected_role
+  } catch { roles = {} }
+
+  const both = asDone.code === 0 && asHandoff.code === 0
+  const followed = roles['exec-done'] === 'does-the-work' && roles['exec-handoff'] === 'produces-an-instruction'
+
+  verdict('C. express a row grounded by execution whose expected role follows the evidence',
+    both && followed,
+    `adding with a completed-answer classification exits ${asDone.code}, with a handoff classification exits ${asHandoff.code}; the two rows came back as ${JSON.stringify(roles['exec-done'] || null)} and ${JSON.stringify(roles['exec-handoff'] || null)}. Until they differ, the label is coming from the flag rather than from the blind classification, and an artifact only an agent can execute whose emission is a completed answer has nowhere to live.`)
+  rmSync(dir, { recursive: true, force: true })
+}
+
 console.log('')
 console.log(failures
-  ? `${failures} of 2 unexpressible. Two verdicts that can refuse a run have 0 observations each, and this is what stops them being drawn.`
-  : 'Both expressible — the corpus can hold a pairing and an absence, so both refusing verdicts can be measured.')
+  ? `${failures} of 3 unexpressible. Two verdicts that can refuse a run have 0 observations each, and this is what stops them being drawn.`
+  : 'All three expressible — the corpus can hold a pairing, an absence, and a row whose grounding and whose answer are decided separately.')
 process.exit(failures ? 1 : 0)

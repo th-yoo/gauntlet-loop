@@ -12,14 +12,26 @@ This directory holds ground truth that nobody's opinion supplied.
 `corpus.jsonl`, one JSON object per line. A row pairs an artifact with a goal and an
 expected role — and with the **evidence that settles it**.
 
-For the `does-the-work` arm the evidence is a shell command. `scripts/oracle-add.mjs`
-runs it, here, now, and refuses to write the row unless it exits 0. No model is
-consulted, and a command that mentions one is refused: a ground truth produced by the
-kind of judgement under test cannot audit that judgement.
+**How a row is grounded and what answer it expects are two facts, and a row carries both
+separately.** `--grounding` names only the first:
 
-The `generator` arm has no mechanical acceptance test — "this document is a request
-addressed to someone else" is not a shell exit code — so its rows come from
-`generator-procedure.md`, not from `oracle-add.mjs`.
+- `mechanical` — a shell command. `scripts/oracle-add.mjs` runs it, here, now, and refuses
+  to write the row unless it exits 0. What that establishes is that executing the artifact
+  reaches the deliverable, so the answer is `does-the-work`. No model is consulted, and a
+  command that mentions one is refused: a ground truth produced by the kind of judgement
+  under test cannot audit that judgement.
+- `absence` — the same command, establishing that there is nothing at the path
+  (`test ! -e`). The answer is `could-not-open`.
+- `agentic` — no mechanical acceptance test exists ("this document is a request addressed
+  to someone else" is not a shell exit code), so the artifact is executed by an agent, the
+  emission is kept, and a **second** agent classifies that emission. The answer is READ
+  FROM that classification, whichever way it went — see `generator-procedure.md`.
+
+These used to be one flag, `--arm`, which meant the answer, the grounding and the evidence
+at once. That made a whole combination unstorable: an artifact only an agent can execute
+whose emission turns out to be a *completed answer*. Two of those exist and had nowhere to
+live (#49). A fourth arm would have been one entry per case; reading the label off the
+evidence is one rule.
 
 ## Why this is not a registry
 
