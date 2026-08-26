@@ -8,6 +8,11 @@
   reason and to the same standard. `2026-08-25-oracle-fork-bomb/` is one: a mutation
   test disabled a guard, the suite's canary for that guard was a live agent, and it
   spawned to depth 13. The account was written by one of the bomb's own processes.
+- `decisions/` — decisions that no check can carry, each with the evidence it rested on
+  and what would reopen it. A decision belongs here when the question is genuinely the
+  operator's rather than a defect: `0001-who-reads-the-sweep.md` records who reads the
+  coverage sweep's output, which was issue 46's fifth root cause and its own option 4.
+  These are not designs; a design that can be checked belongs in a test.
 - `superpowers/plans/` — **historical.** The implementation plan for the first
   gauntlet run, from 2026-08-23. It plans work that partly no longer exists: the
   gate sequence and `test/orchestration.test.mjs` were deleted on branch
