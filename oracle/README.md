@@ -60,9 +60,12 @@ reconstruct, and selection is the bias this corpus does **not** solve.
 
 ### The other two arms
 
-`--arm generator` takes `--emission <file>`: the thing executing the artifact produced.
-Its label comes from what it emitted, not from anyone saying so — see
-`generator-procedure.md`.
+`--arm generator` takes `--emission <file>`, **once per file the execution produced**: the
+things executing the artifact emitted. Its label comes from what it emitted, not from anyone
+saying so — see `generator-procedure.md`. Pass every file. The label rests on the whole
+output, and a row that pins one of two leaves the other free to change with nothing
+noticing — which is what happened to `teardown-request`, whose cover memo was the half the
+blind classifier quoted.
 
 `--arm could-not-open` takes a path that must **not** exist, and an `--acceptance` that
 establishes the absence (`test ! -e <path>`). Its grounding is inverted rather than new:
@@ -154,7 +157,7 @@ corpus, and the two need opposite repairs.
 
 It also **re-establishes the ground truth rather than reading back what was written**.
 Every `does-the-work` and `could-not-open` row's acceptance command is re-run, every
-generator row's emission is checked for existence and hash, and `correct` and `disputed`
+generator row's emission files are each checked for existence and hash, and `correct` and `disputed`
 are re-derived from the corpus row instead of being taken from the observation. A row
 whose command no longer exits 0, or an observation that disagrees with the corpus it was
 scored against, refuses the run. This is not belt-and-braces: a row's evidence used to be

@@ -30,6 +30,11 @@ that means nothing.
 is recorded as `DISPUTED` and is itself a finding** — do not resolve it by preferring
 whichever answer was expected.
 
+Pin **every file the execution produced**, with `--emission` once per file. The
+classification is of the whole output, so a row that pins one file of two records less
+than what established its label; `teardown-request` was added that way and the file it
+left unpinned was the one the classifier quoted.
+
 ## Why this is a procedure and not a script
 
 Three real spawns per row. The class is plausibly narrow — artifacts whose deliverable

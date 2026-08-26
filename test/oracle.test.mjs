@@ -439,7 +439,13 @@ function run(script, args, extraEnv) {
       eq(row.artifact_hash, null, `row ${row.id} has no artifact hash — its claim is that there is no artifact`)
       eq(row.expected_role, 'could-not-open', `row ${row.id} expects the verdict its absence produces`)
     } else {
-      ok(row.evidence.emission, `generator row ${row.id} names the emission it was derived from`)
+      // EVERY file, not the first. An agentic execution emits a set and the label rests on
+      // all of it; a row that pinned one of two left the other free to change.
+      ok(Array.isArray(row.evidence.emissions) && row.evidence.emissions.length,
+         `generator row ${row.id} names the emission file(s) it was derived from`)
+      for (const em of row.evidence.emissions) {
+        ok(em.path && em.hash, `generator row ${row.id} pins each emission by path and hash`)
+      }
       eq(row.evidence.method, 'agentic-execution', `row ${row.id} says how it was grounded`)
       eq(row.expected_role, 'produces-an-instruction', `generator row ${row.id} expects the generator role`)
     }
@@ -599,18 +605,20 @@ function run(script, args, extraEnv) {
   console.log('oracle: an observation whose arm the report cannot score is refused, not silently dropped OK')
 }
 
-// GROUND TRUTH IS RE-DERIVED, NOT READ BACK — the four cases of #40, run as a suite gate.
+// GROUND TRUTH IS RE-DERIVED OR PINNED, NOT READ BACK — the five cases of #40, run as a
+// suite gate.
 //
 // scripts/staleness-trial.mjs builds each situation rather than describing it: an
 // acceptance command whose unpinned input is broken, a generator row whose emission is
-// deleted, a row whose expected_role is corrected after the fact, and a row marked disputed
-// after its draws were taken. It works in its own sandbox and spawns no model. Running it
-// here is what stops the four from regressing quietly; running it as a script is what makes
-// a failure legible when it does.
+// deleted, a row whose expected_role is corrected after the fact, a row marked disputed
+// after its draws were taken, and an execution that emitted two files where the row pinned
+// one. It works in its own sandbox and spawns no model. Running it here is what stops the
+// five from regressing quietly; running it as a script is what makes a failure legible when
+// it does.
 {
   const r = run(join(ROOT, 'scripts', 'staleness-trial.mjs'), [])
   eq(r.code, 0, `every stale fact is caught — got exit ${r.code}\n${r.out}`)
-  ok(/ENFORCED — all four facts are recomputed/.test(r.out), 'and the trial says so in the form its own README claims')
+  ok(/ENFORCED — all five facts are recomputed from their source or pinned to it/.test(r.out), 'and the trial says so in the form its own README claims')
   ok(!/BROKEN/.test(r.out), 'and none of its cases passed because the report failed to run')
   console.log('oracle: grounding, verdict and dispute are re-derived at read time, not read back from what was written OK')
 }

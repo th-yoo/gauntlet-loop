@@ -95,18 +95,36 @@ if (!artifact || !goal || (arm === 'does-the-work' && !acceptance)) {
 // derived from. `--emission` must name a file that exists, because the whole claim of
 // this arm is that something OTHER than an opinion produced the label, and a caller who
 // cannot show the emission is offering exactly the opinion this corpus replaces.
-const emission = arg('--emission')
+//
+// AN EXECUTION EMITS A SET, SO --emission IS REPEATABLE and every file it names is pinned.
+// It used to take one path. That is not a smaller version of the same thing: the label
+// comes from the WHOLE output, and the one real case where the output was two files — a
+// commissioned teardown plus the cover memo routing it onward — had the classifier quoting
+// the memo as what decided it while the row pinned the other file. Rewrite the unpinned
+// half and no reader could tell.
+//
+// The does-the-work arm has the same shape and the opposite repair. There the evidence is a
+// command whose footprint is unbounded and unrecorded, so oracle-report RE-RUNS it rather
+// than pinning it. Here there is nothing to re-run — re-running means spawning an agent,
+// and a ground truth produced by the judgement under test cannot audit that judgement — but
+// the emission is a finite set of files sitting on disk, so the pin can cover it exactly.
+// scripts/staleness-trial.mjs case E builds the two-file case.
+const emissions = argv.reduce((acc, v, i) => (v === '--emission' && argv[i + 1] && !FLAGS.includes(argv[i + 1]) ? [...acc, argv[i + 1]] : acc), [])
 const disputed = argv.includes('--disputed')
 if (arm === 'generator') {
-  if (!emission) {
+  if (!emissions.length) {
     console.error('add: --arm generator needs --emission <path>, the file the artifact PRODUCED when it was executed.')
     console.error('Its label comes from what it emitted, not from anyone saying so — see oracle/generator-procedure.md.')
+    console.error('Pass --emission once per file if the execution produced several: the label rests on all of them,')
+    console.error('so a row that pins one of three leaves two able to change with nothing noticing.')
     process.exit(2)
   }
-  const eAbs = existsSync(resolve(ROOT, emission)) ? resolve(ROOT, emission) : emission
-  if (!existsSync(eAbs)) {
-    console.error(`add: the emission file ${emission} does not exist, so nothing shows what executing this artifact produced.`)
-    process.exit(2)
+  for (const em of emissions) {
+    const eAbs = existsSync(resolve(ROOT, em)) ? resolve(ROOT, em) : em
+    if (!existsSync(eAbs)) {
+      console.error(`add: the emission file ${em} does not exist, so nothing shows what executing this artifact produced.`)
+      process.exit(2)
+    }
   }
 }
 
@@ -256,7 +274,17 @@ const row = {
     // path is a promise rather than evidence: deleting the file outright changed nothing
     // any tool could see. oracle-report re-checks both existence and this hash on every
     // run, so a generator row's ground truth stops being something anyone has to remember.
-    ? { method: 'agentic-execution', emission: emission, emission_hash: 'sha256:' + createHash('sha256').update(readFileSync(existsSync(resolve(ROOT, emission)) ? resolve(ROOT, emission) : emission)).digest('hex'), classified_by: 'a second agent, asked about the OUTPUT rather than the artifact — see oracle/generator-procedure.md' }
+    ? {
+        method: 'agentic-execution',
+        // ALWAYS an array, including for one file. A second representation for the
+        // single-file case is the drift this corpus spends its longest comments on, and
+        // every reader would then have to handle both.
+        emissions: emissions.map(em => ({
+          path: em,
+          hash: 'sha256:' + createHash('sha256').update(readFileSync(existsSync(resolve(ROOT, em)) ? resolve(ROOT, em) : em)).digest('hex'),
+        })),
+        classified_by: 'a second agent, asked about the OUTPUT rather than the artifact — see oracle/generator-procedure.md',
+      }
     : {
         method: 'mechanical-execution',
         acceptance_command: acceptance,
@@ -272,7 +300,7 @@ appendFileSync(CORPUS, JSON.stringify(row) + '\n')
 // so claiming one exited 0 would assert evidence that does not exist; the absence arm has
 // no artifact to hash, because its claim is that there is no artifact.
 console.log(`added ${id} (${arm}) — ${
-  arm === 'generator' ? `grounded on the emission at ${emission}`
+  arm === 'generator' ? `grounded on ${emissions.length} emission file(s): ${emissions.join(', ')}`
   : arm === 'could-not-open' ? `acceptance exited 0, and ${artifact} is not there — which is the row`
   : `acceptance exited 0, artifact ${artifactHash.slice(0, 23)}…`}`)
 if (!note) {

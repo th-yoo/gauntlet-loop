@@ -2,7 +2,7 @@
 //
 //   node scripts/staleness-trial.mjs
 //
-// Four cases, each built rather than described. Every one constructs the situation in a
+// Five cases, each built rather than described. Every one constructs the situation in a
 // sandbox, changes something the corpus depends on, and then asks whether anything
 // notices. Exit 0 means all four are caught. Exit 1 means the corpus is reporting numbers
 // whose grounds have moved underneath them.
@@ -12,7 +12,7 @@
 // must stay that way: nothing here may spawn a model, and nothing here writes to the
 // tracked ledgers. Every case runs against ORACLE_CORPUS / ORACLE_RESULTS in a temp dir.
 //
-// WHY FOUR AND NOT TWO. #40 was filed on two symptoms — grounding executed once, verdict
+// WHY FIVE AND NOT TWO. #40 was filed on two symptoms — grounding executed once, verdict
 // frozen at record time. The root cause is more general: a fact that can change is stored
 // as a value instead of recomputed from its source, and which facts got a guard was
 // decided by which ones had already burned someone. That predicts the defect in ANY
@@ -189,8 +189,52 @@ function editRow(env, mutate) {
   rmSync(dir, { recursive: true, force: true })
 }
 
+// ── E. AN EXECUTION EMITS A SET, AND THE ROW PINS ONE OF IT ─────────────────────────
+//
+// Predicted by this file's own root cause rather than by an incident, which is how case D
+// arrived too: if the defect is "a fact that can change is not tied to its source", then it
+// is wherever the row's evidence is NARROWER than the evidence that actually established
+// the label.
+//
+// Case A found that shape on the does-the-work arm — an acceptance command reads whatever
+// it likes and the row pins one artifact — and the repair there was to RE-RUN the command,
+// because the footprint is unbounded and a pin can never match it. The generator arm has
+// the opposite property and therefore needs the opposite repair: there is nothing to
+// re-run (re-running means spawning an agent, and a ground truth produced by the judgement
+// under test cannot audit that judgement), the emission is a finite set of files that
+// exists on disk, and so the pin CAN cover it exactly. `--emission` took one path.
+//
+// The instance is real: teardown-request's execution emitted teardown.md and a cover memo,
+// the blind classifier quoted the memo as what decided it, and the row pinned the other
+// file.
+{
+  const { dir, env } = sandbox()
+  const f = join(dir, 'gen'); mkdirSync(f)
+  const artifact = join(f, 'request.md')
+  const first = join(f, 'teardown.md')
+  const second = join(f, 'to-lead.md')
+  writeFileSync(artifact, '# Produce the teardown and send it on\n')
+  writeFileSync(first, '# The teardown itself\n')
+  writeFileSync(second, '# Cover note: please forward this, the build is not ours\n')
+  const add = run(ADD, ['--arm', 'generator', '--artifact', artifact, '--goal', 'the thing exists',
+                        '--emission', first, '--emission', second, '--id', 'two-file-emission',
+                        '--note', 'staleness trial'], env)
+  if (add.code !== 0) { console.log(`SETUP FAILED (E): ${add.out.slice(0, 300)}`); failures++ }
+  else {
+    // Break the SECOND file — the one a row that pins only the first has nothing to say
+    // about. Its content is what the classification rested on.
+    writeFileSync(second, '# (emptied)\n')
+    const rep = run(REPORT, [], env)
+    const caught = rep.code === 1 && /no longer grounded/.test(rep.out) && /to-lead\.md/.test(rep.out)
+    verdict('E. every file the execution emitted is pinned, not just the first',
+      caught,
+      'the execution emitted two files and the row pinned one, so rewriting the other changed nothing any reader could see. --emission takes a single path; an agentic execution produces a set, and the half that is not pinned is exactly as load-bearing as the half that is.', rep.out)
+  }
+  rmSync(dir, { recursive: true, force: true })
+}
+
 console.log('')
 console.log(failures
-  ? `NOT ENFORCED — ${failures} of 4 stale facts go unnoticed. The corpus is reporting numbers whose grounds have moved.`
-  : 'ENFORCED — all four facts are recomputed from their source, not read back from what was written.')
+  ? `NOT ENFORCED — ${failures} of 5 stale facts go unnoticed. The corpus is reporting numbers whose grounds have moved.`
+  : 'ENFORCED — all five facts are recomputed from their source or pinned to it, not read back from what was written.')
 process.exit(failures ? 1 : 0)

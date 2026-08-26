@@ -51,6 +51,19 @@ console.log('oracle report — the pairing check\'s roleOf classifier')
 console.log('')
 console.log(`corpus: ${corpus.length} row(s) — ${corpus.filter(r => r.arm === 'does-the-work').length} does-the-work, ${corpus.filter(r => r.arm === 'generator').length} generator`)
 
+// A PIN ESTABLISHED LATE IS NOT THE SAME FACT AS A PIN ESTABLISHED AT ADD TIME, and the
+// difference is invisible once both are just hashes. Five generator rows predate emission
+// hashing entirely: the 2026-08-26 migration hashed whatever was on disk that day, which
+// freezes the content but cannot tell it from content that had already drifted. Rows added
+// since carry a hash taken when the emission was produced. Printed rather than absorbed —
+// pinning something unverifiable and saying nothing would be the same defect one level up.
+const latePins = corpus.flatMap(r => ((r.evidence || {}).emissions || []).filter(e => e.pinned_by).map(e => `${r.id}: ${e.path} (${e.pinned_by})`))
+if (latePins.length) {
+  console.log(`  ${latePins.length} emission pin(s) were established by a later migration, not when the row was added:`)
+  for (const l of latePins) console.log(`    ${l}`)
+  console.log('  Their content is fixed from that day forward; whether it had already drifted before it cannot say.')
+}
+
 // GROUNDING IS RE-RUN, NOT REMEMBERED.
 //
 // oracle-add runs the acceptance command once, refuses the row unless it exits 0, and
@@ -65,9 +78,10 @@ console.log(`corpus: ${corpus.length} row(s) — ${corpus.filter(r => r.arm === 
 // dependency set. There is no list of files to hash. Running the thing is the only check
 // whose scope matches the claim.
 //
-// The generator arm has no command, so its grounding is the emission — the file executing
+// The generator arm has no command, so its grounding is the emission — everything executing
 // the artifact produced. That was a bare path: deleting it outright changed nothing anyone
-// could see. Existence is checked here always, and the hash whenever the row carries one.
+// could see. Existence and hash are now checked for EVERY file the execution emitted, which
+// is the half the single-path field could not cover.
 //
 // Arbitrary shell out of the ledger runs here, which is the same trust oracle-add already
 // extends when it runs the command to admit the row, and it is bounded by a timeout for
@@ -77,13 +91,22 @@ if (corpus.length) {
   const ungrounded = []
   for (const row of corpus) {
     if (row.arm === 'generator') {
-      const em = row.evidence && row.evidence.emission
-      if (!em) { ungrounded.push(`row ${JSON.stringify(row.id)}: a generator row with no emission recorded — nothing shows what executing it produced`); continue }
-      const abs = existsSync(join(ROOT, em)) ? join(ROOT, em) : em
-      if (!existsSync(abs)) { ungrounded.push(`row ${JSON.stringify(row.id)}: its emission ${em} is gone, and that file is the row's entire ground truth`); continue }
-      if (row.evidence.emission_hash) {
+      // EVERY FILE THE EXECUTION EMITTED, not the first one. This read `evidence.emission`,
+      // a single path, while an agentic execution produces a set — and the one real
+      // multi-file case had the blind classifier quoting the file the row did not pin.
+      // Unlike the acceptance command below, there is nothing to re-run here: re-running
+      // means spawning an agent, which is the judgement under test. The emission is finite
+      // and on disk, so it is pinned exactly instead.
+      const ems = row.evidence && row.evidence.emissions
+      if (!Array.isArray(ems) || !ems.length) {
+        ungrounded.push(`row ${JSON.stringify(row.id)}: a generator row with no emissions recorded — nothing shows what executing it produced. A row carrying the old single \`emission\` field needs re-adding: the label rests on every file the execution produced, and one path cannot say so.`)
+        continue
+      }
+      for (const em of ems) {
+        const abs = existsSync(join(ROOT, em.path)) ? join(ROOT, em.path) : em.path
+        if (!existsSync(abs)) { ungrounded.push(`row ${JSON.stringify(row.id)}: its emission ${em.path} is gone, and the files this row emitted are its entire ground truth`); continue }
         const now = 'sha256:' + createHash('sha256').update(readFileSync(abs)).digest('hex')
-        if (now !== row.evidence.emission_hash) ungrounded.push(`row ${JSON.stringify(row.id)}: its emission ${em} has changed since the row was added — grounded against ${row.evidence.emission_hash.slice(0, 23)}…, on disk now ${now.slice(0, 23)}…`)
+        if (now !== em.hash) ungrounded.push(`row ${JSON.stringify(row.id)}: its emission ${em.path} has changed since the row was added — grounded against ${String(em.hash).slice(0, 23)}…, on disk now ${now.slice(0, 23)}…`)
       }
       continue
     }
