@@ -1,7 +1,7 @@
 // The mutation tool decides whether a check can fail, so its own failure modes
 // matter more than most. Each case here is a mistake that was actually made by
 // hand during the session that motivated the script.
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawn } from 'node:child_process'
 import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -85,4 +85,72 @@ function fixture(body) {
      'the target is byte-identical after a refused mutation, an unparseable one, and a real one')
   rmSync(dir, { recursive: true, force: true })
   console.log('mutate: every exit path restores the file OK')
+}
+
+// ── KILLED MID-CHECK ────────────────────────────────────────────────────────────────
+//
+// The header claims "The file is always restored, including when the check command dies",
+// and handlers are installed for SIGTERM, SIGINT and SIGHUP. Nothing had ever sent one.
+//
+// This is built because the tree was found broken on 2026-08-26 after a sweep was killed by
+// a harness timeout — skills/gauntlet-loop/loop.js at zero bytes and five scripts still
+// carrying their mutations. That is the situation, so this is the situation to build.
+{
+  const { dir, target, suite } = fixture('export const value = 1\n')
+  void suite
+  const before = readFileSync(target, 'utf8')
+  const slow = ['-e', 'setTimeout(() => process.exit(0), 5000)']
+  const child = spawn('node', [MUTATE, target, 'value = 1', 'value = 2', '--', 'node', ...slow], { stdio: 'pipe' })
+  let out = ''
+  child.stdout.on('data', d => { out += d })
+  child.stderr.on('data', d => { out += d })
+  await new Promise(r => setTimeout(r, 1200))
+  const during = readFileSync(target, 'utf8')
+  child.kill('SIGTERM')
+  await new Promise(r => child.on('exit', r))
+  await new Promise(r => setTimeout(r, 200))
+
+  ok(during !== before, 'the mutation was actually in place when the signal arrived — otherwise this case proves nothing about restoring it')
+  ok(readFileSync(target, 'utf8') === before,
+     `SIGTERM during the check left the file mutated. mutate installs a handler for exactly this, and the tree was found broken after a killed sweep.\n  ${out.split('\n').slice(0, 3).join('\n  ')}`)
+  rmSync(dir, { recursive: true, force: true })
+  console.log('mutate: a signal during the check restores the file OK')
+}
+
+// ── TWO MUTATIONS RACING ON ONE FILE ────────────────────────────────────────────────
+//
+// THE HYPOTHESIS FOR THE ZERO-BYTE FILE, built rather than argued. Each mutate reads the
+// original, writes its mutant, and at the end writes back what IT read. Two of them on one
+// file interleave: the second reads the first's mutant as though it were the original, and
+// whichever restores last puts that back. Nothing in the tool says one mutation at a time.
+//
+// It is not a hypothetical arrangement. A killed sweep leaves its in-flight mutate orphaned
+// and still running; starting another sweep — which is what happened while chasing the
+// first failure — puts two of them on the same repository at once.
+{
+  const { dir, target } = fixture('export const a = 1\nexport const b = 2\nexport const value = 1\n')
+  const before = readFileSync(target, 'utf8')
+  const slow = ['-e', 'setTimeout(() => process.exit(0), 2500)']
+  const say = c => { let o = ''; c.stdout.on('data', d => { o += d }); c.stderr.on('data', d => { o += d }); return () => o }
+  const one = spawn('node', [MUTATE, target, 'const a = 1', 'const a = 99', '--', 'node', ...slow], { stdio: 'pipe' })
+  const oneOut = say(one)
+  await new Promise(r => setTimeout(r, 600))
+  const two = spawn('node', [MUTATE, target, 'const b = 2', 'const b = 99', '--', 'node', ...slow], { stdio: 'pipe' })
+  const twoOut = say(two)
+  const [, twoCode] = await Promise.all([one, two].map(c => new Promise(r => c.on('exit', r))))
+  await new Promise(r => setTimeout(r, 200))
+
+  const after = readFileSync(target, 'utf8')
+  ok(after === before,
+     `two concurrent mutations left the file changed. Each restores what it read, so the second reads the first's mutant as the original and puts it back — the file ends mutated, or empty if the writes interleave.\n  after: ${JSON.stringify(after)}`)
+  // AND FOR THE RIGHT REASON. An unchanged file is also what you get if both mutations
+  // failed to apply at all, so this case would pass against a tool that had simply stopped
+  // working — the pass condition satisfied by the breakage, which this repo has now been
+  // caught by three times. The first must have run, and the second must have been refused
+  // in the lock's own words.
+  ok(/CAUGHT|NOT CAUGHT/.test(oneOut()), `the first mutation did not complete, so the race was never set up: ${oneOut().slice(0, 200)}`)
+  ok(twoCode === 2 && /already being mutated/.test(twoOut()),
+     `the second mutation was not refused as a concurrent one (exit ${twoCode}): ${twoOut().slice(0, 200)}`)
+  rmSync(dir, { recursive: true, force: true })
+  console.log('mutate: two mutations on one file do not corrupt it OK')
 }

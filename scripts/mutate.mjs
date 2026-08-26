@@ -20,9 +20,10 @@
 //      A suite that dies is not a suite that passed.
 //
 // The file is always restored, including when the check command dies.
-import { readFileSync, writeFileSync, rmSync } from 'node:fs'
+import { readFileSync, writeFileSync, rmSync, openSync, closeSync, unlinkSync, existsSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
 
 const argv = process.argv.slice(2)
@@ -35,6 +36,57 @@ if (!file || find === undefined || replace === undefined) {
   process.exit(2)
 }
 
+// ONE MUTATION AT A TIME, PER FILE, AND THIS IS WHY.
+//
+// Every path below restores by writing back what THIS process read. Two mutations running
+// on one file interleave: the second reads the first's mutant as though it were the
+// original, and whichever finishes last writes that back. The file is left mutated — or
+// empty, if the writes cross — and nothing reports anything, because each process did
+// exactly what it was told.
+//
+// It is not a hypothetical arrangement. A killed sweep leaves its in-flight mutate orphaned
+// and still running, and starting another sweep then puts two of them on one repository.
+// That happened on 2026-08-26: skills/gauntlet-loop/loop.js was found at zero bytes and
+// five scripts still carried their mutations. test/mutate.test.mjs builds the race.
+//
+// The lock lives in the temp directory, keyed by the resolved path, so a mutation never
+// leaves a stray file in the tree it is mutating. `wx` is the atomic part: two processes
+// cannot both create it.
+const LOCK = join(tmpdir(), `mutate-lock-${createHash('sha256').update(resolve(file)).digest('hex').slice(0, 16)}`)
+let holdsLock = false
+
+// A HOLDER THAT IS GONE DOES NOT HOLD ANYTHING. Without this, one crash — a SIGKILL, which
+// no handler can catch — would wedge that file for good, and the repair would be deleting a
+// file in /tmp that nobody would think to look for.
+function stale() {
+  try {
+    const pid = Number(JSON.parse(readFileSync(LOCK, 'utf8')).pid)
+    if (!pid) return true
+    process.kill(pid, 0)      // throws if the process is gone
+    return false
+  } catch (e) { return e && e.code === 'ESRCH' }
+}
+function takeLock() {
+  try { closeSync(openSync(LOCK, 'wx')); holdsLock = true; return true } catch { /* held */ }
+  if (stale()) {
+    console.error(`mutate: taking over a lock left by a process that is gone (${LOCK}).`)
+    try { unlinkSync(LOCK) } catch {}
+    try { closeSync(openSync(LOCK, 'wx')); holdsLock = true; return true } catch { /* lost the race */ }
+  }
+  return false
+}
+function dropLock() { if (holdsLock) { try { unlinkSync(LOCK) } catch {} ; holdsLock = false } }
+
+if (!takeLock()) {
+  let who = ''
+  try { who = ` (held by pid ${JSON.parse(readFileSync(LOCK, 'utf8')).pid})` } catch {}
+  console.error(`mutate: ${file} is already being mutated${who}, so this one is refused.`)
+  console.error('Two mutations on one file restore over each other and leave it changed, or empty. Wait for the')
+  console.error('other to finish, or kill it — its own handler restores the file.')
+  process.exit(2)
+}
+writeFileSync(LOCK, JSON.stringify({ pid: process.pid, file: resolve(file) }) + '\n')
+
 const original = readFileSync(file, 'utf8')
 
 // RESTORE BEFORE EXITING, ALWAYS. `process.exit()` does not run `finally` blocks
@@ -45,9 +97,10 @@ const original = readFileSync(file, 'utf8')
 let restored = false
 function done(code) {
   if (!restored) { writeFileSync(file, original); restored = true }
+  dropLock()
   process.exit(code)
 }
-process.on('exit', () => { if (!restored) writeFileSync(file, original) })
+process.on('exit', () => { if (!restored) writeFileSync(file, original); dropLock() })
 // AND ON A SIGNAL, because 'exit' does not fire for one. A coverage sweep that runs
 // past a harness timeout is SIGTERMed mid-mutation, and the mutation stays in the
 // working tree looking like source — observed on 2026-08-25, an "&&" left as "||" in
@@ -57,6 +110,7 @@ process.on('exit', () => { if (!restored) writeFileSync(file, original) })
 for (const sig of ['SIGTERM', 'SIGINT', 'SIGHUP']) {
   process.on(sig, () => {
     if (!restored) { writeFileSync(file, original); restored = true }
+    dropLock()
     console.error(`mutate: ${sig} received — the mutation was restored before exiting. The check result is void.`)
     process.exit(2)
   })
