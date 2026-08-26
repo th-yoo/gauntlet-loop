@@ -234,6 +234,50 @@ rate of zero, on three trials.
 
 ---
 
+## THE ROOT CAUSE, and the hypothesis it replaced
+
+The method that found it: ask whether the disease is specific or structural — do this
+repository's other finding-producers have readers?
+
+**First hypothesis, REFUTED.** "The repo gates cheap checks and leaves expensive ones
+unread, so several reporters are unread." Checked, and it is false. `oracle.test.mjs:516`
+runs `oracle-report` against the **tracked** ledger with the real environment and asserts
+exit 0 — "It runs against the TRACKED ledger on purpose — that is the only ledger anyone
+quotes". `staleness-trial` and `rowmodel-trial` are spawned by `oracle.test.mjs`;
+`fitted-trial` by `loop.test.mjs`. All of them are inside `run-all`, and therefore inside
+`.githooks/pre-push` and `ci.yml`.
+
+**What survives is narrower and stronger:**
+
+> Every finding-producer in this repository is gated except the sweep. Being gated is what
+> being read consists of here — a gate refuses, and a refusal cannot be ignored. The sweep is
+> the single exception, and it is the exception for exactly one reason: it was too expensive
+> to gate.
+
+| producer | gated by | read? |
+|---|---|---|
+| `oracle-report` | `oracle.test.mjs` -> `run-all` | yes, on every push |
+| `staleness-trial` | `oracle.test.mjs` | yes |
+| `rowmodel-trial` | `oracle.test.mjs` | yes |
+| `fitted-trial` | `loop.test.mjs` | yes |
+| `coverage-sweep` | nothing | **no** |
+
+**And the premise is now false by measurement.** S3: the sweep is 6.0 minutes with a
+first-failure short-circuit, identical verdict, measured over all 117 properties. `ci.yml`'s
+suite job costs 24-35 seconds today.
+
+This is the compression the whole ledger was looking for. It explains every other suspect
+rather than sitting beside them: S4, S8, S9, S10, S11, S12 and S15 are all consequences of
+being out of band — a finding needs a channel, a persister, an addressee and a reader only
+because nothing refuses at the moment it is produced. Gate the sweep and the `compel` stage
+is covered, which is the only stage whose failure does not depend on anyone's attention.
+
+It also predicts where the remaining risk sits, which a list cannot do: whatever is NOT
+covered by gating — the weekly cron run on a tree nobody pushed to — still needs a reader,
+and that run is exactly the one #46's four options were written for.
+
+---
+
 ## The adversarial pass, and where it stopped
 
 The list was built in waves, and the yield per wave is the only convergence evidence
