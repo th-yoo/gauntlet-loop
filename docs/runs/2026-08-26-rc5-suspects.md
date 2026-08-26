@@ -324,6 +324,48 @@ and that run is exactly the one #46's four options were written for.
 
 ---
 
+## THE ORIGIN — the decision that created RC5, and the step in it that was never checked
+
+Found by consulting the repository's own prior art, which is a method the earlier passes
+never used. RC5 is not a new problem. It is the fifth link in one chain:
+
+```
+#42  every guard here is hand-triggered
+#43  no pre-push gate runs run-all          -> add one
+#44  nothing runs the suite on a second machine -> add CI
+#45  the sweep is too slow for a push gate  -> give it a cadence
+#46  it has a cadence but no reader         -> (this)
+```
+
+Each fix moved the same defect one step: *a guard exists and nothing compels it.* #46 is
+where that walk currently stands.
+
+**And #45 contains the step that was never checked.** Its body:
+
+> It runs a suite per entry. Putting it in a **pre-push hook** makes every push cost >10
+> minutes, and a gate that slow gets bypassed — which converts a guard into a `--no-verify`
+> habit and leaves the repo worse than an honestly absent one.
+
+That reasoning is sound about a pre-push hook, and S17 shows the hook is doubly wrong for
+this tool anyway, because the sweep mutates the tree it checks. But:
+
+| | |
+|---|---|
+| mentions of `ci.yml` / Actions / workflow in #45's body | **0** |
+| CI landed | `07b8e92`, 01:32 |
+| the sweep sent to a schedule | `b97f224`, 06:17 — 4h45m later |
+| that commit's own words | "give the coverage sweep a schedule, **since it cannot have a gate**" |
+
+**"Too slow for a pre-push hook" was generalised to "cannot have a gate", and the gate that
+had landed four hours earlier was never evaluated.** Everything downstream follows from that
+one unexamined step: the cadence, the missing reader, #46's four options, and every suspect
+in this ledger.
+
+That is where the causal chain terminates. The suspects above are not eleven independent
+causes; they are what one premature generalisation costs, itemised.
+
+---
+
 ## The adversarial pass, and where it stopped
 
 The list was built in waves, and the yield per wave is the only convergence evidence
