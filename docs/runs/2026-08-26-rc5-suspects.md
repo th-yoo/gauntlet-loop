@@ -85,11 +85,19 @@ is configured, `permissions: contents: read`. The finding reaches a run page and
 `git config core.hooksPath` is empty, so `.githooks/pre-push` does not run here. Whatever it
 gates is not gated locally. (It runs `run-all`, not the sweep.)
 
-## S6 — push-triggered sweeps are cancelled by the next push. VERIFIED, partly fixed at `b7ad571`
+## S6 — push-triggered sweeps are cancelled by the next push, so most commits get no verdict of their own. VERIFIED, partly fixed at `b7ad571`
 
-3 of the last 6 sweep runs concluded `cancelled`. The cron run is now in its own concurrency
-group and cannot be cancelled by a push; push runs still debounce against each other, which
-is the design.
+6 of the 10 sweep runs on 2026-08-26 concluded `cancelled`: `aaac379`, `6119d30`, `996975f`,
+`a8fda84`, `b7ad571`, `1d3e9b1`. Those six commits have no sweep verdict of their own, ever.
+
+Quantified, which is the part worth carrying: a regression introduced at `6119d30` (00:38)
+would first be covered by `be5ab0d`'s run completing at 01:39 — an hour later, and only
+because a later push happened to finish. A commit whose sweep is cancelled and which is
+never followed by a completed run is never swept at all.
+
+This was nearly filed as a separate suspect, "detection latency". It is not one — it is this
+mechanism seen from the other end, and splitting it would grow the list without adding a
+cause. That is the registry growth this project calls cheating.
 
 ## S7 — findings may already be waiting, unseen. VERIFIED — none were
 
@@ -178,6 +186,43 @@ A list can always grow by one and give no account of itself. A pipeline can be w
 end, and it predicts where an unfound suspect would have to live — which is the only
 closure argument available here, since exhaustiveness cannot be proved. `persist` was missing
 from the first version of this table and was found by walking it rather than by an incident.
+
+---
+
+## The adversarial pass, and where it stopped
+
+The list was built in waves, and the yield per wave is the only convergence evidence
+available: **7 suspects, then 5, then 1, then 0.**
+
+The final pass deliberately tried to break the pipeline model rather than extend the list.
+It produced two candidates, and neither survived as an independent suspect:
+
+- **detection latency** — folded into S6, because it is the same mechanism measured from the
+  other end.
+- **an unlisted property is never swept** — real, and OUT OF SCOPE. `coverage-sweep`'s list
+  is hand-written and the file argues that this is not the usual sin ("there is nothing to
+  derive it from"). A property nobody listed produces no finding, so it cannot be a cause of
+  a finding failing to reach a person. It is named here so the next reader does not
+  rediscover it as an RC5 cause. It belongs to a different question: what the sweep covers,
+  not who reads what it says.
+
+Nothing else survived. That is not proof of exhaustiveness — a universal negative is not
+available — but the enumeration is closed under the mechanism that predicts where a suspect
+would have to live, and the last pass added none.
+
+## What follows, for whoever decides RC5
+
+The decision #46 asks for is "which reader". The measurement in S3 changes the question,
+because the gate the sweep is kept out of already refuses without a reader:
+
+```
+ci.yml suite job today          24-35 s   (measured over 5 runs)
+short-circuited sweep           6.0 min   (measured over all 117 properties)
+```
+
+A six-minute sweep in `ci.yml` covers the `compel` stage outright, and `compel` is the only
+stage whose failure does not depend on anyone's attention. It does not cover `persist`
+(S11) or the exit-code conflation (S8), both of which remain whichever option is chosen.
 
 ---
 
