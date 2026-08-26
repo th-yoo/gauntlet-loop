@@ -171,7 +171,16 @@ try {
   // is to remove a guard and run the check anyway, so this is the run most likely to reach
   // a spawn that the removed guard was in front of. It once did. Env is inherited, so
   // anything the check reaches — at any depth — carries the marker too.
-  const r = spawnSync(check[0], check.slice(1), { encoding: 'utf8', timeout: timeoutMs, env: { ...process.env, GAUNTLET_SUITE: '1' } })
+  // GAUNTLET_MUTATION NAMES THE FILE BEING MUTATED, and a check that inspects the tree has
+  // to know. test/sweep-needles.test.mjs requires every mutation needle to appear in the
+  // file it targets; a mutation deletes exactly that text, so the gate failed, and this
+  // script reported CAUGHT for 113 of 117 properties whether or not anything tested them.
+  // The verdict was satisfied by the thing being broken — the failure mode this repo names
+  // in two files and then built on 2026-08-26.
+  //
+  // It names the file rather than setting a bare "a mutation is happening" flag, so a check
+  // can stand down on exactly what is deliberately altered and stay live on everything else.
+  const r = spawnSync(check[0], check.slice(1), { encoding: 'utf8', timeout: timeoutMs, env: { ...process.env, GAUNTLET_SUITE: '1', GAUNTLET_MUTATION: file } })
   if (r.error && r.error.code === 'ETIMEDOUT') {
     console.error(`mutate: the check command did not finish within ${timeoutMs} ms and was killed.`)
     console.error('A check that hangs has not noticed anything — and a mutation can CAUSE the hang, so this is')

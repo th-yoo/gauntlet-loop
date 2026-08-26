@@ -24,7 +24,7 @@
 
 import { readFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SWEEP = join(ROOT, 'scripts', 'coverage-sweep.mjs')
@@ -55,12 +55,31 @@ console.log(`sweep-needles: every pinned mutation still finds its target (${entr
 const cache = new Map()
 const read = f => { if (!cache.has(f)) cache.set(f, readFileSync(join(ROOT, f), 'utf8')); return cache.get(f) }
 
+// A MUTATION IN FLIGHT MAKES THIS QUESTION UNASKABLE FOR ONE FILE, and until it did this
+// file was the reason the sweep's verdicts meant nothing.
+//
+// scripts/mutate.mjs replaces a needle's text and then runs the suite. run-all discovers
+// this file, this file failed because the needle it demands had just been deleted, and
+// mutate read any non-zero exit as CAUGHT — for 113 of 117 properties, whether or not
+// anything else tested them. The check's PASS condition was being satisfied by the thing
+// being broken, which is the failure this repo names in two files and which I then built.
+//
+// So the stand-down is scoped to the file mutate names, not to the whole run: a stale
+// needle in any OTHER file still fails loudly during a sweep. What is given up is narrow
+// and stated — a mutation of one file also hides a genuinely stale needle in that same
+// file, for the duration of that one mutation. Every push-time run has GAUNTLET_MUTATION
+// unset and checks all 117.
+const MUTATING = process.env.GAUNTLET_MUTATION || null
+let stoodDown = 0
+
 let duplicated = 0
 for (const [name, file, find] of entries) {
   let body
   try { body = read(file) } catch { fail(`${JSON.stringify(name)} targets ${file}, which does not exist`); continue }
   const n = body.split(find).length - 1
-  if (n === 0) {
+  if (n === 0 && MUTATING && resolve(ROOT, file) === resolve(MUTATING)) {
+    stoodDown++
+  } else if (n === 0) {
     fail(`${JSON.stringify(name)}: ${file} no longer contains the text this property mutates, so the sweep cannot test it at all — ${JSON.stringify(find.length > 80 ? find.slice(0, 80) + '…' : find)}`)
   } else if (n > 1) {
     // REPORTED, NOT FAILED. mutate.mjs replaces the first occurrence, so more than one is a
@@ -69,6 +88,10 @@ for (const [name, file, find] of entries) {
     // CAUGHT, which is the measurement this file cannot make.
     duplicated++
   }
+}
+if (stoodDown) {
+  console.log(`          ${stoodDown} needle(s) in ${MUTATING} stood down: a mutation of that file is in flight, so their absence is expected rather than stale.`)
+  console.log('          Every other file was still checked, and a push-time run checks all of them.')
 }
 if (duplicated) console.log(`          ${duplicated} needle(s) match more than once; mutate replaces the first. Not a failure — the sweep reports whether each is still caught.`)
 

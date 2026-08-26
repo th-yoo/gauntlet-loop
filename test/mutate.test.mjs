@@ -154,3 +154,39 @@ function fixture(body) {
   rmSync(dir, { recursive: true, force: true })
   console.log('mutate: two mutations on one file do not corrupt it OK')
 }
+
+// ── THE CHECK MUST NOT BE SATISFIED BY THE MUTATION ITSELF ──────────────────────────
+//
+// test/sweep-needles.test.mjs requires every mutation needle in coverage-sweep's list to
+// still appear in the file it targets. run-all discovers it, mutate runs run-all, and mutate
+// replaces exactly that text — so the mutation deletes what the gate demands, the gate
+// fails, and mutate reports CAUGHT whether or not anything else in the repo tests the
+// property. 113 of 117 needles occur exactly once, so that was 113 properties whose verdict
+// said nothing.
+//
+// It is this project's own rule turned inside out — "a check whose PASS condition is
+// satisfied by the thing being broken measures nothing" — in a file added the same day the
+// rule was quoted twice.
+//
+// The fix is that a mutation in flight makes the needle question UNASKABLE for the file
+// being mutated, not that the gate is switched off: needles in every other file still fail
+// loudly, so a stale needle elsewhere is still caught during a sweep.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'mutate-needles-'))
+  // A stand-in for the pair that matters: a "source" file holding the text a property
+  // pins, and a "gate" that fails when that text is missing — which is sweep-needles in
+  // miniature, without depending on this repo's real property list.
+  const src = join(dir, 'source.mjs')
+  const gate = join(dir, 'gate.mjs')
+  writeFileSync(src, 'export const guard = 1\n')
+  writeFileSync(gate, `import { readFileSync } from 'node:fs'
+const missing = !readFileSync(${JSON.stringify(src)}, 'utf8').includes('export const guard = 1')
+if (missing && !process.env.GAUNTLET_MUTATION) { console.error('needle gone'); process.exit(1) }
+process.exit(0)
+`)
+  const r = run([src, 'export const guard = 1', 'export const guard = 2', '--', 'node', gate])
+  ok(/NOT CAUGHT/.test(r.out),
+     `mutate reported a catch that came from the needle gate noticing its own needle vanish, not from anything testing the property. The check must be told a mutation is in flight.\n  ${r.out.split('\n').slice(0, 3).join('\n  ')}`)
+  rmSync(dir, { recursive: true, force: true })
+  console.log('mutate: a check is told a mutation is in flight, so it cannot catch its own needle OK')
+}
