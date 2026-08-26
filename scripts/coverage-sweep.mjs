@@ -164,6 +164,9 @@ export const PROPERTIES = [
   ['a disputed row is excluded from any rate', OP, '    const a = all.filter(r => !r.disputed)', '    const a = all'],
 
   ['a small corpus refuses to state a rate', OP, 'if (distinct < 5) {', 'if (false) {'],
+  // Added with the trivial-confound baseline (#22). The mutation makes a saturated set
+  // report as clean, which is exactly the reassurance the issue is about.
+  ['a set a trivial confound separates is reported as uninformative', OP, 'if (bhit >= ihit) {', 'if (false) {'],
   ['a stated rate carries its interval, not a point estimate', OP, 'console.log(`     per-side error    ${wrongUnits}/${distinct}, 95% CI [${pct(ci[0])}, ${pct(ci[1])}]  <- PRIMARY`)', 'console.log(`     per-side error    ${pct(wrongUnits/distinct)}  <- PRIMARY`)'],
   // REPOINTED 2026-08-26 when the interval moved from observations to distinct artifacts.
   // The property is unchanged — a stated rate carries its interval — and only the text it

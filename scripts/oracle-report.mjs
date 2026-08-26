@@ -439,6 +439,60 @@ for (const [k, rs] of cohorts) {
       }
     }
   }
+
+  // THE TRIVIAL-CONFOUND BASELINE — #22, and the reason a clean rate is not by itself
+  // reassurance.
+  //
+  // A measurement run on a set far from the decision boundary cannot produce the
+  // disagreement it is looking for: it returns unanimity, and unanimity reads as
+  // success. SKILL.md's gate 6 stated this rule for acceptance criteria — "a saturated
+  // corpus never engages the clause" — and the rule went with the gate sequence when it
+  // was deleted, leaving zero of the three sites #22 names guarded rather than one.
+  //
+  // "Is this corpus near the decision boundary" is not computable and a check claiming it
+  // would be unfalsifiable. THIS IS: run the cheapest classifier there is against the same
+  // set and print what it scores. If reading the file extension does as well as the
+  // instrument, the set could not have separated them, and the instrument's score is
+  // evidence about the corpus rather than about the instrument.
+  //
+  // Not hypothetical here. Before 2026-08-26 every artifact in the produces-an-instruction
+  // arm was a markdown document — 6 of 6 — so this baseline would have scored exactly what
+  // the classifier scored, on the arm the whole pairing refusal depends on.
+  {
+    const scored = rs.filter(r => !r.disputed && r.expected_role !== 'could-not-open')
+    // Per ARTIFACT, for the reason the intervals above are: repeats of one artifact are
+    // not extra evidence, and an artifact counts as missed if ANY draw of it was wrong.
+    const byArtifact = new Map()
+    for (const r of scored) {
+      const prev = byArtifact.get(r.artifact)
+      byArtifact.set(r.artifact, { expected: r.expected_role, wrong: (prev ? prev.wrong : false) || !r.correct })
+    }
+    if (byArtifact.size) {
+      const guess = path => /\.md$/i.test(String(path)) ? 'produces-an-instruction' : 'does-the-work'
+      let bhit = 0, ihit = 0
+      for (const [path, v] of byArtifact) {
+        if (guess(path) === v.expected) bhit++
+        if (!v.wrong) ihit++
+      }
+      const n = byArtifact.size
+      console.log('')
+      console.log(`   ── the trivial-confound baseline ── ${n} distinct artifact(s)`)
+      console.log(`     trivial baseline  ${bhit}/${n} (${pct(bhit / n)}) — file extension alone: .md is called a writer, anything else a worker`)
+      console.log(`     this instrument   ${ihit}/${n} (${pct(ihit / n)}) on the same artifacts`)
+      if (bhit >= ihit) {
+        console.log(`     SATURATED — the rates above are UNINFORMATIVE about this instrument. The cheapest`)
+        console.log(`                       classifier there is does as well on this set, so the set could not have`)
+        console.log(`                       told them apart. Cross the confound — add artifacts whose extension`)
+        console.log(`                       points the wrong way — before quoting anything above as accuracy.`)
+      } else {
+        console.log(`                       The confound scores below the instrument, so this set can tell them`)
+        console.log(`                       apart. How far below is the margin the rates above are earning.`)
+      }
+      console.log(`                       ONE confound, not all of them: a set crossed against file extension can`)
+      console.log(`                       still be saturated on length, subject or authorship, and this line would`)
+      console.log(`                       not notice.`)
+    }
+  }
 }
 
 // THE PAIRING ARM — the thing that actually refuses a run, and the one this corpus could
