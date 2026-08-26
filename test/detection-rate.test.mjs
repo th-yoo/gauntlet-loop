@@ -83,19 +83,29 @@ console.log(`          ${rows.length} trial(s) recorded`)
 const degraded = rows.filter(r => r.degraded_side === 'A' || r.degraded_side === 'B')
 const controls = rows.filter(r => r.degraded_side === 'none')
 
+// READABLE, not merely present. A trial whose response could not be parsed
+// carries no observation: it says nothing about whether the critic found the
+// defect, and the response is on disk for a human to read. Counting those as
+// data would let fifteen unreadable responses satisfy every floor below while
+// measuring nothing — and counting them as MISSES, which an earlier version of
+// the runner did, would push the rate down using trials that never spoke.
+const readable = degraded.filter(r => r.detected === true || r.detected === false)
+const unread = degraded.length - readable.length
+if (unread) console.log(`          ${unread} degraded trial(s) unread — recorded, excluded from the rate, and on disk to be read`)
+
 console.log('detection-rate: the set is large enough to carry a rate at all')
-ok(degraded.length >= MIN_DEGRADED,
-   `only ${degraded.length} degraded trial(s); ${MIN_DEGRADED} is the floor. Below it the interval is wider than any conclusion drawn from it.`)
+ok(readable.length >= MIN_DEGRADED,
+   `only ${readable.length} degraded trial(s) carry a readable observation (of ${degraded.length} run); ${MIN_DEGRADED} is the floor. Below it the interval is wider than any conclusion drawn from it.`)
 
 console.log('detection-rate: a position-only strategy scores at chance')
 {
-  const onA = degraded.filter(r => r.degraded_side === 'A').length
-  const onB = degraded.filter(r => r.degraded_side === 'B').length
+  const onA = readable.filter(r => r.degraded_side === 'A').length
+  const onB = readable.filter(r => r.degraded_side === 'B').length
   console.log(`          degraded on A: ${onA} · degraded on B: ${onB}`)
   // Crossed, not merely present on both sides. A 9-1 split is technically both.
-  const skew = degraded.length ? Math.abs(onA - onB) / degraded.length : 1
+  const skew = readable.length ? Math.abs(onA - onB) / readable.length : 1
   ok(skew <= 0.34,
-     `the degraded side is skewed ${onA}/${onB} — a critic that always picks one side scores ${Math.round(Math.max(onA, onB) / degraded.length * 100)}% on this set while detecting nothing. Cross the sides.`)
+     `the READABLE degraded trials are skewed ${onA}/${onB} — a critic that always picks one side scores ${Math.round(Math.max(onA, onB) / Math.max(readable.length, 1) * 100)}% on this set while detecting nothing. Cross the sides.`)
 }
 
 console.log('detection-rate: a difference-seeking strategy is exposed')
@@ -104,10 +114,10 @@ ok(controls.length >= MIN_CONTROLS,
 
 console.log('detection-rate: the rate is not averaged over a single kind of damage')
 {
-  const classes = [...new Set(degraded.map(r => r.defect_class))].sort()
+  const classes = [...new Set(readable.map(r => r.defect_class))].sort()
   console.log(`          classes present: ${classes.join(', ') || '(none)'}`)
   for (const c of REQUIRED_CLASSES) {
-    const n = degraded.filter(r => r.defect_class === c).length
+    const n = readable.filter(r => r.defect_class === c).length
     ok(n >= 2, `defect class "${c}" has ${n} trial(s) — a class represented once contributes an anecdote to an average and hides inside it`)
   }
 }
@@ -133,14 +143,18 @@ console.log('detection-rate: one instrument, not several')
 
 console.log('detection-rate: the rate, computed from the ledger')
 {
-  const detected = degraded.filter(r => r.detected === true).length
-  const rate = degraded.length ? detected / degraded.length : 0
-  const named = degraded.filter(r => r.detected === true && r.named_defect === true).length
-  const falseAlarm = controls.filter(r => r.detected === true).length
+  const detected = readable.filter(r => r.detected === true).length
+  const rate = readable.length ? detected / readable.length : 0
+  const named = readable.filter(r => r.detected === true && r.named_defect === true).length
+  // A control is a false alarm only if the critic claimed a real difference.
+  // Picking a side while saying the pick carries no signal is the opposite of a
+  // false alarm, and the runner records that separately for exactly this line.
+  const falseAlarm = controls.filter(r => r.declared_no_difference === false).length
 
-  console.log(`          detection:   ${detected}/${degraded.length} = ${(rate * 100).toFixed(0)}%`)
+  console.log(`          detection:   ${detected}/${readable.length} = ${(rate * 100).toFixed(0)}%`)
   console.log(`          named it:    ${named}/${detected || 0} of the detections also named the planted defect`)
   console.log(`          false alarm: ${falseAlarm}/${controls.length} controls where the critic claimed a difference that was not planted`)
+  console.log(`          (a control where it picked a side while declaring the pick meaningless is not a false alarm)`)
 
   // NOT a threshold on the rate. #29 says a rate near chance means the critic is
   // not discriminating and every verdict in the record is uninterpretable — that
@@ -160,4 +174,4 @@ if (failures) {
   console.error(`\ndetection-rate: ${failures} failure(s) — the critic's detection rate is not yet a measured quantity.`)
   process.exit(1)
 }
-console.log(`\ndetection-rate: OK — ${degraded.length} degraded trials and ${controls.length} controls, sides crossed, ${REQUIRED_CLASSES.length} defect classes, one instrument.`)
+console.log(`\ndetection-rate: OK — ${readable.length} readable degraded trials and ${controls.length} controls, sides crossed, ${REQUIRED_CLASSES.length} defect classes, one instrument.`)

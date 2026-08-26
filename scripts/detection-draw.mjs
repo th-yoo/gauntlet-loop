@@ -59,6 +59,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
+import { tmpdir } from 'node:os'
 import { runLoop } from '../test/harness.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -84,9 +85,29 @@ const argv = process.argv.slice(2)
 const has = f => argv.includes(f)
 const val = (f, d) => { const i = argv.indexOf(f); return i === -1 ? d : argv[i + 1] }
 
-const STAGE_DIR = val('--to', join(ROOT, 'runs', 'detection-trials'))
+// THE TRIAL TREE LIVES OUTSIDE THE REPOSITORY BY DEFAULT.
+//
+// The sources are real repository documents, so a critic handed
+// `<repo>/runs/detection-trials/<id>/a/subject.md` can walk up two directories
+// and find the pristine original to diff against. Then it is not detecting a
+// defect, it is doing a lookup — the exact failure seed-loop-trial.mjs exists to
+// refuse, quoted from the first such trial ever run here: "I resolved this by
+// using the wording and position that appear in the real, undegraded SKILL.md".
+//
+// Staging under the system temp directory removes the pointer. It does not close
+// the channel — a critic with Bash can search a filesystem, and nothing here
+// stops it — so the residual is disclosed rather than claimed shut. What it buys
+// is that finding the original requires deciding to go looking for it, instead
+// of it sitting two levels above the file it was handed.
+//
+// The trials are reproducible without the tree surviving: the transforms are
+// deterministic and every sealed note records the source path and both hashes.
+const STAGE_DIR = val('--to', join(tmpdir(), 'gauntlet-detection-trials'))
 const LEDGER = join(ROOT, 'runs', 'detection.jsonl')
 const RAW_DIR = join(ROOT, 'runs', 'detection-raw')
+// OUTSIDE the trial tree: the sealed note is the answer key, and a critic holds
+// Bash and can list a parent directory.
+const SEALED_DIR = join(ROOT, 'runs', 'detection-sealed')
 const LIMIT = Number(val('--limit', '999'))
 
 const sha = s => 'sha256:' + createHash('sha256').update(s).digest('hex')
@@ -179,6 +200,48 @@ const CLASSES = [
 // STAGE. Builds the trial set on disk with a sealed note per trial. No spawns.
 // ---------------------------------------------------------------------------
 
+// NOTHING IN THE TRIAL TREE MAY CARRY SIGNAL, and the first version of this
+// leaked in three ways at once. Every one of the twelve responses drawn against
+// it named a filename back at me — one wrote its verdict as
+// "**WINNER — B** (`original.md`)", which is not a detection, it is reading the
+// path it was handed. The blinding was never in place and the twelve were
+// discarded.
+//
+//   1. FILENAMES. `degraded.md` against `original.md` hands over the answer.
+//      Both sides are now `subject.md` under `a/` and `b/` — an identical
+//      basename, and a directory letter that matches the ARTIFACT A / ARTIFACT B
+//      the prompt already states, so it says nothing the critic was not told.
+//   2. DIRECTORY NAMES. `t02-inverted-constraint` names the defect class, which
+//      tells a critic what to look for and that something was planted at all.
+//      Trial directories are now opaque.
+//   3. THE SEALED NOTE SAT INSIDE THE TRIAL. A critic holds Bash and can list a
+//      parent. The note is the answer key; it now lives outside the tree.
+//
+// This repository already had the rule, written twice: seed-loop-trial.mjs
+// refuses a setup whose answer is readable, and the panel's own isolator was
+// given identical basenames "so the filename carries no signal about which arm a
+// critic is in". I wrote the second one and then staged this.
+function writeTrial(id, cls, src, side, degradedText, originalText, removed, inserted, where) {
+  const opaque = createHash('sha256').update(id).digest('hex').slice(0, 12)
+  const dir = join(STAGE_DIR, opaque)
+  mkdirSync(join(dir, 'a'), { recursive: true })
+  mkdirSync(join(dir, 'b'), { recursive: true })
+  // The degraded copy goes on the side the sealed note names; for a control both
+  // sides are the same bytes.
+  const aText = side === 'B' ? originalText : degradedText
+  const bText = side === 'B' ? degradedText : originalText
+  writeFileSync(join(dir, 'a', 'subject.md'), aText)
+  writeFileSync(join(dir, 'b', 'subject.md'), bText)
+  const note = {
+    trial_id: id, opaque, source: src, defect_class: cls, degraded_side: side,
+    removed, inserted, where,
+    degraded_hash: sha(degradedText), original_hash: sha(originalText),
+  }
+  mkdirSync(SEALED_DIR, { recursive: true })
+  writeFileSync(join(SEALED_DIR, `${opaque}.json`), JSON.stringify(note, null, 2))
+  return note
+}
+
 function stage() {
   mkdirSync(STAGE_DIR, { recursive: true })
   const trials = []
@@ -195,18 +258,8 @@ function stage() {
       const out = fn(text, seq)
       if (!out) { console.error(`stage: ${src} has no site for ${cls}`); continue }
       const id = `t${String(seq + 1).padStart(2, '0')}-${cls}`
-      const dir = join(STAGE_DIR, id)
-      mkdirSync(dir, { recursive: true })
-      writeFileSync(join(dir, 'degraded.md'), out.text)
-      writeFileSync(join(dir, 'original.md'), text)
-      const note = {
-        trial_id: id, source: src, defect_class: cls,
-        degraded_side: seq % 2 === 0 ? 'A' : 'B',
-        removed: out.removed, inserted: out.inserted, where: out.where,
-        degraded_hash: sha(out.text), original_hash: sha(text),
-      }
-      writeFileSync(join(dir, 'sealed.json'), JSON.stringify(note, null, 2))
-      trials.push(note)
+      const side = seq % 2 === 0 ? 'A' : 'B'
+      trials.push(writeTrial(id, cls, src, side, out.text, text, out.removed, out.inserted, out.where))
       seq++
     }
   }
@@ -220,18 +273,7 @@ function stage() {
     if (!existsSync(p)) continue
     const text = readFileSync(p, 'utf8')
     const id = `c${String(k + 1).padStart(2, '0')}-control`
-    const dir = join(STAGE_DIR, id)
-    mkdirSync(dir, { recursive: true })
-    writeFileSync(join(dir, 'degraded.md'), text)
-    writeFileSync(join(dir, 'original.md'), text)
-    const note = {
-      trial_id: id, source: src, defect_class: 'none',
-      degraded_side: 'none',
-      removed: '', inserted: '', where: 'nothing was planted',
-      degraded_hash: sha(text), original_hash: sha(text),
-    }
-    writeFileSync(join(dir, 'sealed.json'), JSON.stringify(note, null, 2))
-    trials.push(note)
+    trials.push(writeTrial(id, 'none', src, 'none', text, text, '', '', 'nothing was planted'))
   }
 
   // THE ANSWER MUST NOT BE READABLE. Every degraded copy has its original beside
@@ -276,7 +318,7 @@ async function draw() {
   if (!existsSync(STAGE_DIR)) { console.error('draw: nothing staged — run --stage first'); process.exit(2) }
   mkdirSync(RAW_DIR, { recursive: true })
 
-  const ids = readdirSync(STAGE_DIR).filter(d => existsSync(join(STAGE_DIR, d, 'sealed.json'))).sort()
+  const ids = readdirSync(SEALED_DIR).filter(f => f.endsWith('.json')).map(f => f.replace(/\.json$/, '')).sort()
   const done = existsSync(LEDGER)
     ? new Set(readFileSync(LEDGER, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l).trial_id))
     : new Set()
@@ -289,24 +331,39 @@ async function draw() {
   }
 
   for (const id of todo) {
-    const note = JSON.parse(readFileSync(join(STAGE_DIR, id, 'sealed.json'), 'utf8'))
-    const degradedPath = join(STAGE_DIR, id, 'degraded.md')
-    const originalPath = join(STAGE_DIR, id, 'original.md')
-
-    // The degraded copy is the CANDIDATE when the sealed note says side A, and the
-    // reference otherwise. That is what crosses the position.
-    const aPath = note.degraded_side === 'B' ? originalPath : degradedPath
-    const bPath = note.degraded_side === 'B' ? degradedPath : originalPath
+    const note = JSON.parse(readFileSync(join(SEALED_DIR, `${id}.json`), 'utf8'))
+    // The crossing already happened at staging time: writeTrial put the degraded
+    // bytes under a/ or b/ per the sealed note. Both paths are `subject.md`, so
+    // nothing here reintroduces a name the critic can read.
+    const aPath = join(STAGE_DIR, id, 'a', 'subject.md')
+    const bPath = join(STAGE_DIR, id, 'b', 'subject.md')
+    if (!existsSync(aPath) || !existsSync(bPath)) { console.error(`draw: ${id} is not staged — re-run --stage`); continue }
 
     const prompt = await capturePrompt(aPath, bPath)
     if (!prompt) { console.error(`draw: could not capture the deployed prompt for ${id} — skipping rather than judging under a prompt nobody ships`); continue }
 
     if (spawned >= MAX_SPAWNS_PER_RUN) { console.error('draw: spawn ceiling reached'); break }
     spawned++
-    const r = spawnSync('claude', ['-p', prompt], { encoding: 'utf8', cwd: ROOT, timeout: SPAWN_TIMEOUT_MS })
+    // CWD IS THE TRIAL'S OWN DIRECTORY, and that is what makes the trial both
+    // readable and blind.
+    //
+    // Staging outside the repository stopped a critic from walking up to the
+    // pristine original — and, run with cwd at the repo root, also stopped it
+    // reading the trial at all: `claude -p` is sandboxed to its working
+    // directory, so every response in the first blinded batch was a permission
+    // refusal ("Read on both paths ... you haven't granted it yet"). Two
+    // channels, opposite failures, one setting.
+    //
+    // With cwd here the critic can open a/subject.md and b/subject.md and has no
+    // pointer to this repository at all — the lookup channel is closed by
+    // absence rather than by asking.
+    const r = spawnSync('claude', ['-p', prompt], { encoding: 'utf8', cwd: join(STAGE_DIR, id), timeout: SPAWN_TIMEOUT_MS })
     const out = String(r.stdout || '') + String(r.stderr || '')
     if (r.status !== 0 && !out.trim()) { console.error(`draw: ${id} produced nothing (status ${r.status})`); continue }
 
+    // Named by the opaque id, not the trial id: a raw file called
+    // t02-inverted-constraint.txt sitting beside the trial tree is one more place
+    // the class is written down.
     const rawRel = join('runs', 'detection-raw', `${id}.txt`)
     writeFileSync(join(ROOT, rawRel), out)
 
@@ -334,7 +391,8 @@ async function draw() {
     const picked = parseWinner(out)
 
     const rec = {
-      trial_id: id,
+      trial_id: note.trial_id,
+      opaque: id,
       defect_class: note.defect_class,
       degraded_side: note.degraded_side,
       source: note.source,
@@ -343,16 +401,24 @@ async function draw() {
       // `neither` is not a detection: on a degraded pair one side really is
       // worse, and answering that nothing separates them is a miss with a
       // different shape. It is recorded as itself so the two never merge.
-      detected: note.degraded_side === 'none'
-        ? null
-        : (picked === 'A' || picked === 'B') && picked !== note.degraded_side,
+      // Same rule as reparse: null means unread, not missed.
+      detected: note.degraded_side === 'none' ? null
+        : picked === null ? null
+        : picked !== note.degraded_side,
       named_defect: null,
       prompt_hash: sha(prompt),
       response: rawRel,
       degraded_hash: note.degraded_hash,
     }
     appendFileSync(LEDGER, JSON.stringify(rec) + '\n')
-    console.log(`draw: ${id} — picked ${picked || '(unparsed)'} · degraded ${note.degraded_side} · ${rec.detected === null ? 'control' : rec.detected ? 'DETECTED' : 'missed'}`)
+    // The label reads the SIDE, not the detected flag. It used to print
+    // `detected === null ? 'control'`, and since an unread response is also null
+    // it announced degraded trials as controls — "degraded B · control" in the
+    // same line. A log that contradicts itself is one a reader stops checking.
+    const verdictWord = note.degraded_side === 'none' ? 'control'
+      : rec.detected === null ? 'UNREAD'
+      : rec.detected ? 'DETECTED' : 'missed'
+    console.log(`draw: ${id} — picked ${picked || '(unparsed)'} · degraded ${note.degraded_side} · ${verdictWord}`)
   }
   console.log(`draw: ${spawned} spawn(s) this invocation`)
 }
@@ -409,15 +475,24 @@ function reparse() {
   const out = []
   for (const f of files) {
     const id = f.replace(/\.txt$/, '')
-    const sealedPath = join(STAGE_DIR, id, 'sealed.json')
+    const sealedPath = join(SEALED_DIR, `${id}.json`)
     if (!existsSync(sealedPath)) { console.error(`reparse: ${id} has no sealed note — skipping`); continue }
     const note = JSON.parse(readFileSync(sealedPath, 'utf8'))
     const text = readFileSync(join(RAW_DIR, f), 'utf8')
     const picked = parseWinner(text)
     out.push({
-      trial_id: id, defect_class: note.defect_class, degraded_side: note.degraded_side,
+      trial_id: note.trial_id, opaque: id, defect_class: note.defect_class, degraded_side: note.degraded_side,
       source: note.source, picked,
-      detected: note.degraded_side === 'none' ? null : (picked === 'A' || picked === 'B') && picked !== note.degraded_side,
+      // AN UNREAD RESPONSE IS NOT A MISS. `picked === null` means this parser
+      // could not read the answer, which says nothing about whether the critic
+      // found the defect — the response is on disk and a human can read it. It
+      // used to fall through to `false` and be counted as a failure to detect,
+      // which would have pushed the rate DOWN using trials that measured
+      // nothing. Same class as the two parser defects above, one level along:
+      // a value that cannot be established recorded as the negative answer.
+      detected: note.degraded_side === 'none' ? null
+        : picked === null ? null
+        : picked !== note.degraded_side,
       declared_no_difference: declaredNoDifference(text),
       named_defect: null,
       prompt_hash: PROMPT_HASHES.get(id) || null,
