@@ -107,12 +107,9 @@ const THROWAWAY_REFERENCE = '/oracle-extract/unused-reference-side'
 // resolve() is idempotent on an absolute input, so a caller passing the loop's own
 // absolute path is unaffected.
 //
-// RESIDUAL, and it is not closed by this: the resolved path is machine-specific,
-// so prompt_hash is too. An observation recorded on one machine cannot be
-// validated on another — not because of this change, which reproduces the old
-// hash exactly on the machine that recorded them, but because a filesystem path
-// is in the hashed prompt at all. That is a separate defect and it is disclosed
-// rather than silently absorbed here.
+// The prompt loop.js receives in production names an ABSOLUTE path, so that is what is
+// rendered and that is what is sent. What gets HASHED is a different question — see the
+// portability note below.
 const candidatePath = resolve(ROOT, artifact)
 
 const r = await runLoop({
@@ -184,13 +181,35 @@ const template = hit.prompt
   .split(candidatePath).join('{{ARTIFACT}}')
   .split(inspect || '\u0000never').join('{{INSPECT}}')
 
+// WHAT IS HASHED IS THE PORTABLE PROMPT; WHAT IS SENT IS THE REAL ONE.
+//
+// `prompt_hash` used to be taken over the rendered text, which names this checkout's
+// absolute path. The pin that oracle-record matches to refuse an observation made against
+// a different prompt was therefore a function of where the repository sits: an observation
+// recorded on one machine could never be re-validated on another, CI could re-run every
+// acceptance command in the corpus and still not check a single observation's instrument
+// pin, and the 2026-08-26 re-key of twelve records worked only BECAUSE it ran on the
+// machine that had recorded them.
+//
+// This file used to disclose that in a comment and call it a separate defect. It is #47,
+// and stripping the repository root out of the text before hashing closes it: what is
+// pinned is still row-specific — it carries this row's goal and its repo-relative path, so
+// two rows do not collide — and it no longer carries the one thing that is true only here.
+// The prompt itself is untouched; the agent is still sent the absolute path.
+//
+// A row pointing outside the repository (a sandbox corpus) has no root to strip and stays
+// machine-bound. That is the case nothing commits and nothing re-reads.
+// test/corpus-portability.test.mjs copies every tracked file to a second location and
+// requires the same row to produce the same pin there.
+const portablePrompt = hit.prompt.split(ROOT + '/').join('')
+
 const payload = {
   artifact,
   goal,
   inspect: inspect || null,
   agent_type: hit.agentType || null,
   prompt: hit.prompt,
-  prompt_hash: sha(hit.prompt),
+  prompt_hash: sha(portablePrompt),
   template_hash: sha(template),
   schema_fingerprint: sha(canonical(hit.schema || null)),
 }

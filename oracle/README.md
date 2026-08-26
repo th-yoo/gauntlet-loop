@@ -136,6 +136,14 @@ node scripts/oracle-record.mjs --row <id> --predicted <role> --reasoning "..." \
 The recorder re-extracts and refuses the observation if the hashes no longer match —
 which is what makes instrument staleness mechanical instead of remembered.
 
+Both hashes are **portable**. The prompt an agent is sent names this checkout's absolute
+path, because that is what `loop.js` receives; the repository root is stripped out of the
+text before it is hashed. So an observation recorded on one machine can be re-validated on
+another, and `test/corpus-portability.test.mjs` copies every tracked file to a second
+location and requires the same row to produce the same pins there. Fifteen observations
+predating that change keep a machine-bound pin: their prompt is not the one that ships, so
+nothing can establish what text they were made against.
+
 ## Reading the report
 
 ```

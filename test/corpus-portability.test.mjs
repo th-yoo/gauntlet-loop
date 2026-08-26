@@ -290,6 +290,76 @@ console.log('corpus-portability: a fresh observation lands in the live cohort')
   }
 }
 
+// ---------------------------------------------------------------------------
+// RC5 — AN OBSERVATION CANNOT BE VALIDATED ANYWHERE BUT HERE.
+//
+// The remaining half of #47. `oracle-extract` renders the prompt with the artifact
+// resolved to an absolute path — which is right, because loop.js receives one — and hashes
+// that text. So `prompt_hash`, the pin `oracle-record` matches to refuse an observation
+// made against a different prompt, is a function of where the repository happens to sit.
+//
+// What that costs: an observation recorded on one machine can never be re-validated on
+// another. CI re-runs every acceptance command in the corpus and cannot check a single
+// observation's instrument pin. The 2026-08-26 re-key of twelve records worked only
+// BECAUSE it ran on the machine that recorded them; the same repair run anywhere else
+// would have established nothing.
+//
+// THE CHECK IS A SECOND CHECKOUT, not a formula. Asserting that the hash equals
+// sha(prompt with ROOT stripped) would pass against any implementation that computes it
+// that way and says nothing about whether the claim — same row, same loop.js, different
+// location, same pin — actually holds. So this copies every tracked file to a temp
+// directory and runs the extractor there. Tracked files rather than `git archive HEAD`,
+// deliberately: an uncommitted edit to loop.js or to the extractor must be measured, not
+// silently compared against the last commit.
+console.log('corpus-portability: an observation recorded here can be validated elsewhere')
+{
+  const probe = rows.find(r => r.arm !== 'could-not-open' && !r.inspect)
+  const away = mkdtempSync(join(tmpdir(), 'corpus-elsewhere-'))
+  try {
+    if (!probe) {
+      console.log('          NOT MEASURED: no ordinary present-artifact row to extract')
+    } else {
+      const copied = execFileSync('sh', ['-c', 'git ls-files -z | xargs -0 tar -cf - | tar -xf - -C "$1"', 'sh', away],
+                                  { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
+      void copied
+      const here = run(join(ROOT, 'scripts', 'oracle-extract.mjs'), ['--artifact', probe.artifact, '--goal', probe.goal, '--json'])
+      let there = { code: 1, out: '' }
+      try {
+        there = { code: 0, out: execFileSync(process.execPath, [join(away, 'scripts', 'oracle-extract.mjs'),
+          '--artifact', probe.artifact, '--goal', probe.goal, '--json'],
+          { cwd: away, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 30_000 }) }
+      } catch (e) { there = { code: e.status, out: String(e.stdout || '') + String(e.stderr || '') } }
+
+      if (here.code !== 0 || there.code !== 0) {
+        fail(`the same row could not be extracted in both places (here ${here.code}, there ${there.code}): ${String(there.out).split('\n')[0]}`)
+      } else {
+        const H = JSON.parse(here.out), T = JSON.parse(there.out)
+        // The TEMPLATE has to match — that is RC4, re-proved from a genuinely different
+        // path rather than by spelling one path two ways.
+        if (H.template_hash !== T.template_hash) {
+          fail(`the same row keys to a different cohort in a second checkout: ${H.template_hash.slice(0, 23)}… here, ${T.template_hash.slice(0, 23)}… there`)
+        }
+        // And so does the PROMPT pin, or no observation is portable.
+        if (H.prompt_hash !== T.prompt_hash) {
+          fail(`the same row's prompt_hash differs by checkout location: ${H.prompt_hash.slice(0, 23)}… here, ${T.prompt_hash.slice(0, 23)}… there — so oracle-record can only ever validate an observation on the machine that made it, and the pin CI cannot check is the one that says which prompt an observation belongs to`)
+        }
+        if (H.template_hash === T.template_hash && H.prompt_hash === T.prompt_hash) {
+          console.log(`          ${probe.id}: same template and same prompt pin from a second checkout`)
+        }
+        // The prompt SENT still names this machine's path, and must — loop.js receives an
+        // absolute path in production. Only the pin is portable, and if the prompt itself
+        // ever stops differing, this check is measuring nothing.
+        if (H.prompt === T.prompt) {
+          fail('the rendered prompts are identical in two different checkouts, so this case is no longer testing portability — the artifact path is supposed to be absolute in the text that is SENT, and only the pin is supposed to be portable')
+        }
+      }
+    }
+  } catch (e) {
+    fail(`the second-checkout comparison could not run: ${String(e.message).split('\n')[0]}`)
+  }
+  rmSync(away, { recursive: true, force: true })
+}
+
 // RC3, SECOND FACE — REMOVED, and why.
 //
 // While the suite was red this file spawned oracle.test.mjs and reported how many
