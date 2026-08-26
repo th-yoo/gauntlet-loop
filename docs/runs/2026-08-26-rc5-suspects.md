@@ -349,11 +349,31 @@ quotes". `staleness-trial` and `rowmodel-trial` are spawned by `oracle.test.mjs`
 
 **What survives is narrower and stronger:**
 
-> Every finding-producer in this repository is gated except the sweep. Being gated is what
-> being read consists of here — a gate refuses, and a refusal cannot be ignored. The sweep is
-> the single exception, and it is the exception for two reasons: it was too expensive to gate
-> (S3, now false by measurement for CI), and it is destructive to the tree it checks (S17,
-> still true, and it is what makes the remedy CI-only).
+> Every finding-producer in this repository is RUN by the suite except the sweep. The sweep
+> is the single exception, and it is the exception for two reasons: it was too expensive
+> (S3, now false by measurement), and it is destructive to the tree it checks (S17, which is
+> what keeps it out of a local hook specifically).
+
+**This was first written as "gated", and that word was wrong.** Nothing in this repository
+blocks anything:
+
+```
+branch protection on main        404 Branch not protected
+required status checks           404 Branch not protected
+.git/hooks                       samples only — nothing installed
+core.hooksPath                   '' (unset)
+```
+
+So `.githooks/pre-push` does not run here, `ci.yml` produces a red mark rather than a block,
+and no check in this repo can refuse anything. A run-all failure reaches the operator because
+the **suite gets run** — by hand constantly, and by CI on every push — not because anything
+refuses. The distinction that matters is being RUN, not being blocking, and stating it as
+"gated" overclaimed a mechanism this repository does not have.
+
+It also weakens the remedy correspondingly: putting the sweep in `ci.yml` gives it exactly
+the status `run-all` has — a red mark on a commit, which somebody still has to look at. That
+is a large improvement over a separate workflow nobody opens, and it is **not** the
+attention-free refusal the earlier wording implied.
 
 | producer | gated by | read? |
 |---|---|---|
@@ -411,10 +431,21 @@ this tool anyway, because the sweep mutates the tree it checks. But:
 | the sweep sent to a schedule | `b97f224`, 06:17 — 4h45m later |
 | that commit's own words | "give the coverage sweep a schedule, **since it cannot have a gate**" |
 
-**"Too slow for a pre-push hook" was generalised to "cannot have a gate", and the gate that
-had landed four hours earlier was never evaluated.** Everything downstream follows from that
-one unexamined step: the cadence, the missing reader, #46's four options, and every suspect
-in this ledger.
+**The generalisation, stated precisely on the sixth pass** — the earlier wording here said
+"the gate that had landed four hours earlier was never evaluated", and that is wrong in
+letter. #45's option 1 *is* a CI job:
+
+> 1. A scheduled CI job — weekly, or on changes to `skills/` and `agents/` only.
+
+CI was considered. What was never considered is CI as a place the sweep RUNS ALONGSIDE THE
+SUITE. Throughout #42 and #45, "gate" means the pre-push hook and CI means somewhere to put a
+schedule — a vocabulary that predates #44 making CI the thing that actually runs the suite on
+every push, and that nobody revisited when it did. A broadened search of #45's body and
+comments confirms the frame: `ci.yml`, workflow, Actions, runner, second machine, remote,
+cloud, cron, hosted — 0 mentions each; only "schedule", twice.
+
+Everything downstream follows from that: the cadence, the missing reader, #46's four options,
+and every suspect in this ledger.
 
 That is not where the chain terminates. It goes one layer further, and the layer below
 explains why the generalisation felt safe.
