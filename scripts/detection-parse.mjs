@@ -44,37 +44,91 @@ export function parseWinner(text) {
   return a && !b ? 'A' : b && !a ? 'B' : null
 }
 
+export const norm = x => String(x).replace(/[`*#|]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase()
+
+// THE NEEDLE MUST BE TEXT ONE SIDE CARRIES, and getting that wrong is what this
+// function was committed failing for. It took the first 60 characters of the
+// changed line — so a substitution deeper than character 60 produced a needle
+// that was IDENTICAL on both sides, and a critic that quoted the sentence while
+// noticing nothing scored the same as one that found the number. Three of the
+// fifteen degraded trials on disk have that shape.
+//
+// So the needle is built from where the two lines DIVERGE: the span between
+// their common prefix and their common suffix, widened by context until it is
+// long enough not to be an accident AND is absent from the other side's line.
+// The narrowest such window is the one returned, because every wider window
+// contains it — a response holding the wider one holds this one too, so the
+// narrowest strictly dominates and a disjunction over widths would only add
+// ways to say yes.
+// TWELVE, AND THE NUMBER WAS MEASURED RATHER THAN PICKED. The floor decides
+// whether the field says anything: with it at 4 the needles came out "nnot",
+// "1. b", "0001", and a length-matched fragment from an UNTOUCHED line of the
+// same file turned up in the critic's response 22% of the time — a quarter of
+// the yeses were the critic quoting the artifact at all, not quoting the defect.
+// Sweeping the floor against that placebo (test/detection-parse.test.mjs runs
+// the same crossing):
+//
+//   floor   named   placebo
+//     4      93%      22%
+//     8      93%       7%
+//    12      87%       4%     <- every trial still yields a needle
+//    16      85%       4%     2 trials yield none
+//    32      64%       1%     4 trials yield none
+//
+// Twelve is the knee: the placebo is down 5x from where it started, and no trial
+// has yet lost its needle. Above it the field starts returning null, and a trial
+// that drops out is worse than one scored strictly.
+const MIN_NEEDLE = 12
+function distinctiveNeedle(mine, theirs) {
+  const a = norm(mine), b = norm(theirs)
+  if (!a || a === b) return null
+  let p = 0
+  while (p < a.length && p < b.length && a[p] === b[p]) p++
+  let s = 0
+  while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++
+  const lo = p, hi = a.length - s
+  for (let w = 0; w <= a.length; w++) {
+    const cand = a.slice(Math.max(0, lo - w), Math.min(a.length, hi + w)).trim()
+    if (cand.length >= MIN_NEEDLE && !b.includes(cand)) return cand
+  }
+  return null
+}
+
 // DID IT NAME THE DEFECT, or merely land on the right side?
 //
-// Picking correctly is 50/50 luck on any single trial; quoting the planted text
-// is not. This is the leak-check shape the deleted gate 7 used in reverse — there,
-// finding the sealed strings in a critic's output proved it had reached the
-// original; here it is evidence the critic actually located the damage.
+// Picking correctly is 50/50 luck on any single trial; quoting text that only
+// one side carries is not. This is the leak-check shape the deleted gate 7 used
+// in reverse — there, finding the sealed strings in a critic's output proved it
+// had reached the original; here it is evidence the critic located the damage.
 //
-// HEURISTIC, AND RECORDED AS ONE. It looks for a distinctive fragment of the
-// changed line, or the removed section's heading. A critic that describes the
-// defect in its own words without quoting scores false here, so this UNDERSTATES.
-// It is a separate field, nothing gates on it, and the response is on disk for a
-// reader who wants the real answer.
-export function namedDefect(text, note) {
+// STILL A HEURISTIC, and still one that UNDERSTATES: a critic that describes the
+// defect in its own words without quoting scores false. What it must not do is
+// overstate, because the direction that overstates is the one that gets quoted.
+// Nothing gates on the field and the response is on disk for a reader who wants
+// the real answer.
+export function defectNeedles(note) {
   if (note.degraded_side === 'none') return null
-  const hay = String(text)
   const candidates = []
   if (note.defect_class === 'section-removal') {
-    const head = String(note.removed).split('\n')[0].replace(/^#+\s*/, '').trim()
-    if (head.length >= 8) candidates.push(head)
+    // The heading of the removed section. It is distinctive by construction —
+    // the degraded copy is the one that no longer contains it.
+    const head = norm(String(note.removed).split('\n')[0].replace(/^#+\s*/, ''))
+    if (head.length >= MIN_NEEDLE) candidates.push(head)
   } else {
-    // The changed line, minus markup, in fragments long enough not to match by
-    // chance. Both directions: the critic may quote what is there or what is not.
-    for (const line of [note.removed, note.inserted]) {
-      const t = String(line).replace(/[`*#|]/g, ' ').replace(/\s+/g, ' ').trim()
-      if (t.length >= 24) candidates.push(t.slice(0, 60))
+    // Both directions: the critic may quote what is there or what is not.
+    for (const [mine, theirs] of [[note.removed, note.inserted], [note.inserted, note.removed]]) {
+      const n = distinctiveNeedle(mine, theirs)
+      if (n) candidates.push(n)
     }
   }
-  if (!candidates.length) return null
-  const norm = x => x.replace(/[`*#|]/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase()
-  const h = norm(hay)
-  return candidates.some(c => h.includes(norm(c)))
+  return candidates.length ? candidates : null
+}
+
+export function namedDefect(text, note) {
+  const candidates = defectNeedles(note)
+  if (!candidates) return null
+  const h = norm(text)
+  return candidates.some(c => h.includes(c))
 }
 
 // A control where the critic said the sides are identical, or picked one while

@@ -35,7 +35,8 @@
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { parseWinner, namedDefect, declaredNoDifference } from '../scripts/detection-parse.mjs'
+import { createHash } from 'node:crypto'
+import { parseWinner, namedDefect, declaredNoDifference, defectNeedles, norm } from '../scripts/detection-parse.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 let failures = 0
@@ -62,12 +63,18 @@ console.log('detection-parse: quoting text that is on BOTH sides is not naming t
 
 console.log('detection-parse: and it can still say yes — the check is able to pass')
 {
-  const found = `## 1. WINNER\n\nB\n\nA reads \`7/25\` where B reads \`0/25\`; the run recorded zero.`
+  // Quoted WITH ITS CONTEXT, which is how the fifteen responses on disk quote:
+  // the needle is the divergent span widened to MIN_NEEDLE characters, so a
+  // response citing the bare number and nothing around it scores false. That is
+  // the declared understatement, and it is the direction that is safe.
+  const found = `## 1. WINNER\n\nB\n\nA says it \`currently reads \`7/25\` on the live\` dashboard; B says \`currently reads \`0/25\` on the live\`.`
   ok(namedDefect(found, SUB) === true,
-     `namedDefect missed a response quoting BOTH sides of the substitution. A check that cannot pass is as broken as one that cannot fail.`)
-  const oneSide = `## 1. WINNER\n\nB\n\nA claims it currently reads \`7/25\`, which is not what the ledger says.`
+     `namedDefect missed a response quoting BOTH sides of the substitution in context. A check that cannot pass is as broken as one that cannot fail.`)
+  const oneSide = `## 1. WINNER\n\nB\n\nA claims "it currently reads \`7/25\` on the live", which the ledger does not support.`
   ok(namedDefect(oneSide, SUB) === true,
      `namedDefect missed a response quoting the planted string itself — the strongest evidence the field is meant to record`)
+  ok(namedDefect('## 1. WINNER\n\nB\n\nthe figures 7/25 and 0/25 disagree', SUB) === false,
+     `namedDefect fired on a response citing the changed value with no surrounding text. Below MIN_NEEDLE the needle stops separating the defect from any other fragment that length — the placebo below is what fixes the number, and this case is what holds it.`)
 }
 
 console.log('detection-parse: a response that names nothing scores false')
@@ -137,6 +144,81 @@ console.log('detection-parse: the ledger on disk is what this parse produces fro
     }
     console.log(`          ${checked} trial(s) re-derived from the raw response and the sealed note`)
     ok(checked > 0, 'no trial could be re-derived — raw responses and sealed notes exist but nothing paired, so this check examined nothing')
+  }
+}
+
+// --------------------------------------------------------------------------
+// THE PLACEBO. Does `named_defect` measure locating the defect, or measure how
+// much the critic quotes?
+//
+// A critic that reproduces slabs of both artifacts contains the planted text
+// whether or not it noticed anything, and 13-of-15 is close enough to ceiling
+// that "it quotes a lot" is the obvious alternative reading. CLAUDE.md: cross
+// the claimed property against the confound it is probably measuring instead,
+// and COMPUTE the key rather than assert it.
+//
+// So: the same length of text, from the SAME source file, from a line the
+// transform never touched. Those fragments are in both copies, so a critic that
+// located the damage has no reason to quote them and a critic that quotes
+// liberally has every reason. Sweeping the length floor moves the two apart:
+//
+//   floor 4 -> named 93%, placebo 22%   |   floor 12 -> named 87%, placebo 4%
+//
+// which is how MIN_NEEDLE got its value. This check keeps that separation true
+// of the ledger as it grows rather than of the fifteen trials it was tuned on.
+// --------------------------------------------------------------------------
+console.log('detection-parse: the needle beats a length-matched fragment of untouched text')
+{
+  const LEDGER = join(ROOT, 'runs', 'detection.jsonl')
+  const SEALED = join(ROOT, 'runs', 'detection-sealed')
+  const RAW = join(ROOT, 'runs', 'detection-raw')
+  if (!existsSync(LEDGER)) {
+    console.log('          no ledger on disk — the confound is UNMEASURED here, not ruled out')
+  } else {
+    const rows = readFileSync(LEDGER, 'utf8').split('\n').filter(l => l.trim()).map(l => JSON.parse(l))
+    let realHit = 0, realN = 0, pHit = 0, pN = 0, skipped = 0
+    for (const r of rows) {
+      if (r.degraded_side === 'none') continue
+      const notePath = join(SEALED, `${r.opaque}.json`)
+      const respPath = join(RAW, `${r.opaque}.txt`)
+      if (!existsSync(notePath) || !existsSync(respPath)) { skipped++; continue }
+      const note = JSON.parse(readFileSync(notePath, 'utf8'))
+      const needles = defectNeedles(note)
+      if (!needles) { skipped++; continue }
+      const resp = norm(readFileSync(respPath, 'utf8'))
+      realN++
+      if (needles.some(n => resp.includes(n))) realHit++
+      // The placebo needs the artifact as it was judged. A source that has since
+      // drifted cannot supply one, and guessing from today's bytes would compare
+      // the response against text it never saw.
+      const src = join(ROOT, note.source)
+      if (!existsSync(src)) { skipped++; continue }
+      const raw = readFileSync(src, 'utf8')
+      if (`sha256:${createHash('sha256').update(raw).digest('hex')}` !== note.original_hash) { skipped++; continue }
+      const L = Math.min(...needles.map(n => n.length))
+      const touched = new Set([String(note.removed), String(note.inserted), ...String(note.removed).split('\n')])
+      const pool = raw.split('\n').filter(l => !touched.has(l) && norm(l).length >= L + 4)
+      const step = Math.max(1, Math.floor(pool.length / 20))
+      for (let i = 0; i < pool.length; i += step) {
+        const t = norm(pool[i])
+        const cand = t.slice(Math.max(0, Math.floor((t.length - L) / 2))).slice(0, L).trim()
+        if (cand.length < L) continue
+        pN++
+        if (resp.includes(cand)) pHit++
+      }
+    }
+    if (!realN || !pN) {
+      fail(`the placebo examined ${realN} needle(s) against ${pN} control fragment(s) — a crossing that ran on nothing rules out nothing`)
+    } else {
+      const real = realHit / realN, placebo = pHit / pN
+      console.log(`          named the defect:  ${realHit}/${realN} = ${(real * 100).toFixed(0)}%`)
+      console.log(`          untouched text:    ${pHit}/${pN} = ${(placebo * 100).toFixed(0)}%  (same length, same file, lines the transform never touched)`)
+      if (skipped) console.log(`          ${skipped} trial(s) contributed no placebo — source drifted or missing, so the confound is unmeasured for those`)
+      ok(placebo <= 0.15,
+         `a length-matched fragment of UNTOUCHED text turns up in ${(placebo * 100).toFixed(0)}% of responses. At that rate named_defect is largely reading how much the critic quotes; raise MIN_NEEDLE until it separates.`)
+      ok(real >= placebo * 2,
+         `named_defect fires at ${(real * 100).toFixed(0)}% and the placebo at ${(placebo * 100).toFixed(0)}% — the field does not distinguish the planted text from any other text of the same length, so it is not evidence the critic located anything`)
+    }
   }
 }
 
