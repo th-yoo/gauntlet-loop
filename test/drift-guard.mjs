@@ -628,7 +628,12 @@ for (const forbidden of RUNTIME_FORBIDDEN) {
 // list can drift.
 console.log('drift-guard: args loop.js reads and args SKILL.md documents are the same set')
 {
-  const read = new Set([...loopCode.matchAll(/\bargs\.([a-z][a-zA-Z]*)/g)].map(m => m[1]))
+  // UNDERSCORES COUNT. This pattern was /([a-z][a-zA-Z]*)/ and read `args.on_refusal`
+  // as `args.on` — so it demanded documentation for an argument that does not exist
+  // while never checking the one that does, and `on` documented in the table would
+  // have satisfied it. Found by adding the first underscored argument, which is the
+  // only way a naming assumption ever surfaces.
+  const read = new Set([...loopCode.matchAll(/\bargs\.([a-z][a-zA-Z_]*)/g)].map(m => m[1]))
   const skill = readFileSync(join(SKILLDIR, 'SKILL.md'), 'utf8')
   // Scoped to the ARGUMENT table, not every table in the file. SKILL.md also
   // carries a verdict-field table in the same shape, and a file-wide row scan read
@@ -638,7 +643,7 @@ console.log('drift-guard: args loop.js reads and args SKILL.md documents are the
   const argTableStart = skill.indexOf('| `goal` |')
   const argTable = argTableStart === -1 ? '' : skill.slice(argTableStart, skill.indexOf('\n\n', argTableStart))
   if (!argTable) fail('the argument table was not found in SKILL.md — this scan has drifted from the doc')
-  const documented = new Set([...argTable.matchAll(/^\| `([a-z][a-zA-Z]*)` \|/gm)].map(m => m[1]))
+  const documented = new Set([...argTable.matchAll(/^\| `([a-z][a-zA-Z_]*)` \|/gm)].map(m => m[1]))
   if (!read.size) fail('no args.* reads found in loop.js — this scan has drifted from the code')
   if (!documented.size) fail("no argument table found in SKILL.md — this scan has drifted from the doc")
   for (const a of read) {
@@ -651,7 +656,11 @@ console.log('drift-guard: args loop.js reads and args SKILL.md documents are the
   // operator copies from. That is the surface most likely to be used verbatim, so
   // it is the one where a stale argument does the most damage.
   const cmd = readFileSync(join(ROOT, 'commands', 'loop.md'), 'utf8')
-  const shown = new Set([...cmd.matchAll(/^\s*"([a-z][a-zA-Z]*)":/gm)].map(m => m[1]))
+  // THE THIRD PARSER OF THE SAME NAMES, and the underscore fix had to be made in all
+  // three. Two were repaired and this one was not, so the guard went from wrong-in-one
+  // -direction to wrong-in-another: it now read the argument correctly out of loop.js
+  // and still could not see it in the block an operator copies.
+  const shown = new Set([...cmd.matchAll(/^\s*"([a-z][a-zA-Z_]*)":/gm)].map(m => m[1]))
   if (!shown.size) fail('no args JSON block found in commands/loop.md — this scan has drifted from the command')
   for (const a of shown) {
     if (!read.has(a)) fail(`commands/loop.md's args block shows "${a}" and loop.js never reads it — an operator copying that block passes a setting that does nothing`)

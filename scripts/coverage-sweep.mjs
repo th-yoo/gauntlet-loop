@@ -47,6 +47,12 @@ export const PROPERTIES = [
   ['a piece whose run dies is not counted as a win', L, '  if (!o && !outcome) {', '  if (false) {'],
   ['a skipped piece is not blamed for crashing', L, '    if (!skippedNames.has(name)) {', '    if (true) {'],
   ['pieces must have distinct names', L, '    if (seenNames.has(key)) return false', '    if (false) return false'],
+  // --- the refusal can be answered, and only where answering is coherent -------
+  // Added with the on_refusal switch (#28 S5). Each mutation was APPLIED and the
+  // suite watched to go red, not assumed from the fact that a test mentions it.
+  ['an unrecognised on_refusal is refused, not ignored', L, 'if (!ON_REFUSAL_VALUES.includes(ON_REFUSAL)) throw new Error(', 'if (false) throw new Error('],
+  ['a downgraded refusal is recorded, not laundered', L, 'proceeded_over_refusal = { verdict: comparability.verdict, side, reasoning: comparability.reasoning }', 'proceeded_over_refusal = null'],
+  ['an unopenable artifact is not downgradable', L, "if (comparability && comparability.verdict === 'unreadable') {", "if (comparability && comparability.verdict === 'unreadable' && ON_REFUSAL !== 'warn') {"],
   ['a candidate cannot be compared against itself', L, 'if (CANDIDATE && REFERENCE && String(CANDIDATE).trim() === String(REFERENCE).trim())', 'if (false)'],
   ['artifact paths cannot forge prompt structure', L, '  if (value && /[\\r\\n]/.test(String(value))) throw new Error(', '  if (false) throw new Error('],
   ['paths reach shell-running agents single-quoted', L, 'test -e ${shq(TOKEN)}', 'test -e ${JSON.stringify(TOKEN)}'],

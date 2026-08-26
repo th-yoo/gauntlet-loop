@@ -66,6 +66,21 @@ export const meta = {
 //                  letting it ship unexamined.
 //   args.inspect   (optional) how to look at the artifacts — a command to run,
 //                  a thing to open. Passed verbatim to the critic.
+//   args.on_refusal (optional) 'refuse' (the default) or 'warn'. The pairing
+//                  check is the only component here that can stop a run, and it
+//                  acquired that authority on six staged pairings scored against
+//                  its own author's predictions (#28). 'warn' downgrades ONE of
+//                  its two refusals — the GENERATOR verdict, which is a
+//                  judgement about what an artifact is — to a warning: the run
+//                  proceeds and the record carries proceeded_over_refusal, with
+//                  the probe's verdict kept as it stood. It does NOT downgrade
+//                  the unreadable verdict: a file that could not be opened is a
+//                  fact, not an opinion, and a run past it is a blind A/B
+//                  against a path that is not there. An unrecognised value is
+//                  REFUSED rather than ignored, for the reason the round-cap
+//                  refusal below states. This makes the refusal answerable by an
+//                  OPERATOR; it does not make it conditional on EVIDENCE, and
+//                  nothing here reads the measured rate in oracle/.
 //   args.token     (required) absolute path to the RUN TOKEN — a file whose
 //                  EXISTENCE means "keep looping". Removing it stops the run at
 //                  the next round boundary. This is the circuit breaker, and it
@@ -121,6 +136,22 @@ for (const [label, value] of [['candidate', CANDIDATE], ['reference', REFERENCE]
     'critic ends up judging a comparison this loop did not set up. Pass a path with no line breaks.'
   )
 }
+
+// THE ONE INPUT THAT CAN ANSWER A REFUSAL, and it is validated the same way a
+// round cap is refused: an unrecognised value stops the run rather than being
+// dropped. An operator who typed `on_refusal: 'off'` believing it disarms the
+// pairing check, and whose run then stops anyway, has been told. One who typed
+// it and had it silently ignored has been misled about what they configured —
+// which is the argument the cap refusal below already makes, applied to the
+// argument that can switch a guard OFF rather than one that cannot.
+const ON_REFUSAL_VALUES = ['refuse', 'warn']
+const ON_REFUSAL = (args && args.on_refusal !== undefined) ? args.on_refusal : 'refuse'
+if (!ON_REFUSAL_VALUES.includes(ON_REFUSAL)) throw new Error(
+  `args.on_refusal must be one of ${ON_REFUSAL_VALUES.map(v => JSON.stringify(v)).join(' or ')}, and was ` +
+  `${JSON.stringify(ON_REFUSAL)}. Refused rather than ignored: an argument that switches a guard off and is ` +
+  'silently dropped leaves you believing a refusal is disarmed when it is not, or that it is armed when you ' +
+  'meant to disarm it. Neither belief is one this loop should let you hold.'
+)
 
 // A file cannot beat itself, and the loop would happily spend a builder and k
 // critics finding that out: both ARTIFACT lines render the same path, the critic
@@ -724,6 +755,11 @@ const ARTIFACT_ROLE_SCHEMA = {
 // which says exactly that in the verdict. A real case turning up is the evidence
 // to bring the verdict back with.
 let comparability = null
+// Set ONLY when a refusal was actually overruled. Absent from the record on every
+// other run, deliberately: a field that appears on runs where nothing objected is
+// noise, and a reader who learns to skip it loses the only thing recording the
+// downgrade buys.
+let proceeded_over_refusal = null
 
 async function roleOf(path, n) {
   return spawn(
@@ -1155,7 +1191,27 @@ if (comparability && comparability.verdict === 'unreadable') {
 }
 if (comparability && comparability.verdict === 'generator') {
   const side = comparability.generator_side || '(the probe did not name which side)'
-  throw new Error(
+  // ANSWERABLE, AND ONLY HERE. This verdict is a JUDGEMENT — "that side is a
+  // recipe rather than an attempt" — made by an instrument whose authority
+  // exceeds its evidence (#28). An operator with reason to disagree can proceed;
+  // the unreadable branch above is not offered the same door, because a file
+  // that could not be opened is not a judgement to disagree with.
+  //
+  // What the downgrade costs the record: the probe's verdict is KEPT as it stood,
+  // and proceeded_over_refusal names what was overruled. A downgrade that
+  // rewrote the verdict to "comparable" would launder the refusal — the run would
+  // come back looking like a comparison nothing objected to, which is the false
+  // all-clear this repository keeps finding in its own instruments.
+  if (ON_REFUSAL === 'warn') {
+    proceeded_over_refusal = { verdict: comparability.verdict, side, reasoning: comparability.reasoning }
+    log(
+      `WARNING: proceeding over a refusal. The pairing check called ${side} a GENERATOR rather than an attempt ` +
+      `at the goal, and args.on_refusal is "warn", so the run continues. ${comparability.reasoning}\n` +
+      'What that costs: a blind A/B between a thing and a recipe for a thing returns WON at round 1 with no ' +
+      'build round, which reads exactly like success. If this verdict is right, this run means nothing. The ' +
+      'record carries proceeded_over_refusal so the result cannot later be read as an unobjected comparison.'
+    )
+  } else throw new Error(
     'REFUSED: one of these two artifacts is a GENERATOR, not the thing itself — ' + side + ' is a recipe for ' +
     'producing something rather than an attempt at the goal. ' + comparability.reasoning + '\n\n' +
     'A blind A/B between a thing and a recipe for a thing is a category error, and it does not fail loudly: it ' +
@@ -1816,6 +1872,8 @@ return {
   // monotonically while every individual round is locally correct; nothing else
   // in this run would notice.
   comparability,
+  // Present only when a refusal was overruled — see the declaration above.
+  ...(proceeded_over_refusal ? { proceeded_over_refusal } : {}),
   size_by_round: sizeByRound,
   size_unmeasured: sizeUnmeasured,
   // Grouped BY PIECE, because sizeByRound stops describing one file the moment

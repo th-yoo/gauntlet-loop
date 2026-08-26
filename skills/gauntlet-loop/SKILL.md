@@ -61,6 +61,7 @@ Arguments the script takes:
 | `critics` | how many judges must ALL pick yours to end the run. Default 1 |
 | `token` | the run token; its existence means "keep going" |
 | `inspect` | optional — how to look at them: a command to run, a thing to open |
+| `on_refusal` | optional — `refuse` (default) or `warn`. `warn` proceeds past the GENERATOR verdict and records that it did. Never downgrades an unopenable artifact |
 
 ## It splits the goal first
 
