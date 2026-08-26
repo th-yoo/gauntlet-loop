@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="t1">
+  <title id="t1">One shareable booking link</title>
+  <rect x="4" y="4" width="152" height="152" rx="24" fill="#EEF1F6"/>
+  <g fill="none" stroke="#101425" stroke-width="6" stroke-linecap="round">
+    <path d="M58 70a16 16 0 0 1 16-16h10a16 16 0 0 1 0 32H74"/>
+    <path d="M102 90a16 16 0 0 1-16 16H76a16 16 0 0 1 0-32h10" stroke="#0B7285"/>
+  </g>
+  <circle cx="118" cy="42" r="14" fill="#0B7285"/>
+  <path d="M112 42l4 4 8-9" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cadence — Scheduling that keeps time with your team</title>
+<meta name="description" content="Pick a window, share one link, and let Cadence do the chasing.">
+<meta name="theme-color" content="#101425">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="canonical" href="./">
+<meta property="og:title" content="Cadence — Scheduling that keeps time with your team">
+<meta property="og:description" content="Pick a window, share one link, and let Cadence do the chasing.">
+<meta property="og:type" content="website">
+<style>
+  :root{
+    --ink:#101425;
+    --muted:#5B6472;
+    --line:#E4E8EF;
+    --paper:#ffffff;
+    --canvas:#F7F8FB;
+    --accent:#0B7285;
+    --accent-dark:#085F70;
+    --accent-ink:#ffffff;
+    --radius:14px;
+    --wrap:1120px;
+    --font-body:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    /* Heading font is Söhne per brand; the licensed files live on the shared drive we
+       don't have yet (see run/NOTES.md). Falls back to the system stack until then —
+       swap in an @font-face here when the seat arrives, nothing else needs to change. */
+    --font-display:var(--font-body);
+  }
+  *,*::before,*::after{ box-sizing:border-box; }
+  html{ -webkit-text-size-adjust:100%; }
+  body{
+    margin:0;
+    font-family:var(--font-body);
+    color:var(--ink);
+    background:var(--paper);
+    line-height:1.5;
+  }
+  img{ max-width:100%; height:auto; display:block; }
+  a{ color:inherit; }
+  .wrap{ max-width:var(--wrap); margin-inline:auto; padding-inline:24px; }
+
+  .skip-link{
+    position:absolute; left:-999px; top:auto;
+    background:var(--ink); color:#fff; padding:12px 18px; border-radius:0 0 8px 0;
+    z-index:100;
+  }
+  .skip-link:focus{ left:0; top:0; }
+
+  a:focus-visible, button:focus-visible{
+    outline:3px solid var(--accent); outline-offset:2px;
+  }
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    min-height:48px; padding:0 22px;
+    border-radius:999px; font-weight:600; font-size:1rem;
+    text-decoration:none; white-space:nowrap;
+    background:var(--accent); color:var(--accent-ink);
+    transition:background-color .15s ease;
+  }
+  .btn:hover{ background:var(--accent-dark); }
+  .btn-sm{ min-height:40px; padding:0 18px; font-size:.92rem; }
+  .btn-lg{ min-height:56px; padding:0 30px; font-size:1.08rem; }
+
+  header.site-header{
+    border-bottom:1px solid var(--line);
+    position:sticky; top:0; background:rgba(255,255,255,.92);
+    -webkit-backdrop-filter:saturate(180%) blur(6px);
+    backdrop-filter:saturate(180%) blur(6px);
+    z-index:10;
+  }
+  .header-inner{
+    display:flex; align-items:center; justify-content:space-between;
+    padding-block:14px;
+  }
+  .brand{ display:inline-flex; text-decoration:none; }
+  .brand img{ height:24px; width:auto; }
+
+  .hero{
+    display:grid; gap:40px;
+    padding-block:56px 40px;
+    align-items:center;
+  }
+  @media (min-width:900px){
+    .hero{ grid-template-columns:1.05fr 1fr; padding-block:88px 64px; }
+  }
+  h1{
+    font-family:var(--font-display);
+    font-size:clamp(2.05rem, 1.5rem + 2.3vw, 3.4rem);
+    line-height:1.08; letter-spacing:-0.02em;
+    margin:0 0 .5em; font-weight:700;
+  }
+  .lead{
+    font-size:clamp(1.05rem, 1rem + .4vw, 1.25rem);
+    color:var(--muted); margin:0 0 1.75em; max-width:46ch;
+  }
+  .hero-art{ background:var(--canvas); border-radius:20px; padding:8px; }
+
+  section.feature{
+    display:grid; gap:32px; align-items:center;
+    padding-block:48px; border-top:1px solid var(--line);
+  }
+  @media (min-width:800px){
+    section.feature{ grid-template-columns:140px 1fr; gap:48px; }
+    section.feature.feature-reverse{ grid-template-columns:1fr 140px; }
+    section.feature.feature-reverse .feature-icon{ order:2; }
+  }
+  .feature-icon{
+    width:96px; height:96px; margin-inline:auto;
+  }
+  @media (min-width:800px){ .feature-icon{ margin-inline:0; } }
+  section.feature h2{
+    font-family:var(--font-display);
+    font-size:clamp(1.35rem, 1.15rem + 1vw, 1.85rem);
+    margin:0 0 .45em; font-weight:700; letter-spacing:-0.01em;
+  }
+  section.feature p{
+    color:var(--muted); font-size:1.05rem; line-height:1.6;
+    max-width:56ch; margin:0;
+  }
+  section.feature > div{ text-align:center; }
+  @media (min-width:800px){ section.feature > div{ text-align:left; } }
+
+  .cta-band{ background:var(--ink); margin-top:16px; }
+  .cta-band-inner{
+    padding-block:56px; text-align:center;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+  }
+  .cta-band .btn{ background:var(--accent); }
+  .cta-band .btn:hover{ background:var(--accent-dark); }
+
+  footer.site-footer{ padding-block:32px; }
+  .footer-inner{
+    display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between;
+    gap:16px; border-top:1px solid var(--line); padding-top:24px;
+  }
+  .footer-inner img{ height:20px; width:auto; opacity:.8; }
+  .footer-inner p{ margin:0; color:var(--muted); font-size:.9rem; }
+</style>
+</head>
+<body>
+<a class="skip-link" href="#main">Skip to content</a>
+
+<header class="site-header">
+  <div class="wrap header-inner">
+    <a class="brand" href="#top" aria-label="Cadence, home">
+      <img src="assets/cadence-lockup.svg" width="172" height="32" alt="Cadence">
+    </a>
+    <a class="btn btn-sm" href="/get-started">Start scheduling — free</a>
+  </div>
+</header>
+
+<main id="main">
+  <section class="hero wrap" id="top">
+    <div class="hero-copy">
+      <h1>Scheduling that keeps time with your team</h1>
+      <p class="lead">Pick a window, share one link, and let Cadence do the chasing.</p>
+      <a class="btn btn-lg" href="/get-started">Start scheduling — free</a>
+    </div>
+    <div class="hero-art">
+      <img
+        src="assets/hero-calendar.svg"
+        width="560" height="440"
+        alt="A shared Cadence link landing a chosen time slot on both people's calendars"
+        loading="eager" fetchpriority="high">
+    </div>
+  </section>
+
+  <section class="feature wrap">
+    <img class="feature-icon" src="assets/feature-share-link.svg" width="96" height="96" alt="" loading="lazy">
+    <div>
+      <h2>Share one link.</h2>
+      <p>Your availability, one URL. Guests pick a slot that already works for you, and it lands on both calendars before they close the tab.</p>
+    </div>
+  </section>
+
+  <section class="feature feature-reverse wrap">
+    <img class="feature-icon" src="assets/feature-calendar-sync.svg" width="96" height="96" alt="" loading="lazy">
+    <div>
+      <h2>No more back-and-forth.</h2>
+      <p>Cadence reads your existing calendar, holds the tentative slot, and releases it if the other side goes quiet.</p>
+    </div>
+  </section>
+
+  <section class="feature wrap">
+    <img class="feature-icon" src="assets/feature-team-handoff.svg" width="96" height="96" alt="" loading="lazy">
+    <div>
+      <h2>Built for teams that hand off.</h2>
+      <p>Round-robin between colleagues, shared booking pages per team, and a single view of who is taking what.</p>
+    </div>
+  </section>
+
+  <section class="cta-band">
+    <div class="wrap cta-band-inner">
+      <a class="btn btn-lg" href="/get-started">Try Cadence free for 14 days. No card.</a>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap footer-inner">
+    <img src="assets/cadence-lockup.svg" width="129" height="24" alt="Cadence">
+    <p>&copy; 2026 Cadence. All rights reserved.</p>
+  </div>
+</footer>
+</body>
+</html>

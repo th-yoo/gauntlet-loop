@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="t3">
+  <title id="t3">Round-robin booking across a team</title>
+  <rect x="4" y="4" width="152" height="152" rx="24" fill="#EEF1F6"/>
+  <circle cx="80" cy="42" r="16" fill="#101425"/>
+  <circle cx="44" cy="106" r="16" fill="#0B7285"/>
+  <circle cx="116" cy="106" r="16" fill="#0B7285"/>
+  <g fill="none" stroke="#101425" stroke-width="3" stroke-dasharray="2 7" stroke-linecap="round">
+    <path d="M68 52a58 58 0 0 0 -24 46"/>
+    <path d="M92 52a58 58 0 0 1 24 46"/>
+    <path d="M60 106h32"/>
+  </g>
+  <path d="M40 148l4-10 10 4z" fill="#101425"/>
+</svg>

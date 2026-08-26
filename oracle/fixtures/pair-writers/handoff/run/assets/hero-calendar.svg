@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 440" role="img" aria-labelledby="heroTitle">
+  <title id="heroTitle">A shared availability link landing on two calendars</title>
+  <defs>
+    <style>
+      .card   { fill: #ffffff; stroke: #E4E8EF; stroke-width: 2; }
+      .grid   { fill: #EEF1F6; }
+      .slot   { fill: #0B7285; }
+      .ink    { fill: #101425; }
+      .muted  { fill: #8A93A6; }
+      .line   { fill: none; stroke: #0B7285; stroke-width: 2; stroke-dasharray: 5 6; stroke-linecap: round; }
+    </style>
+  </defs>
+
+  <rect class="card" x="16" y="16" width="528" height="408" rx="20"/>
+
+  <!-- link pill -->
+  <g transform="translate(52,52)">
+    <rect width="164" height="40" rx="20" fill="#101425"/>
+    <path d="M18 20a6 6 0 0 1 6-6h6a1 1 0 0 1 0 6h-6a6 6 0 0 0 0 0" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round"/>
+    <circle cx="24" cy="20" r="3.4" fill="#ffffff"/>
+    <circle cx="34" cy="20" r="3.4" fill="#ffffff"/>
+    <text x="50" y="25" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="14" fill="#ffffff">cadence.link/km</text>
+  </g>
+
+  <!-- calendar grid -->
+  <g transform="translate(52,124)">
+    <text x="0" y="0" class="muted" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="13">Thursday, 12 June</text>
+    <g transform="translate(0,16)">
+      <!-- 5 columns x 4 rows of day cells -->
+      <g class="grid">
+        <rect x="0"   y="0"  width="52" height="40" rx="8"/>
+        <rect x="60"  y="0"  width="52" height="40" rx="8"/>
+        <rect x="120" y="0"  width="52" height="40" rx="8"/>
+        <rect x="180" y="0"  width="52" height="40" rx="8"/>
+        <rect x="240" y="0"  width="52" height="40" rx="8"/>
+
+        <rect x="0"   y="48" width="52" height="40" rx="8"/>
+        <rect x="60"  y="48" width="52" height="40" rx="8"/>
+        <rect x="180" y="48" width="52" height="40" rx="8"/>
+        <rect x="240" y="48" width="52" height="40" rx="8"/>
+
+        <rect x="0"   y="96" width="52" height="40" rx="8"/>
+        <rect x="60"  y="96" width="52" height="40" rx="8"/>
+        <rect x="120" y="96" width="52" height="40" rx="8"/>
+        <rect x="240" y="96" width="52" height="40" rx="8"/>
+      </g>
+      <!-- the picked slot -->
+      <rect class="slot" x="120" y="48" width="52" height="40" rx="8"/>
+      <path d="M132 68l6 6 12-13" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+  </g>
+
+  <!-- dashed line from link to the two calendars -->
+  <path class="line" d="M100 108 C 100 190, 150 190, 150 260"/>
+  <path class="line" d="M340 108 C 340 190, 290 190, 290 260"/>
+
+  <!-- two avatars representing both sides of the booking -->
+  <g transform="translate(370,60)">
+    <rect class="grid" x="0" y="0" width="140" height="150" rx="16"/>
+    <circle cx="70" cy="46" r="22" fill="#101425"/>
+    <rect x="34" y="78" width="72" height="10" rx="5" class="muted"/>
+    <rect x="46" y="96" width="48" height="8" rx="4" class="muted"/>
+    <rect class="slot" x="28" y="116" width="84" height="22" rx="11"/>
+  </g>
+
+  <g transform="translate(370,220)">
+    <rect class="grid" x="0" y="0" width="140" height="150" rx="16"/>
+    <circle cx="70" cy="46" r="22" fill="#0B7285"/>
+    <rect x="34" y="78" width="72" height="10" rx="5" class="muted"/>
+    <rect x="46" y="96" width="48" height="8" rx="4" class="muted"/>
+    <rect class="slot" x="28" y="116" width="84" height="22" rx="11"/>
+  </g>
+</svg>

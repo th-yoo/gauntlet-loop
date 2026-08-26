@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 172 32" role="img" aria-labelledby="cadenceLockupTitle">
+  <title id="cadenceLockupTitle">Cadence</title>
+  <g fill="none" fill-rule="evenodd">
+    <!-- pulse mark: two-colour (ink + accent) -->
+    <g>
+      <rect x="0"  y="13" width="3" height="6"  rx="1.5" fill="#101425"/>
+      <rect x="6"  y="9"  width="3" height="14" rx="1.5" fill="#0B7285"/>
+      <rect x="12" y="3"  width="3" height="26" rx="1.5" fill="#101425"/>
+      <rect x="18" y="9"  width="3" height="14" rx="1.5" fill="#0B7285"/>
+      <rect x="24" y="13" width="3" height="6"  rx="1.5" fill="#101425"/>
+    </g>
+    <!-- wordmark: placeholder system-font outline, swap for the licensed Söhne lockup when the brand drive is reachable -->
+    <text x="36" y="23" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+          font-size="21" font-weight="600" letter-spacing="0.2" fill="#101425">Cadence</text>
+  </g>
+</svg>
