@@ -187,12 +187,60 @@ end, and it predicts where an unfound suspect would have to live — which is th
 closure argument available here, since exhaustiveness cannot be proved. `persist` was missing
 from the first version of this table and was found by walking it rather than by an incident.
 
+## S15 — a transport that leaves the repository cannot be verified by anything the repository runs. VERIFIED
+
+Found by trying to verify RC1's own fix rather than by reasoning about it.
+
+What is proven: the sweep writes the summary when the variable is set — 147 bytes, correct
+content, `GITHUB_STEP_SUMMARY=<file> node scripts/coverage-sweep.mjs "a disputed row"`.
+
+What could not be proven, and how each attempt failed:
+
+```
+check-run output for the sweep job    {"summary_head": "", "title": null}   (empty)
+REST API for job summaries            none exists
+fetching the public run page          a JavaScript shell, no summary in the HTML
+```
+
+So RC1's fix is established exactly to the boundary this repository controls and no further.
+That generalises: **the only part of a sweep result that survives outside the run page is
+the run's conclusion** — one bit, queryable with `gh run list`.
+
+**And that bit is the one S8 shows cannot distinguish a coverage regression from a rename.**
+The two findings that need opposite repairs collapse into the same queryable signal, and
+everything that could tell them apart lives where nothing can check it.
+
+This ranks #46's options on an axis the issue never considered. An auto-filed issue is
+queryable with `gh`; a committed record is a file. A badge, an e-mail, and a run-page summary
+are not verifiable by any check this repository can run.
+
+A cheap partial remedy, not built: have the sweep echo the byte count it wrote to stdout, so
+the write itself becomes visible in the log and through the API. That verifies the write, not
+the display.
+
+## The base rate — how findings have actually travelled
+
+Three recorded instances, and the mechanism each time:
+
+| finding | how it reached a person |
+|---|---|
+| run `32900618692` green, two defects in its log | a human opened the log once, at the end of a long session |
+| `843b3ac` red, stood through three commits | the operator asked about it mid-session |
+| 113 of 117 verdicts meaningless | an agent arguing an unrelated question found it |
+
+**Zero reached a person by any mechanism.** All three were ad-hoc curiosity. That is stronger
+evidence than "nobody has decided": every transport that exists today has a measured success
+rate of zero, on three trials.
+
 ---
 
 ## The adversarial pass, and where it stopped
 
 The list was built in waves, and the yield per wave is the only convergence evidence
-available: **7 suspects, then 5, then 1, then 0.**
+available: **7 suspects, then 5, then 1, then 0 — and then 1 more (S15), found only because
+the loop refused an early claim of completion and sent me back to verify a fix I had
+asserted rather than tested.** The lesson is recorded rather than smoothed over: my search
+terminated early twice, both times when I stopped building and started reasoning.
 
 The final pass deliberately tried to break the pipeline model rather than extend the list.
 It produced two candidates, and neither survived as an independent suspect:
