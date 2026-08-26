@@ -16,8 +16,9 @@
 // derive it from. "Which mutations ought to be caught" is a statement about intent
 // and cannot be read off the code. Every entry names the property, not the syntax.
 import { spawnSync } from 'node:child_process'
+import { appendFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const MUTATE = join(ROOT, 'scripts', 'mutate.mjs')
@@ -29,7 +30,7 @@ const OR = 'scripts/oracle-record.mjs'
 const OE = 'scripts/oracle-extract.mjs'
 const OP = 'scripts/oracle-report.mjs'
 
-const PROPERTIES = [
+export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
   ['position balance counts the whole-artifact critic', L, '  .concat(split_check.ran ? [split_check.candidateSide] : [])', ''],
   ['a content leak withdraws the blindness claim', L, "selfid.verdict === 'self-identifying' || LEAKING_FILES.length > 0", 'false'],
@@ -181,18 +182,60 @@ const PROPERTIES = [
   ['an option value that is itself an option is a missing value', S, 'return v === undefined || FLAGS.includes(v) ? null : v', 'return v === undefined ? null : v'],
 ]
 
-const filter = process.argv[2]
-const chosen = filter ? PROPERTIES.filter(p => p[0].includes(filter)) : PROPERTIES
-if (!chosen.length) { console.error(`no property matches "${filter}"`); process.exit(2) }
+// THE LIST IS EXPORTED AND THE SWEEP RUNS ONLY WHEN INVOKED, and that is not tidiness.
+//
+// Three files were reading this list by RE-PARSING this file's text — coverage-cadence with
+// a regex that went blind once (114 against 117, three entries opening with a double
+// quote), and two written since. They all did it because importing this file used to start
+// ~50 minutes of mutation, so the list could not be read any other way. One list, imported,
+// cannot be misparsed by anyone. #46 RC4.
+const INVOKED = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 
-let missed = 0, refused = 0
-for (const [name, file, find, replace] of chosen) {
-  const r = spawnSync(process.execPath, [MUTATE, file, find, replace], { encoding: 'utf8' })
-  const verdict = r.status === 0 ? 'CAUGHT' : r.status === 1 ? 'NOT CAUGHT' : 'COULD NOT RUN'
-  if (r.status === 1) missed++
-  if (r.status === 2) refused++
-  console.log(`${verdict.padEnd(14)} ${name}`)
-  if (r.status === 2) console.log(`               ${String(r.stdout || r.stderr).split('\n')[0]}`)
+// WHERE A FINDING GOES WHEN IT IS NOT FATAL. The harness watches this script's exit code;
+// its findings are in stdout, and nothing points at stdout. The run this issue was filed on
+// concluded `success` while its log carried two defects — so the summary is rendered for
+// the run page, and it is rendered whether or not anything was found. A summary that
+// appeared only on failure would have been absent for exactly that run. #46 RC1.
+//
+// Exported so it can be tested by CALLING it. A check that scanned this file for
+// "GITHUB_STEP_SUMMARY" would pass on a mention, which is the false pass this repo has
+// fixed three times.
+export function renderSummary({ total, missed, refused, findings }) {
+  const lines = [
+    '## coverage sweep',
+    '',
+    `**${total} properties** — ${missed} unpinned, ${refused} could not be tested`,
+  ]
+  if (findings.length) {
+    lines.push('', '| verdict | property |', '| --- | --- |')
+    for (const f of findings) lines.push(`| ${f.verdict} | ${f.name} |`)
+    lines.push('', 'An unpinned property is code that is still correct with nothing to notice if it stops being.',
+                   'One that could not be tested is a mutation whose target text no longer exists — `test/sweep-needles.test.mjs` catches that at push time.')
+  } else {
+    lines.push('', 'Every property was broken and something failed. No coverage regression.')
+  }
+  return lines.join('\n') + '\n'
 }
-console.log(`\n${chosen.length} properties — ${missed} unpinned, ${refused} could not be tested`)
-process.exit(missed || refused ? 1 : 0)
+
+if (INVOKED) {
+  const filter = process.argv[2]
+  const chosen = filter ? PROPERTIES.filter(p => p[0].includes(filter)) : PROPERTIES
+  if (!chosen.length) { console.error(`no property matches "${filter}"`); process.exit(2) }
+
+  let missed = 0, refused = 0
+  const findings = []
+  for (const [name, file, find, replace] of chosen) {
+    const r = spawnSync(process.execPath, [MUTATE, file, find, replace], { encoding: 'utf8' })
+    const verdict = r.status === 0 ? 'CAUGHT' : r.status === 1 ? 'NOT CAUGHT' : 'COULD NOT RUN'
+    if (r.status === 1) missed++
+    if (r.status === 2) refused++
+    if (r.status !== 0) findings.push({ verdict, name })
+    console.log(`${verdict.padEnd(14)} ${name}`)
+    if (r.status === 2) console.log(`               ${String(r.stdout || r.stderr).split('\n')[0]}`)
+  }
+  console.log(`\n${chosen.length} properties — ${missed} unpinned, ${refused} could not be tested`)
+
+  const summary = renderSummary({ total: chosen.length, missed, refused, findings })
+  if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary)
+  process.exit(missed || refused ? 1 : 0)
+}

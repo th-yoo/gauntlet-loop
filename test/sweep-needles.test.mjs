@@ -13,7 +13,9 @@
 //
 // The sweep already reports this, as COULD NOT RUN. What it cannot do is report it in the
 // push that caused it. This asks the same question in milliseconds, so a rename is caught
-// by the gate that runs on every commit rather than by the one that runs on Mondays.
+// by the gate that runs on every commit rather than by the one that runs on Mondays. It
+// reads the sweep's own exported list, so there is no second copy of the properties and no
+// parser to go blind.
 //
 // WHAT THIS DOES NOT ESTABLISH, and the distinction is the whole reason the sweep still
 // runs: a needle that is PRESENT says nothing about whether mutating it is still caught. A
@@ -21,7 +23,7 @@
 // applies the mutation and requires the suite to fail, answers that.
 
 import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -30,33 +32,23 @@ const SWEEP = join(ROOT, 'scripts', 'coverage-sweep.mjs')
 let failures = 0
 const fail = m => { console.error(`  FAIL  ${m}`); failures++ }
 
-// THE TABLE IS READ OUT OF THE SWEEP, never restated here. A second copy of the property
-// list would be a list that drifts, and the drift would be invisible in exactly the way
-// this file exists to prevent — the same argument oracle-derive.mjs makes about the pairing
-// rule and oracle-extract.mjs makes about the prompt.
-const src = readFileSync(SWEEP, 'utf8')
-
-const files = {}
-for (const m of src.matchAll(/^const ([A-Z]+) = '([^']+)'$/gm)) files[m[1]] = m[2]
-
-const start = src.indexOf('const PROPERTIES = [')
-const end = src.indexOf('\n]', start)
+// THE LIST IS IMPORTED, never restated and no longer re-parsed. The first version of this
+// file eval'd the PROPERTIES literal out of the sweep's source, which made it the THIRD
+// parser of one list — and the first of the three had already gone blind once. The sweep
+// exports the array now and runs only when invoked, so this reads what it sweeps. #46 RC4.
 let entries = []
-if (start === -1 || end === -1) {
-  fail('scripts/coverage-sweep.mjs has no PROPERTIES table this file can read — the sweep\'s shape changed, and a check that cannot find what it audits must say so rather than pass')
-} else {
-  const table = src.slice(start, end + 2)
-  try {
-    entries = new Function(`const ${Object.entries(files).map(([k, v]) => `${k} = ${JSON.stringify(v)}`).join(', ')}; ${table};\nreturn PROPERTIES`)()
-  } catch (e) {
-    fail(`the PROPERTIES table could not be read: ${String(e.message).split('\n')[0]}`)
-  }
+try {
+  const mod = await import(pathToFileURL(SWEEP).href)
+  entries = mod.PROPERTIES
+} catch (e) {
+  fail(`scripts/coverage-sweep.mjs could not be imported: ${String(e.message).split('\n')[0]}`)
 }
+if (!Array.isArray(entries)) { fail('scripts/coverage-sweep.mjs exports no PROPERTIES array'); entries = [] }
 
 // A SCAN THAT MATCHES NOTHING CANNOT FAIL INFORMATIVELY — drift-guard's lesson, and this
-// file is one bad regex away from auditing an empty list and reporting success.
+// file is one bad import away from auditing an empty list and reporting success.
 if (!failures && entries.length < 50) {
-  fail(`only ${entries.length} pinned properties were read out of the sweep, which is fewer than this repo has had for a long time — the table is being parsed wrongly, and an empty audit passes`)
+  fail(`only ${entries.length} pinned properties were read out of the sweep, which is fewer than this repo has had for a long time — an empty audit passes`)
 }
 
 console.log(`sweep-needles: every pinned mutation still finds its target (${entries.length} properties)`)
