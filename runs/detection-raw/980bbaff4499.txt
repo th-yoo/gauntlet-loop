@@ -1,0 +1,37 @@
+## 1. WINNER — **B** (`a/subject.md`)
+
+## 2. WHY
+
+B is strict superset of A. `diff` shows exactly one block missing from A: lines 69–103, "The standing rule" + "Scoring — all three conditions".
+
+Removing that block does not just shorten A — it breaks A. Four dead pointers left behind:
+
+- `b/subject.md:67` — "`gate0_files` exists to make **the scoring rule below** checkable." Grep whole file: no scoring rule below. Dead reference.
+- `b/subject.md:58` — `"outcome": null`. A never says what goes in it. B gives the object (`override_run`, `high_grounded_findings`, `anchored_outside_gate0_files`, `verdict`).
+- `b/subject.md:75,78` — "overrides yield no **qualifying finding**". A defines neither "override" nor "qualifying". B defines both: override = gate-0 NO triggers width-1 lane, 3 spawns ~150k; qualifying = high severity AND GROUNDED AND anchored outside `gate0_files`.
+- `b/subject.md:84` — "The override *is* a **width-1 run**". Term never introduced in A.
+
+Goal is "how to run this tool, completely and in one place." A stops after "write one line to `refusals.jsonl`." Reader has ledger line with null field, no procedure to produce output, no rule to score it. A is not runnable. B is: log before spawn, run width-1 lane, fill `outcome`, apply 3-condition test, `node scripts/refusal-tally.mjs`.
+
+Neither is first-rate. Both defective in same ways:
+- Both open with **HISTORICAL — machinery no longer exists**. Doc that says "nothing here describes what the plugin does today" is a weak answer to "state how to run this tool."
+- Both claim "Writing **six fields** down." JSON block has 10 keys. Undercount by 4.
+- Both punt the primary command to `--help` — `refusal-log.mjs writes this for you; see --help`. That is the exact opposite of "in one place."
+- Neither states where `refusals.jsonl` lives, cwd for `node`, or node version.
+
+B wins because it is the only one that closes its own loop.
+
+## 3. GAP
+
+A is missing the **standing rule + scoring section** — the block that says a gate-0 NO fires the width-1 lane anyway (bar writer, one critic, verifier; ~150k), gives the `outcome` object schema to fill after that run, and states the three-condition FALSE_NEGATIVE test (high severity AND verifier GROUNDED AND anchored outside `gate0_files`, else GATE0_HELD).
+
+Without it A's procedure terminates at a ledger line with `outcome: null` and no way to ever set it, and A's own line 67 points at a scoring rule that does not exist in the file. Add that section between "What to write, and when" and "How this ends" and A becomes B.
+
+## 4. INSPECTED
+
+- Read both files whole: `b/subject.md` (104 lines), `a/subject.md` (139 lines).
+- `wc -l` both.
+- `diff b/subject.md a/subject.md` — single hunk, `68a69,103`, 35 lines added. Confirms strict superset.
+- `grep -n "scoring rule\|override\|qualifying\|outcome\|standing rule" b/subject.md` — confirmed dangling references, no definitions.
+- `find . -maxdepth 3` — tree holds only `a/subject.md` and `b/subject.md`. No `scripts/refusal-log.mjs`, no `refusal-tally.mjs`, no `refusals.jsonl`, no `SKILL.md`. Neither doc's commands are executable here; every `SKILL.md:NN` line citation and both script paths unverifiable in this tree.
+- Counted JSON keys by hand in both blocks: 10, against "six fields" in prose.

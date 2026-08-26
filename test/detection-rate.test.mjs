@@ -137,9 +137,17 @@ for (const r of rows.slice(0, 200)) {
 
 console.log('detection-rate: one instrument, not several')
 {
-  const hashes = [...new Set(rows.map(r => r.prompt_hash))]
+  // THE TEMPLATE, not the exact bytes. This asserted one distinct `prompt_hash`
+  // across every trial — which no set of trials can satisfy, because the prompt
+  // embeds each trial's two artifact paths. The check could not pass, and a
+  // check that cannot pass is as broken as one that cannot fail; it would have
+  // been "fixed" by deleting it. `prompt_template_hash` redacts the paths, so
+  // what is compared is the instrument rather than its inputs — the same
+  // correction ab67932 made to oracle-extract's template hash.
+  const hashes = [...new Set(rows.map(r => r.prompt_template_hash))]
   ok(hashes.length === 1,
-     `${hashes.length} distinct prompt hashes in the ledger — trials judged under different prompts cannot be pooled into one rate, which is the defect that invalidated five of seven early oracle observations`)
+     `${hashes.length} distinct prompt TEMPLATES in the ledger — trials judged under different prompts cannot be pooled into one rate, which is the defect that invalidated five of seven early oracle observations`)
+  ok(hashes[0], 'the template hash is recorded — an unrecorded one cannot show trials shared an instrument')
 }
 
 // --------------------------------------------------------------------------

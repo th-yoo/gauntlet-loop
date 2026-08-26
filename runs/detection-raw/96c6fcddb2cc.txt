@@ -1,0 +1,38 @@
+Read both in full, diffed them byte-for-byte. They differ by exactly one word.
+
+## 1. WINNER
+
+**A** (`b/subject.md`).
+
+## 2. WHY
+
+Files identical except line 93, the "critic inspects the real output" row:
+
+- **A**: `"...It should never grade a summary written by the builder."`
+- **B**: `"...It should always grade a summary written by the builder."`
+
+B is broken three ways at once:
+
+1. **Contradicts its own row label.** Row claim is "critic inspects the real output." Quote says critic should *always* grade the builder's summary. Claim and evidence say opposite things in the same table row.
+2. **Contradicts adjacent rows.** Row above: critic gets "the actual artifact… Do not give it the builder's history or explanation." Row two above: blind A/B on real output. B's line reverses the exact principle the neighbors assert.
+3. **Poisons the file's stated purpose.** Header says quotes exist "because the point of a citation is that the reader does not have to trust the summary." A misquoted source sentence is total failure of that premise — worse than no quote, because it launders a false claim as verbatim. Anyone building a critic prompt from B's table would instruct critics to grade builder summaries, which is the documented failure mode of the whole method.
+
+A has none of that. Everything else — sources, outcome numbers, ratchet decision note, name collision — is byte-identical.
+
+## 3. GAP
+
+Line 93 of B: replace `"It should always grade a summary written by the builder."` with `"It should never grade a summary written by the builder."` The negation was dropped, inverting the cited source into an instruction to do exactly what the source forbids, inside a file whose only job is verbatim fidelity.
+
+## 4. BOTH FAIL THE STATED GOAL
+
+Goal: "the document states how to run this tool, completely and in one place." Neither does. In 145 lines, neither file contains a single install step, invocation command, argument, flag, prerequisite, config file, worked example, or output description. There is no sentence a reader could execute. Both are provenance/citation files — sources quoted, claims traced, one design decision justified. That is a *different document*.
+
+Missing from A (the nearer one) to actually hit the goal:
+- **Invocation.** How the loop starts — slash command / skill name / script path, exact string typed.
+- **Inputs.** What the user must supply: goal statement, reference exemplar (path or URL), artifact path. Which are required vs optional.
+- **Prerequisites.** Runtime, plugin install, `loop.js` location, agent types needed (`gauntlet-builder`, `gauntlet-ab-critic`, `gauntlet-goal-check`, `gauntlet-lead` are all implied by the repo but never named as things you need).
+- **Run lifecycle.** Gate sequence the file keeps referencing ("gate 3", "form (a)", "form (b)") is *cited* but never *defined* — a reader is told what gate 3 exists for and never told what gates 1 and 2 are or what a gate does.
+- **Stopping.** File says loop is uncapped since `1978f66`. Never says how a user stops a run.
+- **One worked example** end to end.
+
+A wins the head-to-head unambiguously. Neither is close to first-rate against the goal as written.

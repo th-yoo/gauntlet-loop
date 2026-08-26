@@ -1,0 +1,12 @@
+{
+  "trial_id": "t15-factual-substitution",
+  "opaque": "da74498b0475",
+  "source": "docs/README.md",
+  "defect_class": "factual-substitution",
+  "degraded_side": "A",
+  "removed": "  operator's rather than a defect: `0001-who-reads-the-sweep.md` records who reads the",
+  "inserted": "  operator's rather than a defect: `8-who-reads-the-sweep.md` records who reads the",
+  "where": "line 13",
+  "degraded_hash": "sha256:60c84ef1eff423c39765bafe1fa253304be640bbdf7c5bd6174a8b68b92d76e4",
+  "original_hash": "sha256:6e10fce8d04b7e3eecc36acc97b219b7ad2e209d02e37bf6d8592ea4351f0388"
+}

@@ -1,0 +1,12 @@
+{
+  "trial_id": "t03-factual-substitution",
+  "opaque": "f68607103aec",
+  "source": "skills/gauntlet-loop/SKILL.md",
+  "defect_class": "factual-substitution",
+  "degraded_side": "A",
+  "removed": "1. **Budget, then the breaker.** A Bash-only agent reports whether the run token",
+  "inserted": "8. **Budget, then the breaker.** A Bash-only agent reports whether the run token",
+  "where": "line 149",
+  "degraded_hash": "sha256:a3a5bb8bdd5abc6ba256729330290f7c9f95bb5477d1a9f301ab92a347ffb7bc",
+  "original_hash": "sha256:1c2b7008ce8303d5ffecf3a263c2e3a0eb85b6d75daf91d8cc3effd798f62db0"
+}

@@ -1,0 +1,12 @@
+{
+  "trial_id": "t14-inverted-constraint",
+  "opaque": "06debd894040",
+  "source": "docs/README.md",
+  "defect_class": "inverted-constraint",
+  "degraded_side": "B",
+  "removed": "  time, which is exactly what a later reader cannot reconstruct.",
+  "inserted": "  time, which is exactly what a later reader can reconstruct.",
+  "where": "line 20",
+  "degraded_hash": "sha256:da9f1a8c66401a2b3523416868f41e9aa3ff5828fdb56a202a8cc32378b5fde5",
+  "original_hash": "sha256:6e10fce8d04b7e3eecc36acc97b219b7ad2e209d02e37bf6d8592ea4351f0388"
+}

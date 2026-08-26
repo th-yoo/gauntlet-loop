@@ -1,0 +1,36 @@
+Ran `diff a/subject.md b/subject.md` — **no output**. Both 20602 bytes, 318 lines. Files byte-identical. Nothing separates them because nothing differs.
+
+## 1. WINNER
+
+**B.** Forced pick on identical bytes. Carries zero information about quality. Any dimension I "find" would be invented, not observed. Reporting measurement, not a judgment.
+
+## 2. WHY
+
+Nothing separates them. Content, length, structure, wording all identical. Confirmed by `diff` (silent), `wc` (318/20602 both), and full read of both files.
+
+Neither is first-rate against the goal. Judged as one document:
+
+- 274 of 318 lines describe *semantics* — what verdict fields mean, what the loop does not do, epistemics of blindness. Only ~20 lines (44–64) claim to say how to run it.
+- `references.md` holds the source quotes. `scripts/seed-loop-trial.mjs` is a second entry point in a different section. Neither file exists in the staged directory. "In one place" already broken.
+- No prerequisites. No install step. `${CLAUDE_PLUGIN_ROOT}` never resolved. Reader at zero cannot reach a running loop.
+- No worked example. Not one filled-in invocation with real paths, real goal string, real output shape.
+
+## 3. GAP
+
+**The documented entry point cannot supply most of the documented arguments.**
+
+`/gauntlet-loop:loop` is shown taking no arguments. Prose says it "asks for the goal, the candidate path, the reference path and how many critics" — 4 items. The arg table lists 7: adds `token`, `inspect`, `on_refusal`. `token` is contradictory — table says you pass it, prose says the command mints it.
+
+So `inspect` and `on_refusal` have no stated way to be set. `on_refusal` matters: `refuse` is default and aborts the run on a GENERATOR verdict, so a reader hitting that refusal has no documented way to override it.
+
+Budget is worse. `BUDGET` is 1 of 5 terminal statuses, "What stops it" says "if you set no budget, nothing but you will stop it", and the status table calls it "the target you pre-committed in the launch message" — but "Running it" never says what a launch message is or how to write that target. Load-bearing stop condition, syntax absent.
+
+Fix: in "Running it", show the full invocation form that passes all 7 args (or state plainly which are prompt-only and unreachable otherwise), give one concrete filled-in example with absolute paths and a budget target, and reconcile `token` — minted or passed, not both.
+
+## 4. INSPECTED
+
+- Read `/var/.../866b73e4223b/b/subject.md` — 318 lines, full
+- Read `/var/.../866b73e4223b/a/subject.md` — 318 lines, full
+- `diff a/subject.md b/subject.md` — no output, files identical
+- `wc -c -l` both — 318 lines / 20602 bytes each
+- `ls -laR .` — each directory holds only `subject.md`; `references.md` and `scripts/seed-loop-trial.mjs` cited by the document are not present

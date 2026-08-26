@@ -1,0 +1,38 @@
+## 1. WINNER
+
+**A**
+
+## 2. WHY
+
+Docs identical except one block. `diff` says so — A carries 20 extra lines, section **"The bar is the load-bearing part"**, inserted before `## Running it`. Everything else byte-identical (298 vs 318 lines, 19569 vs 20602 bytes).
+
+Judged against goal "states how to run this tool, completely and in one place", that block is not filler — it holds one operational fact B has nowhere:
+
+> "When no reference is supplied, `/gauntlet-loop:loop` proposes two or three and stops for a pick; each must be Named, Fetchable and Comparable, and the run refuses on the last two"
+
+B documents `reference` as one table row — "absolute path to the real thing it is judged against" — and then never answers "what if I have none?" B's reader with no reference in hand is stuck at the args table with no path forward, and gets ambushed mid-run when the tool halts and asks them to choose. A tells them the branch exists, that it blocks, and what makes a proposal acceptable. That is run instruction, not theory.
+
+Cost side, counted honestly against A: half that block IS theory ("you do not have a gauntlet loop — you have a builder"; Call of Duty never beaten), and it wedges 20 lines between the header and `## Running it`, so the invocation sits further from the top. That damages "in one place." Not enough to flip it — B does not spend those lines better, B just does not have them.
+
+**Neither is first-rate.** Both fail "completely and in one place" the same ways:
+- No install / prereq step. `${CLAUDE_PLUGIN_ROOT}/skills/gauntlet-loop/loop.js` cited with no word on how plugin gets there.
+- **`budget` is undocumented.** Three places lean on it — `BUDGET` status ("the target you pre-committed in the launch message"), "What stops it" ("a target you set at launch ran out"), "If you set no budget, nothing but you will stop it" — and no args-table row, no syntax, anywhere in either file. Reader is told budget stops runs and never told how to set one. Dangling instruction in both.
+- No worked invocation. Zero example with real values.
+- Run knowledge scattered across six sections: Running it, Choosing the line length, The goal is the part that goes wrong, What stops it, Testing the loop itself, plus the args table. "In one place" is aspiration in both.
+
+A is nearer. That is all.
+
+## 3. GAP
+
+**B never documents the no-reference path — the single control-flow branch a first-time operator hits before anything runs.**
+
+B's only statement about `reference` is one table cell demanding an absolute path. So B leaves unstated: that supplying no reference does not fail and does not proceed, but **halts the run and makes the tool propose two or three candidate references for the operator to pick from**; that each proposal must be Named, Fetchable and Comparable; and that the run **refuses** — does not warn, does not continue — when a pick is unfetchable or incomparable. B's reader without a reference on disk cannot tell whether the tool is unusable to them, whether they must go find an artifact first, or whether the run will do it for them. That is the difference between "I can start" and "I cannot start" and B does not contain it.
+
+Fix is not "paste A's section." Paste the operational paragraph only, and put it **inside `## Running it`** as a `reference` note or an extra args-table line — not as a philosophy section ahead of the invocation, which is where A got it wrong.
+
+## 4. INSPECTED
+
+- `Read` both files in full — `b/subject.md` (ARTIFACT A, 318 lines), `a/subject.md` (ARTIFACT B, 298 lines).
+- `diff -u a/subject.md b/subject.md` — single hunk at line ~19, one added section, no other change.
+- `wc -c -l` both, `ls -la` both dirs — 19569 vs 20602 bytes.
+- `grep -n -i "budget\|install\|plugin_root\|reference"` over A — confirmed budget referenced 4× with zero setting syntax, zero install mention.

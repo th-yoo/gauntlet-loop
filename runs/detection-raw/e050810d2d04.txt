@@ -1,0 +1,25 @@
+**1. WINNER — A** (`b/subject.md`, 63 lines). Narrow win. Neither meets goal.
+
+**2. WHY**
+
+Files byte-identical except one block. `diff -u` shows sole delta: A carries a 20-line `## What is here` section that B lacks. Rest of both files identical.
+
+That section is only positive-content in either document. It names live paths — `runs/`, `decisions/`, `superpowers/plans/`, this note — one line each on what they hold and whether current or historical. B has no such section. B opens straight into `## What used to be here`, then `## What is deliberately not here`. Both B sections describe absences: a deleted plan, an unpublished ledger. Reader landing on B cold learns what directory does **not** contain and nothing about what it does. B is strict subset of A with the only inventory removed.
+
+Measured against goal, both fail hard. Ran `grep -HniE 'how to run|installation|usage|npm|npx|prerequisite|invoke|command|argument|step|first, |then run'` across both — zero hits. Zero code fences. Zero numbered steps. Neither states an entry point, required inputs, prerequisites, outputs, or termination condition. Both are archive notes about repo history, filed under a goal asking for operating instructions.
+
+A also not first-rate. Its inventory spends best real estate on a fork-bomb war story (depth-13 spawn) and an ADR's provenance chain, not on how anyone invokes anything. It adds new unresolvable references (`test/orchestration.test.mjs` deleted, plan "partly no longer exists"), enlarging surface a reader cannot open. Both files close by citing `skills/gauntlet-loop/critic-prompt.md` — a rule they admit the repo no longer carries. Honest, still dangling.
+
+**What still missing from A:** whole subject. No invocation line, no inputs (candidate artifact, reference artifact, goal string), no round semantics or stop condition, no outputs, no prerequisites. A is nearer only because it tells reader what exists.
+
+**3. GAP**
+
+B has no positive-inventory section at all. Both its headings are negative-space (`What used to be here`, `What is deliberately not here`), so a reader who opens B has no path to any live document — no mention that `runs/`, `decisions/`, or `superpowers/plans/` exist. Fix: add a `## What is here` section as first section after the `# docs/` heading, listing every path currently under `docs/` with one line per path stating what it holds and whether it is current or historical.
+
+**4. INSPECTED**
+
+- Read both files full, `a/subject.md` (43 lines, 2695 bytes) and `b/subject.md` (63 lines, 4036 bytes).
+- `find` on trial dir — only two files, no surrounding repo, so every path both docs cite is unresolvable here.
+- `wc -lc` both.
+- `diff -u a/subject.md b/subject.md` — confirmed single additive hunk at line 3.
+- `grep -HniE` for run/usage/install/invoke/command/argument/step across both — no output.

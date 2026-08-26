@@ -1,0 +1,12 @@
+{
+  "trial_id": "t12-factual-substitution",
+  "opaque": "fe541829d9a0",
+  "source": "runs/README.md",
+  "defect_class": "factual-substitution",
+  "degraded_side": "B",
+  "removed": "spawns, ~150k (`SKILL.md:37`).",
+  "inserted": "spawns, ~150k (`SKILL.md:44`).",
+  "where": "line 72",
+  "degraded_hash": "sha256:7efdc80d5138f94761368b801fce05ed83caf83e5eebfdcdd11faf0f8b4333f9",
+  "original_hash": "sha256:df6fa3e600b85f7efa016569e141473513bc2d255ca5e79c9b79f03b8458fe3b"
+}

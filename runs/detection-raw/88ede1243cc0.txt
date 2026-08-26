@@ -1,0 +1,38 @@
+Diffed both. Files differ by **one word**, line 110.
+
+## 1. WINNER — B
+
+## 2. WHY
+
+Only separator is line 110:
+
+- **B:** "Five consecutive gate-0 NOs whose overrides yield **no** qualifying finding."
+- **A:** "Five consecutive gate-0 NOs whose overrides yield **a** qualifying finding."
+
+A's version breaks doc's own decision procedure three ways:
+
+1. Contradicts scoring rule at lines 91–102. Qualifying finding = high + GROUNDED + anchored outside `gate0_files` = **FALSE_NEGATIVE**. A labels that "Gates vindicated."
+2. Contradicts its own next bullet, line 113: "**Gates are costing real findings.** One override yields a qualifying finding." Same input, opposite verdict, two lines apart.
+3. Breaks the arithmetic it cites. Rule of three (≤3/n) only bounds a rate when observed count is **zero**. Line 139 says tally reports "the rule-of-three bound **when the count is zero**." A's branch has count 5, so ≤60%/≤30%/≤20% numbers are nonsense.
+
+Operator following A misreads FALSE_NEGATIVE as vindication — inverts the one action the ledger exists to trigger. B is internally consistent end to end.
+
+## 3. GAP
+
+Line 110 in A: change `yield a qualifying finding` to `yield no qualifying finding`. Word "a" makes the "Gates vindicated" branch fire on exactly the evidence the scoring rule (lines 91–102) defines as FALSE_NEGATIVE, and voids the rule-of-three bound quoted in same bullet, which requires zero observed events.
+
+## Neither is first-rate against the goal
+
+Goal: *states how to run this tool, completely and in one place.* B is nearer but not close:
+
+- Doc's own header says it documents machinery **that no longer exists** ("gates were deleted on branch `drop-judge-lane`", "nothing in the loop calls either one"). Run instructions for dead scripts.
+- Only two commands total: `node scripts/refusal-tally.mjs` and `scripts/refusal-log.mjs ... see --help`. Second one defers to `--help` — direct violation of "in one place." No flags, no arguments, no sample output inlined.
+- Central operation has **no command at all**. "A gate-0 NO triggers the width-1 lane anyway — bar writer, one critic, verifier" — never says how to invoke it.
+- Zero prerequisites: no node version, no install step, no working directory, no path for `refusals.jsonl` relative to what.
+- No end-to-end sequence. Reader can't go from "I want to run this" to a finished run.
+
+## 4. INSPECTED
+
+- Read both files whole (140 lines each).
+- `diff -u b/subject.md a/subject.md` — single hunk, line 110, one word.
+- `ls -la` both dirs — 6071 vs 6070 bytes; each dir holds only `subject.md`. No `scripts/`, no `refusals.jsonl`, no `SKILL.md`. Nothing executable to run, so every quoted command and every `SKILL.md:NN` line reference is unverifiable from what shipped.

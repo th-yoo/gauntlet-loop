@@ -1,0 +1,24 @@
+**1. WINNER — B**
+
+**2. WHY**
+
+Files byte-identical except one word, line 20:
+
+- A: "Kept because a plan is evidence of what was intended at the time, which is exactly what a later reader **can** reconstruct."
+- B: "...which is exactly what a later reader **cannot** reconstruct."
+
+B's clause carries the "Kept because." Intent-at-the-time is not recoverable from surviving code or git history — that is the reason to keep a stale plan. A's clause refutes its own premise: if a later reader can reconstruct intent, keeping the plan is pointless. A is a self-defeating non-sequitur in the middle of a retention rationale. That is the whole separation, and it is real: one sentence justifies a decision, the other argues against it.
+
+**Neither is close to the stated goal.** Goal: *state how to run this tool, completely and in one place.* Both documents are a `docs/` folder index — what lives here, what was deleted, what is deliberately unpublished. Grep across both: zero commands, zero invocations, zero prerequisites, zero arguments, zero examples, zero expected output. B wins only because it is nearer by one coherent sentence, not because it does the job.
+
+**What B still lacks** (all of it): the invoke command (`/gauntlet-loop:loop` or whatever the entry point is), required arguments (candidate artifact, reference artifact, goal statement), prerequisites (plugin install, git repo, model access), what a round does, how to read the verdict, how to stop it (`cancel-loop`), and failure modes. Right now the document tells a reader what *notes* exist about the tool while never telling them how to start it. Against the goal it scores near zero; it is a docs-directory README wearing the wrong label.
+
+**3. GAP**
+
+Line 20 in A reads `can reconstruct` where the argument requires `cannot reconstruct`. The sentence exists to justify keeping a superseded plan file; with `can`, it states that the plan's only asset (recorded intent) is already available elsewhere, which is a reason to delete the file, not keep it. Flip that one word and A is byte-equal to B.
+
+**4. INSPECTED**
+
+- Read `b/subject.md` (Artifact A) and `a/subject.md` (Artifact B) in full, 64 lines each.
+- `diff -u b/subject.md a/subject.md` — one hunk, one line, `can` vs `cannot`.
+- `find . -type f` — only the two subject files present; no runnable tool, no README, no `SKILL.md` in the trial directory, so nothing to execute against. The referenced paths (`skills/gauntlet-loop/references.md`, `critic-prompt.md`, `runs/`, `decisions/`) do not exist here — every internal link in both documents dangles, equally in both.

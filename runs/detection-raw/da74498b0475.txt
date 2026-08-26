@@ -1,0 +1,43 @@
+## 1. WINNER
+
+**A** (`b/subject.md`).
+
+Thin win. Both documents fail the stated goal almost entirely — more on that below.
+
+## 2. WHY
+
+Documents are byte-identical except one token on line 13:
+
+- A: `` `0001-who-reads-the-sweep.md` ``
+- B: `` `8-who-reads-the-sweep.md` ``
+
+Three concrete reasons A's form is better:
+
+**Sorts correctly.** A `decisions/` log is read in order. Unpadded `8-` breaks lexical sort the moment the directory reaches ten entries — `10-`, `11-` land *before* `8-` in `ls`, in a file tree, in every git listing. `0001-` never does. This is a real defect, not taste.
+
+**Matches the convention the directory is.** `decisions/` with "evidence it rested on and what would reopen it" is an ADR log. Zero-padded 4-digit (`0001-title.md`, Nygard / `adr-tools`) is the dominant convention. B invents a local numbering for no gain.
+
+**Less collision with surrounding numbers.** Same sentence carries "issue 46's fifth root cause and its own option 4"; paragraph ends "issue #9". A bare `8-` reads as if it might be a cross-reference to one of those. `0001-` cannot be misread as anything but a sequence position.
+
+Minor extra: `0001` asserts "first decision recorded," consistent with a note that accounts for the whole directory. `8` implies seven decisions the "What is here" section never mentions.
+
+## 3. GAP
+
+Loser must change `8-who-reads-the-sweep.md` to `0001-who-reads-the-sweep.md` (zero-padded, 4-digit) and rename the file on disk to match — otherwise `decisions/` stops sorting in decision order at the tenth entry, and a bare single digit sitting beside "issue 46", "option 4", "issue #9" in the same sentence reads as a cross-reference rather than a sequence index.
+
+## 3b. WHAT IS MISSING FROM THE WINNER
+
+Harsh part. Goal: *"the document states how to run this tool, completely and in one place."* **A does not do this. Neither does B. Neither is close.**
+
+Zero run instructions in 64 lines. No install step. No invocation — no `/loop`, no command line, no entry point. No arguments, no reference vs candidate paths, no termination condition, no prerequisites, no example session, no output location. The word "run" appears only as `runs/` (a records directory) and "the first gauntlet run" (historical).
+
+What A actually is: a `docs/` inventory note plus a provenance confession about an unpublished ledger. Well-written for that job — the "What is deliberately not here" section is genuinely honest, states the 0/2/1/2 numbers, and flags them as unverifiable rather than laundering them. But it is a different document than the one the goal asks for. It documents a directory; the goal asks it to document an operation.
+
+A wins because a token in it is right and the same token in B is wrong. That is the whole margin. Judged against the goal, A scores near zero and B scores near zero, and the winner earned the verdict on a filename, not on doing the job.
+
+## 4. INSPECTED
+
+- Read both files in full (64 lines each).
+- `diff -u b/subject.md a/subject.md` — exactly one changed line (13), one changed token.
+- `find` over trial dir — only the two `subject.md` files; no repo, no `decisions/`, no `SKILL.md`, no `README.md`, nothing runnable. Every path the documents cite (`skills/gauntlet-loop/references.md`, `test/orchestration.test.mjs`, `runs/2026-08-25-oracle-fork-bomb/`) is unresolvable here, so link-resolution could not be tested against either.
+- Grepped both for run-instruction content (`run`, `install`, `usage`, command syntax) — no invocation present in either.

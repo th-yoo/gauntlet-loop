@@ -1,0 +1,29 @@
+## 1. WINNER
+
+**A** — forced pick only. Files byte-identical. `cmp` silent, `diff` empty, both 6071 bytes. No dimension separates them because there is no difference to find. Picking A is coin flip, not verdict. Refuse to invent a distinction that measurement says does not exist.
+
+## 2. WHY
+
+Nothing separates them. What matters instead: **the shared artifact fails the goal outright.**
+
+Goal = "states how to run this tool, completely and in one place." Doc does none of three.
+
+- **Not a run-guide.** Own header: *"Nothing here describes what the plugin does today."* Doc declares itself historical machinery, gates 0–7, deleted on `drop-judge-lane`. Body is a measurement-design argument (rule of three, Wilson interval, counterexample framing), not operation.
+- **Not complete.** Two runnable lines total in 140 lines: `scripts/refusal-log.mjs ... see --help` and `node scripts/refusal-tally.mjs`. No install, no Node version, no working directory, no arguments, no env, no sample output, no exit codes, no path root for `refusals.jsonl`, no way to create it. Neither script exists in tree — only file present is `subject.md`.
+- **Not in one place.** Defers three times to line-anchored external refs: `SKILL.md:35`, `SKILL.md:37`, `SKILL.md:97`. Header then admits the anchors are stale: *"the line this file quotes as `SKILL.md:35` is not in it."* Doc points outward, and points wrong.
+
+Header block is the one honest, well-built part — precise about what died and why the prose is retained. That honesty is also the self-indictment: it certifies the doc is not the thing the goal asks for.
+
+## 3. GAP
+
+**Doc never names the command that starts the tool.** Both files describe a bookkeeping side-ledger for a deleted subsystem and reference two scripts that are not in the tree — but there is no entry point for the tool itself: no install step, no invocation line, no arguments, no expected output.
+
+Concretely missing, at top, before any prose: prerequisites (Node version, install command), the working directory the commands assume, the single command that runs the tool end to end with a real example argument, its flags with defaults, one pasted sample of successful output, and what non-zero exit means. Everything the reader needs must be resolvable without opening `SKILL.md` — today the reader cannot start the tool from this file at all, at any point in it.
+
+## 4. INSPECTED
+
+- Read full text of `b/subject.md` and `a/subject.md` (140 lines each).
+- `diff b/subject.md a/subject.md` — no output.
+- `cmp a/subject.md b/subject.md` — no output. Byte-identical.
+- `ls -laR` on trial root — both 6071 bytes, same mtime; no other files, no `scripts/`, no `SKILL.md`, no `refusals.jsonl`.
+- Commands in doc not executed: referenced scripts absent from tree.

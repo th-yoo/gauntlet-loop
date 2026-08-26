@@ -1,0 +1,12 @@
+{
+  "trial_id": "t07-section-removal",
+  "opaque": "91f274a20e85",
+  "source": "oracle/README.md",
+  "defect_class": "section-removal",
+  "degraded_side": "A",
+  "removed": "## What a row is\n\n`corpus.jsonl`, one JSON object per line. A row pairs an artifact with a goal and an\nexpected role — and with the **evidence that settles it**.\n\n**How a row is grounded and what answer it expects are two facts, and a row carries both\nseparately.** `--grounding` names only the first:\n\n- `mechanical` — a shell command. `scripts/oracle-add.mjs` runs it, here, now, and refuses\n  to write the row unless it exits 0. What that establishes is that executing the artifact\n  reaches the deliverable, so the answer is `does-the-work`. No model is consulted, and a\n  command that mentions one is refused: a ground truth produced by the kind of judgement\n  under test cannot audit that judgement.\n- `absence` — the same command, establishing that there is nothing at the path\n  (`test ! -e`). The answer is `could-not-open`.\n- `agentic` — no mechanical acceptance test exists (\"this document is a request addressed\n  to someone else\" is not a shell exit code), so the artifact is executed by an agent, the\n  emission is kept, and a **second** agent classifies that emission. The answer is READ\n  FROM that classification, whichever way it went — see `generator-procedure.md`.\n\nThese used to be one flag, `--arm`, which meant the answer, the grounding and the evidence\nat once. That made a whole combination unstorable: an artifact only an agent can execute\nwhose emission turns out to be a *completed answer*. Two of those exist and had nowhere to\nlive (#49). A fourth arm would have been one entry per case; reading the label off the\nevidence is one rule.\n",
+  "inserted": "",
+  "where": "the section beginning \"## What a row is\"",
+  "degraded_hash": "sha256:6c4a4376f21dc4dd614af6c37c4a257276dd54c5f9cae50c49e48ab4ae864cb0",
+  "original_hash": "sha256:161b0dea08dd34694478e10cb5f06419df5d626fedb5cb02abdc1e3214e6d369"
+}

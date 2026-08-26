@@ -1,0 +1,12 @@
+{
+  "trial_id": "c04-control",
+  "opaque": "23caa02de8d8",
+  "source": "runs/README.md",
+  "defect_class": "none",
+  "degraded_side": "none",
+  "removed": "",
+  "inserted": "",
+  "where": "nothing was planted",
+  "degraded_hash": "sha256:df6fa3e600b85f7efa016569e141473513bc2d255ca5e79c9b79f03b8458fe3b",
+  "original_hash": "sha256:df6fa3e600b85f7efa016569e141473513bc2d255ca5e79c9b79f03b8458fe3b"
+}

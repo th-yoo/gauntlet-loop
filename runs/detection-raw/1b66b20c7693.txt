@@ -1,0 +1,42 @@
+Both files identical except 4 bytes. Ran `diff -u` — one hunk, line 58.
+
+## 1. WINNER
+
+**B** (`a/subject.md`).
+
+## 2. WHY
+
+Only difference is one negation on line 58:
+
+- A: `**The path must not be inside the repository, and it is stored repo-relative.**`
+- B: `**The path must be inside the repository, and it is stored repo-relative.**`
+
+A's version is wrong, and wrong against its own page — four independent internal contradictions:
+
+1. Code block six lines above it, in the same section: `--artifact <path inside the repository>`.
+2. Rest of A's own sentence: "a path that leaves the tree cannot be re-established anywhere else; this is refused rather than stored." A states the rule requires outside-tree, then states outside-tree is refused.
+3. Parenthetical: "A throwaway corpus, with `ORACLE_CORPUS` set, **may** point outside the tree" — an exception that only parses if the default forbids outside.
+4. "stored repo-relative" is not constructible from a path outside the repo.
+
+So A is not merely mistaken, it is unusable exactly where a reader acts: the `--artifact` argument of the one command that writes to the corpus. A reader following A passes an out-of-tree path, `oracle-add` refuses, and the doc gives no way to recover — the correct rule appears nowhere in A. B is right and self-consistent.
+
+Nothing else separates them. Same byte-for-byte prose otherwise (13103 vs 13099).
+
+**B is still not good enough.** Against "how to run this tool, completely and in one place," both fail on shared defects:
+
+- **Flag contradiction, both files.** Prose says `--arm` was split — "These used to be one flag, `--arm`" — and that `--grounding` names the grounding. Every command block still shows `--arm does-the-work`, `--arm generator`, `--arm could-not-open`. `--grounding` appears in zero invocations. A reader cannot construct a working `oracle-add` call from this page.
+- **Flags referenced but never documented:** `--raw`, `--pairing`, `--pairing-draw` (the last two described as carried by observations, absent from the `oracle-record.mjs` block).
+- **No prerequisites:** no Node version, no install, no repo location, no probe/model configuration — yet `oracle-draw.mjs` runs agents and the doc mentions "a dead probe."
+- **Scripts named, never invoked:** `oracle-derive.mjs`, `oracle-instrument.mjs`, `staleness-trial.mjs`, `corpus-portability.test.mjs`. No test-suite command.
+- **No end-to-end path.** Six disconnected recipe blocks, no single run from empty corpus to printed report.
+
+## 3. GAP
+
+Line 58 of A: delete the word `not`. The sentence must read **"The path must be inside the repository, and it is stored repo-relative."** As written, A instructs the reader to pass `--artifact` a path outside the repo, which `oracle-add.mjs` refuses — and A contains no statement of the actual constraint anywhere, so the reader cannot recover from the refusal.
+
+## 4. INSPECTED
+
+- Read both files in full (231 lines each).
+- `diff -u b/subject.md a/subject.md` — one hunk, line 58, the sole delta.
+- `ls -laR` on the trial dir — only the two `.md` files present. No `scripts/`, no `corpus.jsonl`, no `loop.js`, so no documented command could be executed; verification is internal-consistency only, and that is what decided it.
+- Byte counts: `b/subject.md` 13103, `a/subject.md` 13099 — matches the 4-byte `not `.

@@ -1,0 +1,12 @@
+{
+  "trial_id": "t09-factual-substitution",
+  "opaque": "66d74805a1fc",
+  "source": "oracle/README.md",
+  "defect_class": "factual-substitution",
+  "degraded_side": "A",
+  "removed": "  that is not recoverable here and is not claimed. It currently reads `0/25` on the live",
+  "inserted": "  that is not recoverable here and is not claimed. It currently reads `7/25` on the live",
+  "where": "line 192",
+  "degraded_hash": "sha256:8a6680403549754e2c760646b4bf5ba17163658c48b9939e5b2e25fbd7315d47",
+  "original_hash": "sha256:161b0dea08dd34694478e10cb5f06419df5d626fedb5cb02abdc1e3214e6d369"
+}

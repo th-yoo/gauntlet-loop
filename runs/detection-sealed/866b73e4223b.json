@@ -1,0 +1,12 @@
+{
+  "trial_id": "c01-control",
+  "opaque": "866b73e4223b",
+  "source": "skills/gauntlet-loop/SKILL.md",
+  "defect_class": "none",
+  "degraded_side": "none",
+  "removed": "",
+  "inserted": "",
+  "where": "nothing was planted",
+  "degraded_hash": "sha256:1c2b7008ce8303d5ffecf3a263c2e3a0eb85b6d75daf91d8cc3effd798f62db0",
+  "original_hash": "sha256:1c2b7008ce8303d5ffecf3a263c2e3a0eb85b6d75daf91d8cc3effd798f62db0"
+}

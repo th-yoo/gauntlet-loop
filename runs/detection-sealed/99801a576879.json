@@ -1,0 +1,12 @@
+{
+  "trial_id": "c05-control",
+  "opaque": "99801a576879",
+  "source": "docs/README.md",
+  "defect_class": "none",
+  "degraded_side": "none",
+  "removed": "",
+  "inserted": "",
+  "where": "nothing was planted",
+  "degraded_hash": "sha256:6e10fce8d04b7e3eecc36acc97b219b7ad2e209d02e37bf6d8592ea4351f0388",
+  "original_hash": "sha256:6e10fce8d04b7e3eecc36acc97b219b7ad2e209d02e37bf6d8592ea4351f0388"
+}

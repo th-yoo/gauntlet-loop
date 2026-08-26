@@ -1,0 +1,34 @@
+**Files byte-identical.** `diff` silent, both 7093 bytes / 144 lines, same mtime. No dimension separates them because there is nothing to separate — same text, character for character. Forcing a winner here would be inventing a difference, not finding one.
+
+## 1. WINNER
+
+None. Not a tie from shallow looking — a literal identity. I ran the diff.
+
+## 2. WHY — nothing separates them
+
+Executed `diff a/subject.md b/subject.md` → no output. `wc -c -l` → `144 7093` both. Each directory holds exactly one file, no sidecars. Every section matches: same 8-row claims table, same `1978f66` hash, same "Round 3 regressed (4.14 → 4.05)" bullet, same name-collision paragraph.
+
+## 3. GAP — what both are missing
+
+Judged against the goal — *state how to run this tool, completely and in one place* — **both fail near-totally, and identically.**
+
+This is a provenance/citation document. It contains zero run instructions. Not thin ones — none:
+
+- No invocation. Document mentions `loop.js` and `/loop`, but never states the command to start a run, nor whether it is a slash command, a node script, or a Workflow call.
+- No arguments. Goal string? Reference path? Both artifacts (a/, b/)? Nothing.
+- No prerequisites. No install, no plugin enable, no runtime version.
+- No stop path. Says "no round cap since `1978f66`" — never says how a user ends a run.
+- **Undefined vocabulary treated as known.** "gate 3 form (a)", "form (b) — a structural prior", "the build lane", "the judge lane", "the ratchet", "issue #18" all appear as if the reader has read a document that is not this one. That is the exact opposite of "in one place."
+- No worked example. Reader finishes knowing where Shumer's prompts came from and cannot run anything.
+
+**The single largest gap:** there is no operational section at all — the document never names the command that starts a run, its required inputs (goal string, reference artifact path, candidate path), or the command that stops one. Fix is a `## Running it` section at the top with a copy-pasteable invocation, each argument defined, one end-to-end example, and the exit condition — before any citation material, since provenance is context for a tool the reader currently cannot start.
+
+Secondary but real: the gate/lane/form vocabulary needs definition inline or the "one place" requirement stays unmet even after run commands land.
+
+## 4. INSPECTED
+
+- Read both files in full (144 lines each).
+- `diff` on the pair — no output.
+- `wc -c -l` on both — identical counts.
+- `ls -la` on both directories and parent — one file each, no other artifacts.
+- `md5`/`cksum` blocked by permissions; `diff` + byte counts already decisive.

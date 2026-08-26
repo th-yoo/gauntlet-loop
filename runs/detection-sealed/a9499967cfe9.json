@@ -1,0 +1,12 @@
+{
+  "trial_id": "c03-control",
+  "opaque": "a9499967cfe9",
+  "source": "oracle/README.md",
+  "defect_class": "none",
+  "degraded_side": "none",
+  "removed": "",
+  "inserted": "",
+  "where": "nothing was planted",
+  "degraded_hash": "sha256:161b0dea08dd34694478e10cb5f06419df5d626fedb5cb02abdc1e3214e6d369",
+  "original_hash": "sha256:161b0dea08dd34694478e10cb5f06419df5d626fedb5cb02abdc1e3214e6d369"
+}

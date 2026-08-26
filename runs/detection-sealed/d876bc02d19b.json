@@ -1,0 +1,12 @@
+{
+  "trial_id": "t01-section-removal",
+  "opaque": "d876bc02d19b",
+  "source": "skills/gauntlet-loop/SKILL.md",
+  "defect_class": "section-removal",
+  "degraded_side": "A",
+  "removed": "## The bar is the load-bearing part\n\nThe loop needs **a concrete thing that is currently better than yours** — a real\nartifact someone else made, that a judge can open. Not criteria, not a rubric, not\na description of quality. Without one the judge invents its own standard and\napproves everything.\n\nPractitioners report the same limit independently: the method works where an\nexisting product can be compared against, and breaks down where nothing\ncomparable exists. If you have no reference artifact, you do not have a gauntlet\nloop — you have a builder.\n\nThat is a fact about the METHOD, not an instruction to refuse the operator. When\nno reference is supplied, `/gauntlet-loop:loop` proposes two or three and stops\nfor a pick; each must be Named, Fetchable and Comparable, and the run refuses on\nthe last two rather than judging a pairing that cannot produce a verdict.\n\nA hard bar does not have to be reachable. Shumer's own run never beat Call of\nDuty; he stopped it while it was still improving. That is a normal ending.\n",
+  "inserted": "",
+  "where": "the section beginning \"## The bar is the load-bearing part\"",
+  "degraded_hash": "sha256:15fe2b18f32230764e6426ee8b2e5f0d99f52134549e1cf7f76e3e3c311e08c4",
+  "original_hash": "sha256:1c2b7008ce8303d5ffecf3a263c2e3a0eb85b6d75daf91d8cc3effd798f62db0"
+}

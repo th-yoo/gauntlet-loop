@@ -1,0 +1,32 @@
+**1. WINNER — A**
+
+**2. WHY**
+
+Files byte-identical except one word, line 36. Diff:
+
+```
+-a reference is supplied, `/gauntlet-loop:loop` proposes two or three and stops
++no reference is supplied, `/gauntlet-loop:loop` proposes two or three and stops
+```
+
+B says when reference **is** supplied, loop proposes two or three references and stops for pick. Nonsense on three counts:
+
+- Paragraph before it ends "If you have no reference artifact, you do not have a gauntlet loop — you have a builder." Next sentence: "That is a fact about the METHOD, **not an instruction to refuse the operator.**" That clause only resolves if the loop does something helpful in the *missing*-reference case. B's version leaves the no-reference case undocumented, so the "not a refusal" promise has no referent.
+- Proposing alternate references when operator already gave one is incoherent — nothing to pick.
+- Arg table line 60: `reference` = "absolute path to the real thing it is judged against"; line 59 `candidate` = "built from nothing if absent". Parallel structure is absent-arg handling. A matches it, B contradicts it.
+
+Against the goal — document how to run this tool completely — B mis-states behavior of the launch path most operators hit first (run without reference). That is a run-procedure error, not a stylistic one. A operator reading B either believes the tool refuses when reference missing, or expects a pick-list on every launch. Both wrong.
+
+Neither artifact is first-rate. Shared defect, present in both: "Running it" never shows an invocation carrying arguments. It says the command asks interactively for goal/candidate/reference/critics — then tables seven args including `inspect`, `on_refusal`, `token`, which the interactive prompt list never covers. No syntax shown for supplying them. `BUDGET` status says "the target you pre-committed in the launch message" — how to pre-commit a budget appears nowhere. No prerequisites, no worked example, no statement of where the verdict lands. A is nearer; that is what is still missing from it.
+
+**3. GAP**
+
+B line 36 inverts the launch precondition: it documents the propose-references-and-stop behavior as firing when a reference **is** supplied, which leaves the no-reference launch path — the one the two preceding paragraphs set up, and the one the `candidate`/`reference` arg rows imply is handled — with no documented behavior at all. Change `When a reference is supplied` to `When no reference is supplied`.
+
+**4. INSPECTED**
+
+- Read both files in full (319 lines each).
+- `diff -u b/subject.md a/subject.md` — one hunk, one word.
+- `wc -c` — 20601 (B) / 20602 (A); the 1-byte delta is exactly `a`→`no`.
+- `ls -laR a b` — one file per side, no supporting files, identical mtimes.
+- Cross-checked line 36 against lines 30–41 (bar section), 44–64 (Running it, arg table), 180 (`BUDGET`) for internal consistency.

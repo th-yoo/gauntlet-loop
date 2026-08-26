@@ -319,8 +319,21 @@ async function draw() {
   mkdirSync(RAW_DIR, { recursive: true })
 
   const ids = readdirSync(SEALED_DIR).filter(f => f.endsWith('.json')).map(f => f.replace(/\.json$/, '')).sort()
+  // KEYED ON THE OPAQUE ID, because that is what `ids` holds and what names every
+  // file on disk. This read `.trial_id`, so nothing in `done` ever matched
+  // anything in `ids` and the draw silently re-ran trials it had already done
+  // instead of the one it had missed.
+  //
+  // Third instance of one root cause: `opaque` was introduced to blind the trial
+  // tree, and `trial_id` kept being used as the key in places that now index by
+  // file. The other two were the prompt-hash map in reparse and this. A fix
+  // placed only where something broke leaves every other derivable fact
+  // unguarded, so both id fields are now written on every row and the rule is
+  // one line: anything indexed BY FILE uses `opaque`, anything a human reads
+  // uses `trial_id`.
   const done = existsSync(LEDGER)
-    ? new Set(readFileSync(LEDGER, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l).trial_id))
+    ? new Set(readFileSync(LEDGER, 'utf8').split('\n').filter(Boolean)
+        .map(l => { try { return JSON.parse(l).opaque } catch { return null } }).filter(Boolean))
     : new Set()
 
   const todo = ids.filter(id => !done.has(id)).slice(0, LIMIT)
@@ -407,6 +420,7 @@ async function draw() {
         : picked !== note.degraded_side,
       named_defect: namedDefect(out, note),
       prompt_hash: sha(prompt),
+      prompt_template_hash: templateHash(prompt, aPath, bPath),
       response: rawRel,
       degraded_hash: note.degraded_hash,
     }
@@ -441,6 +455,23 @@ async function draw() {
 //
 // So it reads the heading AND the block under it, and anything it cannot read is
 // left null for a human rather than guessed at.
+// THE TEMPLATE HASH — the instrument, with this trial's inputs taken out.
+//
+// `prompt_hash` covers the exact bytes sent, paths included, so it is unique per
+// trial by construction. Pooling trials requires the opposite: evidence they were
+// judged by the SAME instrument. Redacting the two artifact paths leaves exactly
+// that, and a change to the critic prompt in loop.js still moves it.
+//
+// This repository has already fixed this once, at ab67932 — "the template hash
+// had the checkout path inside it" — for oracle-extract. Same lesson, same file
+// shape, learned again here because my reproducible asserted one distinct hash
+// across twenty trials, which no set of twenty could ever satisfy. A check that
+// cannot pass is as broken as one that cannot fail.
+function templateHash(prompt, aPath, bPath) {
+  const redacted = String(prompt).split(aPath).join('<ARTIFACT-A>').split(bPath).join('<ARTIFACT-B>')
+  return sha(redacted)
+}
+
 function parseWinner(text) {
   const lines = String(text).split('\n')
   const h = lines.findIndex(l => /^#{1,4}\s*\d*\.?\s*WINNER\b/i.test(l))
@@ -502,7 +533,7 @@ function declaredNoDifference(text) {
 }
 
 // REPARSE. Rebuilds the ledger from the raw responses already on disk. No spawns.
-function reparse() {
+async function reparse() {
   if (!existsSync(RAW_DIR)) { console.error('reparse: no raw responses on disk'); process.exit(2) }
   const files = readdirSync(RAW_DIR).filter(f => f.endsWith('.txt')).sort()
   const out = []
@@ -513,6 +544,9 @@ function reparse() {
     const note = JSON.parse(readFileSync(sealedPath, 'utf8'))
     const text = readFileSync(join(RAW_DIR, f), 'utf8')
     const picked = parseWinner(text)
+    const aP = join(STAGE_DIR, id, 'a', 'subject.md')
+    const bP = join(STAGE_DIR, id, 'b', 'subject.md')
+    const prompt = await capturePrompt(aP, bP)
     out.push({
       trial_id: note.trial_id, opaque: id, defect_class: note.defect_class, degraded_side: note.degraded_side,
       source: note.source, picked,
@@ -528,7 +562,19 @@ function reparse() {
         : picked !== note.degraded_side,
       declared_no_difference: declaredNoDifference(text),
       named_defect: namedDefect(text, note),
-      prompt_hash: PROMPT_HASHES.get(id) || null,
+      // RECOMPUTED, not looked up. This read a map keyed on `trial_id` using the
+      // OPAQUE id, so every lookup missed and every row was rewritten with
+      // prompt_hash: null — silently, because `|| null` is indistinguishable
+      // from "there was none". The reproducible caught it, which is the first
+      // time one of my own guards caught one of my own defects rather than me
+      // finding it by reading a response.
+      //
+      // Recomputing is strictly better than fixing the key: the prompt is a pure
+      // function of the two paths and the goal, capturing it costs no live
+      // spawn, and a hash derived from the artifact can never disagree with the
+      // artifact the way a copied one can.
+      prompt_hash: sha(prompt || ''),
+      prompt_template_hash: prompt ? templateHash(prompt, aP, bP) : null,
       response: join('runs', 'detection-raw', f),
       degraded_hash: note.degraded_hash,
     })
@@ -538,19 +584,10 @@ function reparse() {
   console.log(`reparse: ${out.length} trial(s) rebuilt from raw responses — ${unparsed} unparsed`)
 }
 
-// Prompt hashes are recorded per trial at draw time; on a bare --reparse they are
-// read back out of the existing ledger so a re-parse never invents one.
-const PROMPT_HASHES = new Map()
-if (existsSync(LEDGER)) {
-  for (const l of readFileSync(LEDGER, 'utf8').split('\n').filter(Boolean)) {
-    try { const r = JSON.parse(l); if (r.trial_id && r.prompt_hash) PROMPT_HASHES.set(r.trial_id, r.prompt_hash) } catch {}
-  }
-}
-
 if (!has('--stage') && !has('--draw') && !has('--reparse')) {
   console.error('usage: node scripts/detection-draw.mjs --stage [--to <dir>] | --draw [--limit N] | --reparse')
   process.exit(2)
 }
 if (has('--stage')) stage()
 if (has('--draw')) await draw()
-if (has('--reparse')) reparse()
+if (has('--reparse')) await reparse()

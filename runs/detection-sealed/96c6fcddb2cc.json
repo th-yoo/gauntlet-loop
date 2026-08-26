@@ -1,0 +1,12 @@
+{
+  "trial_id": "t05-inverted-constraint",
+  "opaque": "96c6fcddb2cc",
+  "source": "skills/gauntlet-loop/references.md",
+  "defect_class": "inverted-constraint",
+  "degraded_side": "A",
+  "removed": "| critic inspects the real output | \"The critic should inspect the actual thing: the real pixels, running product, rendered page, test results, or finished writing. It should never grade a summary written by the builder.\" |",
+  "inserted": "| critic inspects the real output | \"The critic should inspect the actual thing: the real pixels, running product, rendered page, test results, or finished writing. It should always grade a summary written by the builder.\" |",
+  "where": "line 93",
+  "degraded_hash": "sha256:e2b6e77d203bb15efb3d7db112007ee42e605e46f2fc5af8afb9e622bb176dea",
+  "original_hash": "sha256:40c88e59e1476b81d06e6af5bb9371437b110fd1e1ac923f56b421fc69607651"
+}

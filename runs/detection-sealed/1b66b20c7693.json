@@ -1,0 +1,12 @@
+{
+  "trial_id": "t08-inverted-constraint",
+  "opaque": "1b66b20c7693",
+  "source": "oracle/README.md",
+  "defect_class": "inverted-constraint",
+  "degraded_side": "B",
+  "removed": "**The path must be inside the repository, and it is stored repo-relative.** Pass it",
+  "inserted": "**The path must not be inside the repository, and it is stored repo-relative.** Pass it",
+  "where": "line 58",
+  "degraded_hash": "sha256:31fcde36b07c98e565152f178aee17ca643f0b839b1d3b8abdc3404cd96614af",
+  "original_hash": "sha256:161b0dea08dd34694478e10cb5f06419df5d626fedb5cb02abdc1e3214e6d369"
+}

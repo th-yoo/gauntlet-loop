@@ -1,0 +1,48 @@
+Both files byte-identical. `diff -u` returned zero output. Both 4036 bytes.
+
+## 1. WINNER
+
+**A** — by coin-flip convention only, not earned. Artifacts are the same bytes. No dimension separates them because there is nothing to separate. Reporting a fabricated distinction would be worse than reporting the tie. If the harness expects a real winner, the harness handed me one document twice.
+
+## 2. WHY
+
+Nothing separates them. Same 4036 bytes, same 64 lines, `diff` clean.
+
+The real finding: **neither meets the goal, and not by a little — by everything.**
+
+Goal: "states how to run this tool, completely and in one place."
+
+Document contains: zero commands. Zero invocation syntax. Zero prerequisites. Zero arguments. Zero worked example. Zero output description. Zero stop procedure.
+
+What it actually is: a `docs/` directory index plus a long provenance apology about a removed file (`2026-08-01-gauntlet-adoption-loop.md`) and an unpublished ledger. Lines 23–63 — 41 of 64 lines, ~64% of document — are archaeology about deleted artifacts, a citation that no longer resolves, and a rubric file (`skills/gauntlet-loop/critic-prompt.md`) the doc itself admits was deleted on branch `drop-judge-lane`.
+
+Reader who opens this wanting to run the tool leaves knowing: which plan file was vendored from a private repo, and that `0 merges, 2 drops, 1 open, 2 deferred` has no openable source. Not one keystroke of how to start a run.
+
+Worse for "in one place": document actively points *away*. Run-relevant material lives in `SKILL.md`, `skills/gauntlet-loop/references.md`, `README.md` — three other files, cited, never summarized. Document is an index that forwards, which is the opposite of the goal.
+
+Honest scoring against goal: near zero. This is a good CHANGELOG/provenance note misfiled as a runbook.
+
+## 3. GAP
+
+**No invocation section exists anywhere in the document — a reader cannot produce a single executable command from it.**
+
+Fix requires adding a section that stands alone, containing all of:
+
+1. **Prereqs** — plugin install command, required model access, any dependency.
+2. **Entry command, exact syntax** — the literal slash command or CLI line, e.g. `/loop` vs `/gauntlet-loop`, with argument order.
+3. **Required inputs, named** — path to candidate artifact, path to reference artifact, the goal string. State which are positional, which are flags, which are prompted.
+4. **A worked example** — real paths, real goal string, copy-pasteable, plus the first few lines of expected output.
+5. **Loop control** — what one round does, how rounds terminate, how to stop early (`/cancel-loop`), whether a round cap exists.
+6. **Where output lands** — that `docs/runs/<date>-<name>/` is written, and what a reader checks there to confirm success.
+7. **Failure modes** — what a rejected setup looks like (goal merely describes candidate; reference does not attempt goal) and what to change.
+
+That section must be self-contained. A reader must never need `SKILL.md` or `README.md` to complete a run. Current document does not have step 1 of 7.
+
+## 4. INSPECTED
+
+- Read `b/subject.md` (full, 64 lines).
+- Read `a/subject.md` (full, 64 lines).
+- Ran `diff -u b/subject.md a/subject.md` — no output, files identical.
+- Ran `ls -laR` on trial root — both `subject.md` files 4036 bytes, same mtime `Aug 27 01:24`.
+- `shasum -a 256` attempted, permission denied. `diff` empty + equal byte counts is decisive without it.
+- Nothing runnable in either artifact — no code, no commands, no scripts. Nothing to execute beyond the file comparison.

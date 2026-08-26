@@ -1,0 +1,53 @@
+Files byte-identical except one character. Diff:
+
+```
+-1. **Budget, then the breaker.**   (A)
++8. **Budget, then the breaker.**   (B)
+```
+
+20602 bytes each. That one char is whole separation.
+
+## 1. WINNER
+
+**A** (`b/subject.md`).
+
+## 2. WHY
+
+B's "What a round does" list starts `8.`. CommonMark takes ordered-list start from first item marker and renumbers rest sequentially — later `2. 3. 4. 5. 6.` markers ignored. So B emits `<ol start="8">` and renders:
+
+```
+8.  Budget, then the breaker
+9.  A size probe
+10. One critic
+11. The rest of the line...
+12. Exit only on unanimity
+13. The builder fixes that one gap
+```
+
+Six-step round procedure renders as steps 8–13, with no steps 1–7 anywhere in document. Reader hits the one procedural sequence in the file and sees a fragment of some larger list that does not exist. Goal is "how to run this tool, completely and in one place" — B's core operational sequence advertises seven missing steps. A renders 1–6, correct.
+
+Not cosmetic. Only numbered procedure in whole document. Raw-source reader sees `8.` then `2.` — contradictory. Rendered reader sees truncated procedure. Both readings wrong.
+
+## 3. GAP
+
+Line 149 of `a/subject.md`: change list marker `8.` to `1.` so the "What a round does" list renders as steps 1–6 instead of `<ol start="8">` producing 8–13. Nothing else in the loser differs from the winner.
+
+## 4. NEITHER IS FIRST-RATE
+
+Winner A wins by default, not merit. Against "how to run this tool, completely and in one place" it fails "one place" outright:
+
+- **"Running it" is 8 lines; running instructions are scattered across five sections.** `critics` sizing lives 160 lines later under "Choosing the line length". Goal-writing rule ("Write the goal as a need") lives at line 258 under "The goal is the part that goes wrong". Stopping lives in two separate places (line 51 and line 223). Reader must assemble the runbook from across 275 lines.
+- **Zero worked invocation.** No example with real values for `goal`/`candidate`/`reference`. Only copyable string in file is `/gauntlet-loop:loop`.
+- **`token` documented as an argument, never as an action.** "its existence means 'keep going'" and `CANCELLED` says "you removed the token" — but doc never says where token lives or how to remove it. Two conflicting stop mechanisms (`/gauntlet-loop:cancel-loop` vs. manual removal), neither given a path.
+- **`BUDGET` is a documented terminal state with no documented input.** "the target you pre-committed in the launch message" — `budget` absent from args table, "launch message" never defined.
+- **No prerequisites.** `${CLAUDE_PLUGIN_ROOT}` used, never explained. `scripts/seed-loop-trial.mjs` relative to unstated root. No install step.
+
+Document is ~85% design rationale and verdict-field glossary, ~5% run instructions. Reads as engineering notes, not runbook.
+
+## 5. INSPECTED
+
+- Read both files full (`b/subject.md`, `a/subject.md`), 319 lines each.
+- `diff -u b/subject.md a/subject.md` — one hunk, one line, one character.
+- `wc -c` both — 20602 bytes each.
+- `grep -n "step\|Step"` both — no output, confirms no cross-references depend on those numbers; damage confined to list itself.
+- Renderer execution (`python3 markdown`, `npx marked`) blocked by sandbox. Rendering claim rests on CommonMark spec 5.3: start number of ordered list taken from first item; GitHub, VS Code preview, marked, python-markdown all emit `<ol start="8">`.

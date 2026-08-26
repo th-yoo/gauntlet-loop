@@ -1,0 +1,44 @@
+## 1. WINNER — **B**
+
+## 2. WHY
+
+Files are byte-identical (6071 bytes each) except one character pair. Only diff:
+
+```
+-spawns, ~150k (`SKILL.md:44`).      ← B
++spawns, ~150k (`SKILL.md:37`).      ← A
+```
+
+Everything else — every heading, every JSON block, every scoring condition — matches exactly. So verdict rests entirely on which anchor is more defensible. Neither is verifiable: sandbox holds only `a/subject.md` and `b/subject.md`. No `SKILL.md`, no `scripts/`, no `refusals.jsonl`. Reads outside trial dir blocked.
+
+Internal evidence favors B:
+
+- Doc anchors three claims: `SKILL.md:35`, `SKILL.md:{44|37}`, `SKILL.md:97`.
+- `:35` quote — *"Gates 0 and 1 are free and always run, so the sequence can always refuse without paying"* — is a long sentence, wraps to ~2 lines, so occupies 35–36.
+- A's `:37` therefore puts the width-1 lane roster (**bar writer, one critic, verifier, three spawns, ~150k**) in the *same paragraph* as the gates-are-free claim. Doc treats these as two separately citable facts; jamming them into one paragraph contradicts its own citation behavior.
+- B's `:44` sits ~9 lines later — separate block, consistent with a lane cost table. That table also explains why the doc's neighboring *"panel's ~950k margin"* carries no anchor of its own: same neighborhood, already covered.
+
+Thin margin. Inference, not proof. But it is the only dimension that separates them, and B is on the right side of it.
+
+## 3. GAP
+
+A cites `SKILL.md:37` for the width-1 lane spec, which lands two lines past the start of the 2-line wrapped quote already anchored at `SKILL.md:35` — meaning A claims one paragraph is simultaneously the gates-are-free statement and the three-spawn lane roster with a ~150k cost. Fix: repoint to the line where the lane cost block actually starts (B says 44), or verify against `SKILL.md` on the pre-`drop-judge-lane` commit and correct all three anchors together.
+
+## Both fail the goal — B is nearer, and what B still lacks
+
+Goal: *state how to run this tool, completely and in one place.* B does not do this. Grep for anything executable in either file yields exactly two hits:
+
+```
+62:`scripts/refusal-log.mjs` writes this for you; see `--help`.
+135:node scripts/refusal-tally.mjs
+```
+
+Missing from B: no install/setup, no repo or working directory, no node version, no `--help` output reproduced (doc defers to a flag on a script it has already declared dead), no argument list for `refusal-log.mjs`, no statement of where `refusals.jsonl` lives or who creates it, no way to invoke the loop itself. Worse, B's own header states `scripts/refusal-log.mjs` and `scripts/refusal-tally.mjs` read a schema nothing in the loop calls, and that the machinery was deleted — so the two commands it does print are documented as non-functional. A document whose sole runnable line is self-disclaimed as dead is not a runbook; it is a rationale essay with a header apologizing for itself.
+
+## 4. INSPECTED
+
+- Read `b/subject.md` (140 lines) and `a/subject.md` (140 lines) in full
+- `diff -u b/subject.md a/subject.md` — one hunk, line 72
+- `ls -la` + `find` on trial dir — only the two `subject.md` files exist; no `SKILL.md`, `scripts/`, or `refusals.jsonl` to check anchors or run either command against
+- `grep -nE "node |npm |npx |install|--help"` on A — 2 hits (identical in B)
+- Attempted to locate the real `SKILL.md` outside the trial dir — blocked by sandbox, so `:44` vs `:37` could not be settled by execution

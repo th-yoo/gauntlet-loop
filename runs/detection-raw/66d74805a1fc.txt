@@ -1,0 +1,39 @@
+Two files byte-identical except one token. Diffed, flag-inventoried both. No repo, no `scripts/`, no `corpus.jsonl` — nothing executable ships beside them, so nothing to run.
+
+## 1. WINNER — **B**
+
+## 2. WHY
+
+Sole difference, line 192:
+
+```
+-  that is not recoverable here and is not claimed. It currently reads `0/25` on the live   (A)
++  that is not recoverable here and is not claimed. It currently reads `7/25` on the live   (B)
+```
+
+Everything else identical byte-for-byte. So separation is whether that figure closes a run-instruction loop or leaves it open.
+
+B closes it. Doc tells reader to run `oracle-draw.mjs --pairing <id>`, but nowhere states in prose that draw-recorded observations become corroborated — the `corroborated N/M` bullet only defines the field ("names a response on disk whose fields were checked against it"). `7/25` is the only place the doc demonstrates the link: 7 exist, 18 predate `oracle-draw.mjs`, therefore running the draw tool populates the field. Reader learns what changes in report output when they use the documented command.
+
+A's `0/25` breaks that link. Under `0/25` no path documented anywhere produces a corroborated observation, so the field reads vestigial — reader running `oracle-draw.mjs` cannot tell from the doc whether corroboration is even reachable. Worse, the explanatory clause is partition-shaped: "because **everything predating** `oracle-draw.mjs` was recorded by hand." That phrasing presupposes a non-predating remainder. `0` denies the remainder exists, so the "because" explains a partition the number says isn't there. `7` is what the sentence as written is built to explain.
+
+Neither is first-rate against "how to run this tool, completely and in one place." Shared, unfixed in both:
+
+- **`--arm` / `--grounding` contradiction.** Line 30 says `--arm` was split — it "used to be one flag" meaning answer + grounding + evidence at once. Line 16 names `--grounding` as the successor. Then every single command block uses `--arm` (`--arm does-the-work`, `--arm generator`, `--arm could-not-open`). `--grounding` appears once in the doc, zero times in a command. Copy-paste the "Adding a row" block and you are running the flag the doc just deprecated.
+- **`--raw` cited twice as a live report residual, never documented.** No syntax, no which-script.
+- **`oracle-draw.mjs` recording flags orphaned.** `--pairing` and `--pairing-draw` described as carried by each side, but the only shown `oracle-draw` invocations are `--pairing <id>` / `--all-pairings`; no shown command takes `--pairing-draw`. Reader cannot construct the hand-recorded pairing the doc explicitly warns is possible.
+- **No prerequisites.** No node version, no install step, no `ORACLE_CORPUS` default value or format — mentioned only as "set" in a parenthetical.
+- **No output samples, no exit-code list.** Non-zero exit on superseded cohort is prose only; `LIVE`/`SUPERSEDED`/`UNKNOWN INSTRUMENT` labels never shown as they print.
+- **No end-to-end path.** Six command blocks, no ordering — add row, pair, draw, extract, record, report never assembled into one runnable sequence.
+
+## 3. GAP
+
+A's `corroborated 0/25` leaves the corroboration field unreachable by any documented command. Fix: state the figure as a partition that a documented action produces — `7/25` — **and** name the mechanism in the bullet, so `oracle-draw.mjs` writing a response to disk is what makes an observation corroborated. As A stands, a reader who runs every command in the doc has no way to learn what raises that numerator, and the "everything predating `oracle-draw.mjs`" clause promises a remainder the `0` contradicts.
+
+## 4. INSPECTED
+
+- Read both files whole (231 lines each).
+- `diff -u` — one changed line, line 192, `0/25` vs `7/25`.
+- `find` on trial dir — only the two `subject.md`; no `scripts/`, no `corpus.jsonl`, no `test/`, so none of the ~9 commands documented could be executed.
+- `grep -o -- '--[a-z-]*' | sort | uniq -c` — flag inventory, identical both: `--arm` ×4 vs `--grounding` ×1; `--raw` ×1 with no syntax.
+- `grep -n 'grounding\|--raw\|oracle-draw.mjs --\|ORACLE_CORPUS'` — confirmed `--grounding` never in a command block, `--raw` never defined, `ORACLE_CORPUS` never given a value.

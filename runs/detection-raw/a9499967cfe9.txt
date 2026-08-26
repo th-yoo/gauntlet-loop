@@ -1,0 +1,38 @@
+Ran `cmp a/subject.md b/subject.md` — silent exit. Byte-identical, 13099 bytes each. `diff` empty. Not "nearly same" — same file.
+
+## 1. WINNER
+
+**A**, by convention only (first listed). No quality dimension separates them because no byte separates them. Recording that as a real preference would be inventing a difference that does not exist. Verdict carries zero information about the artifacts.
+
+## 2. WHY
+
+Nothing. Same hash-length, same 231 lines, `cmp` finds no differing byte. Both are the identical document, so both share the identical failures against the goal *"states how to run this tool, completely and in one place."*
+
+Harsh read of that shared document — it is not first-rate:
+
+- **Rationale crowds out procedure.** Roughly half the text is justification and history: "Why this is not a registry", "This used to say the opposite", issue refs #33/#38/#49, commit `ebb630a`, `2q(1-q)`. Defensible content, wrong document. A run-guide that opens on epistemics of an evidence base and closes on selection bias has buried the runnable part.
+- **Named-but-unrunnable scripts.** `oracle-derive.mjs`, `oracle-instrument.mjs`, `scripts/staleness-trial.mjs`, `test/corpus-portability.test.mjs` all get cited as things that exist and do work. None gets an invocation. "In one place" fails for four of the eight scripts named.
+- **Undocumented required flag value.** `oracle-record.mjs` demands `--schema-fingerprint <hash>`. The only upstream step, `oracle-extract.mjs --json`, is described as printing "the **live** prompt ... plus its hash" — singular. Where the schema fingerprint comes from is never stated. Reader hits a hard stop mid-workflow.
+- **No cold-start section.** No node version, no install, no cwd requirement, no "run the suite" command. `ORACLE_CORPUS` appears once, inside a parenthesis, as prose — never as a documented knob with a default. `--raw` is referenced (line 127) as if already defined; it never was.
+- **Two of three arms have no copyable command.** Only `does-the-work` gets a fenced block. `generator` and `could-not-open` are described in paragraphs and must be assembled by hand.
+
+## 3. GAP
+
+**The document's central taxonomy has no runnable form: it introduces `--grounding` with three values, then never uses it in a single command, while every command uses the `--arm` flag it describes as superseded.**
+
+Line 16: "`--grounding` names only the first". Lines 18–28 define its values `mechanical` / `absence` / `agentic`. Line 30: "These used to be one flag, `--arm`, which meant the answer, the grounding and the evidence at once."
+
+Then line 51: `node scripts/oracle-add.mjs --arm does-the-work`. Line 75: `--arm generator`. Line 82: `--arm could-not-open`. `--grounding` appears in zero invocation.
+
+Reader cannot determine: is `--grounding` required, optional, or inferred? Are both flags passed together (`--arm does-the-work --grounding mechanical`)? For `agentic` the answer is stated to be "READ FROM that classification" — so is `--arm` forbidden there, yet line 75 shows `--arm generator`? The first command a user types to add a row cannot be typed correctly from this document.
+
+Fix: make every fenced example show the actual current flag set — one complete, copyable `oracle-add.mjs` invocation per grounding (`mechanical`, `absence`, `agentic`), each showing exactly which of `--arm` and `--grounding` are passed and with what values — and state explicitly whether `--arm` still exists or was replaced.
+
+## 4. INSPECTED
+
+- `Read` full text, both files (231 lines each).
+- `ls -laR` on the trial directory — two dirs, one file each, both 13099 bytes, same mtime.
+- `wc -c` both: `13099` / `13099`.
+- `cmp a/subject.md b/subject.md` — no output, files byte-identical.
+- `diff a/subject.md b/subject.md` — no output.
+- Cross-checked `--arm` / `--grounding` occurrences against lines 16, 18–30, 51, 75, 82; `--schema-fingerprint` against lines 137 and 145; `--raw` against line 127.

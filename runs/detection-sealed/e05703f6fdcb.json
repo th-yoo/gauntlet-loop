@@ -1,0 +1,12 @@
+{
+  "trial_id": "c02-control",
+  "opaque": "e05703f6fdcb",
+  "source": "skills/gauntlet-loop/references.md",
+  "defect_class": "none",
+  "degraded_side": "none",
+  "removed": "",
+  "inserted": "",
+  "where": "nothing was planted",
+  "degraded_hash": "sha256:40c88e59e1476b81d06e6af5bb9371437b110fd1e1ac923f56b421fc69607651",
+  "original_hash": "sha256:40c88e59e1476b81d06e6af5bb9371437b110fd1e1ac923f56b421fc69607651"
+}

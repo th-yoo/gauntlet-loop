@@ -1,0 +1,12 @@
+{
+  "trial_id": "t06-factual-substitution",
+  "opaque": "b1fd7d576c02",
+  "source": "skills/gauntlet-loop/references.md",
+  "defect_class": "factual-substitution",
+  "degraded_side": "B",
+  "removed": "## Recorded outcomes — gate 3 form (a) material",
+  "inserted": "## Recorded outcomes — gate 10 form (a) material",
+  "where": "line 99",
+  "degraded_hash": "sha256:b5e8751489b05e2aba64838d39e62b8390651e739a06918584fdc9a7f501e0b7",
+  "original_hash": "sha256:40c88e59e1476b81d06e6af5bb9371437b110fd1e1ac923f56b421fc69607651"
+}

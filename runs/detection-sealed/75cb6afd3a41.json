@@ -1,0 +1,12 @@
+{
+  "trial_id": "t02-inverted-constraint",
+  "opaque": "75cb6afd3a41",
+  "source": "skills/gauntlet-loop/SKILL.md",
+  "defect_class": "inverted-constraint",
+  "degraded_side": "B",
+  "removed": "no reference is supplied, `/gauntlet-loop:loop` proposes two or three and stops",
+  "inserted": "a reference is supplied, `/gauntlet-loop:loop` proposes two or three and stops",
+  "where": "line 36",
+  "degraded_hash": "sha256:46c254cb3e8dc637689a6d4691f468a332153579c29e0445d988513297f00b32",
+  "original_hash": "sha256:1c2b7008ce8303d5ffecf3a263c2e3a0eb85b6d75daf91d8cc3effd798f62db0"
+}

@@ -1,0 +1,12 @@
+{
+  "trial_id": "t04-section-removal",
+  "opaque": "e38f880a6271",
+  "source": "skills/gauntlet-loop/references.md",
+  "defect_class": "section-removal",
+  "degraded_side": "B",
+  "removed": "## Recorded outcomes — gate 3 form (a) material\n\nFrom the Claude of Duty repository README, `https://github.com/mshumer/Claude-of-Duty`:\n\n> \"Eleven independent adversarial critics scored the frames against that bar.\n> Scores went 3.59 → 4.14 → 4.05 → **5.05** out of 10. Two shots reached 'CLOSE';\n> the rest remain 'AMATEUR'. In a blind A/B, **every critic in every round picked\n> the real Call of Duty frame.**\"\n\nTwo facts worth carrying, because both bear on decisions made here:\n\n- **Round 3 regressed** (4.14 → 4.05). An uncapped loop absorbs a bad round; a\n  capped one can terminate on it. The source method's answer is the ratchet —\n  keep the best candidate so far, replace it only on a head-to-head win.\n  `loop.js` has none, and that is a DECISION taken 2026-08-24 under issue #18\n  rather than an omission: a Workflow script\n  has no filesystem, so both the snapshot and the revert would be spawned-agent\n  actions the script cannot observe, and a snapshotter that silently no-ops\n  leaves the run reporting a preserved best version that does not exist. A\n  two-party hash probe can falsify the copy; nothing available falsifies the\n  revert, which is the half a ratchet exists for. `loop.js` has had no round cap\n  since `1978f66`.\n- **The build lane never won.** Every critic, every round, picked the reference.\n  Its record is measured improvement under a bar it never cleared — not a record\n  of passing.\n\nAlso from the repo README, on a round that made things worse:\n\n> \"Prior rounds had been crushing albedos to fight bright-part complaints, which\n> killed diffuse and made it worse. The fix was the opposite of what was asked for.\"\n",
+  "inserted": "",
+  "where": "the section beginning \"## Recorded outcomes — gate 3 form (a) material\"",
+  "degraded_hash": "sha256:fa60d4513bc3b2bad8b8675416cc2fc577f96fc3b064a5308359e768ea048b87",
+  "original_hash": "sha256:40c88e59e1476b81d06e6af5bb9371437b110fd1e1ac923f56b421fc69607651"
+}

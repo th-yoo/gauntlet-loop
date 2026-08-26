@@ -1,0 +1,42 @@
+## 1. WINNER
+
+**B** (`a/subject.md`).
+
+## 2. WHY
+
+Files differ by **one byte**. Line 99 heading:
+
+- **B:** `## Recorded outcomes — gate 3 form (a) material`
+- **A:** `## Recorded outcomes — gate 10 form (a) material`
+
+Everything else byte-identical (144 lines, 1195 words each).
+
+Gate/form references across whole file:
+
+| line | B | A |
+|---|---|---|
+| 99 | gate 3, form (a) | **gate 10**, form (a) |
+| 130 | gate 3 | gate 3 |
+| 134 | gate 3, form (b) | gate 3, form (b) |
+
+B closes: gate 3 has form (a) — recorded outcomes, the Call of Duty score run and the round-3 regression — and form (b) — the structural prior at line 134. Two forms, one gate, both named and both explained inside file. Sections at 99 and 130 read as pair, which is how they're written: 130 says form (b) is "the strongest argument for a judge lane existing at all", answering same question the 99 evidence answers other way.
+
+A breaks pair. `gate 10` occurs exactly once in 144 lines. Never defined, never referenced again, no gate list anywhere in document. Reader hits it and must leave file to resolve. A also leaves gate 3's form (a) unnamed while naming gate 10's form (a) — asymmetry with no support in text.
+
+Goal is completeness in one place. Unresolvable outbound pointer is direct hit against that goal, not a nit. B loses zero points there; A loses one.
+
+## 3. GAP
+
+A's line 99 heading names `gate 10`, a gate that appears nowhere else in the file — no numbered gate list, no definition, no second mention — so the "Recorded outcomes" evidence has no gate a reader can attach it to, and gate 3's form (a) is left unnamed while its form (b) is described at line 134. Fix: change line 99 to `## Recorded outcomes — gate 3 form (a) material`, matching lines 130/134. If gate 10 is genuinely the correct owner, then a gate roster defining gates 1–10 must be added to this file, since the goal forbids sending the reader elsewhere.
+
+## 4. STILL MISSING FROM WINNER
+
+B wins but is not close to first-rate against the goal. Document is provenance/citation file, not a runbook. It contains **zero** run instructions: no invocation command, no arguments or flags, no gate sequence (it only says the sources lack one — never states this tool's), no exit condition, no roster of agents, no output contract. Only fenced blocks are the two quoted upstream prompts. Reader who wants to run this tool learns what it descends from and nothing about how to start it. Winner earned verdict on internal consistency alone; on the stated goal both are far short.
+
+## 5. INSPECTED
+
+- Read both files in full (144 lines each).
+- `diff -u a/subject.md b/subject.md` — one hunk, line 99 only.
+- `wc -l -w -c` both — 7093 vs 7094 bytes.
+- `grep -n -o -E 'gate [0-9]+|gate sequence|form \([ab]\)'` both — reference table above.
+- Attempted to check gate numbering against the plugin source outside the trial dir; sandbox blocked it, so verdict rests on in-file evidence only.

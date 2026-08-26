@@ -1,0 +1,12 @@
+{
+  "trial_id": "t10-section-removal",
+  "opaque": "980bbaff4499",
+  "source": "runs/README.md",
+  "defect_class": "section-removal",
+  "degraded_side": "B",
+  "removed": "## The standing rule\n\n**A gate-0 NO triggers the width-1 lane anyway** — bar writer, one critic, verifier. Three\nspawns, ~150k (`SKILL.md:37`).\n\nGate 0, not gate 1, for the reason `SKILL.md:97` already gives: *\"Only gate 0 refuses to zero\nagents.\"* Overriding gate 0 costs ~150k; overriding gate 1 costs the panel's ~950k margin.\nSix times cheaper, and it is the gate that actually refuses to zero.\n\nThen fill in `outcome`:\n\n```json\n\"outcome\": {\n  \"override_run\": true,\n  \"high_grounded_findings\": 1,\n  \"anchored_outside_gate0_files\": true,\n  \"verdict\": \"FALSE_NEGATIVE\"\n}\n```\n\n### Scoring — all three conditions, or it does not count\n\nA refusal is a recorded **FALSE_NEGATIVE** if and only if the width-1 lane produced a finding\nthat is:\n\n1. **high severity**, and\n2. **GROUNDED** by the verifier (not GROUNDED-WEAK, not NOT-GROUNDED), and\n3. anchored **outside** the files named in `gate0_files`.\n\nCondition 3 is the one that matters. Without it this measures whether a critic can find\nsomething — which is not in dispute. With it, it measures gate 0's actual claim: that reading\n*those specific files* settles the question.\n\nAnything else is **GATE0_HELD**.\n",
+  "inserted": "",
+  "where": "the section beginning \"## The standing rule\"",
+  "degraded_hash": "sha256:8996758c1e888b3d4662a803b1400b3f24b04881fbf96e310e9ffa3e324ac983",
+  "original_hash": "sha256:df6fa3e600b85f7efa016569e141473513bc2d255ca5e79c9b79f03b8458fe3b"
+}

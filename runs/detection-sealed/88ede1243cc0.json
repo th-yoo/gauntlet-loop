@@ -1,0 +1,12 @@
+{
+  "trial_id": "t11-inverted-constraint",
+  "opaque": "88ede1243cc0",
+  "source": "runs/README.md",
+  "defect_class": "inverted-constraint",
+  "degraded_side": "A",
+  "removed": "- **Gates vindicated.** Five consecutive gate-0 NOs whose overrides yield no qualifying",
+  "inserted": "- **Gates vindicated.** Five consecutive gate-0 NOs whose overrides yield a qualifying",
+  "where": "line 110",
+  "degraded_hash": "sha256:fc9d40e048ac932c4cd95d6318dacd3be13930498c6ca3c7b02e7715dc7d40ff",
+  "original_hash": "sha256:df6fa3e600b85f7efa016569e141473513bc2d255ca5e79c9b79f03b8458fe3b"
+}

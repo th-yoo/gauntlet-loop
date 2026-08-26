@@ -1,0 +1,42 @@
+## 1. WINNER
+
+**B** (`a/subject.md`).
+
+## 2. WHY
+
+Files byte-identical except one block. `diff` shows B adds lines 99–129 only; everything else same. So verdict rests entirely on that block.
+
+Against goal "states how to run this tool, completely and in one place" — **both fail hard**. Neither names an invocation. Neither lists arguments, preconditions, outputs, or stop procedure. Both are provenance/citation files that happen to sit where a usage doc should be. A reader arriving to run the tool leaves with quoted Shumer prompts and nothing runnable.
+
+B is nearer for one reason: its added block is the only text in either file describing the tool's actual runtime behavior.
+
+- "`loop.js` has had no round cap since `1978f66`" — tells reader run does not self-terminate.
+- "`loop.js` has none [no ratchet]" + the Round 3 regression (4.14 → 4.05) — tells reader a bad round is not reverted, candidate can end worse than mid-run.
+- "The build lane never won. Every critic, every round, picked the reference." — sets what a completed run actually produces.
+
+Those are operating facts. A has zero. A's only runtime-adjacent sentence is inside a quoted third-party prompt.
+
+Cost of B's block: more undefined jargon ("gate 3 form (a)", "build lane") — but A already ships "gate 3's form (b)" undefined, so that flaw is shared, not introduced. Net B up.
+
+## 3. GAP
+
+A never states that the loop has no termination condition of its own. B says `loop.js` has had no round cap since `1978f66` and no ratchet, so the run continues until the candidate wins a blind A/B or the operator stops it, and a regressing round overwrites the better candidate. A contains no round-cap statement, no ratchet statement, and no stop path — a reader following A alone starts a loop believing it ends by itself and that a bad round is discarded. Both beliefs are false, and both are unrecoverable at runtime.
+
+## What still missing from winner B
+
+Not a tie-breaker, but B does not meet the goal either. Absent from B:
+
+- Command/skill name to invoke, and its argument shape (goal string, reference artifact path).
+- Preconditions: what must exist before start (a reference exemplar — B's own "Failure mode" section says the build lane requires one, then never says how to supply it).
+- How to stop a run, given no round cap.
+- What a run emits and where it lands.
+- Any worked example.
+
+Fill those and the file becomes what the goal asks. Today B is a good citations appendix wearing the filename of a usage doc.
+
+## 4. INSPECTED
+
+- Read `b/subject.md` full (113 lines), `a/subject.md` full (144 lines).
+- Ran `diff b/subject.md a/subject.md` — single hunk, `98a99,129`, insertion only.
+- Ran `wc -l -w` — 113/919 vs 144/1195.
+- Ran `ls -la` on both dirs — one file each, no README, no companion usage doc, no code. Nothing else in the tree to run or measure; no `loop.js` present to execute against the claims.

@@ -1,0 +1,34 @@
+Both docs identical except one section. Verified by diff: `b/subject.md` = `a/subject.md` + 26 lines (`## What a row is`). No repo, no scripts present — nothing executable. Judgment is on that section alone.
+
+## 1. WINNER
+
+**A**
+
+## 2. WHY
+
+Goal has two clauses: *completely*, and *in one place*. A beats B on both, in the same section.
+
+**Decision procedure for the write path.** B shows `--arm does-the-work` in its one worked example, then a subsection called "The other two arms." Never states the rule for picking. Reader with an artifact in hand has a three-value enum and no criterion. A states it: shell command exits 0 → `does-the-work`; `test ! -e` → `could-not-open`; no mechanical acceptance test exists → agentic path. That converts three flag values into a choosable decision.
+
+**The data store.** B says "the tracked corpus," "`ORACLE_CORPUS` set," "a row." Never names the file or its format. A: "`corpus.jsonl`, one JSON object per line." B's reader cannot locate, inspect, or diff the thing every command writes.
+
+**"In one place."** B's generator arm resolves entirely outside the document — "see `generator-procedure.md`." A summarizes it inline (execute by agent, keep emission, **second** agent classifies, label read from that classification), and still cross-references. B is a pointer; A is content plus pointer.
+
+**Cost of A's section — real, but smaller.** A introduces `--grounding` ("`--grounding` names only the first"), then never shows it in any command block. All three of A's invocations still pass `--arm`, and A calls `--arm` past tense ("These used to be one flag"). So A names a flag with no invocation, and hands the reader two vocabularies — `mechanical`/`absence`/`agentic` vs `does-the-work`/`generator`/`could-not-open` — without stating which flag takes which. The #49 case A raises (agentic grounding, `does-the-work` answer) is described as now-storable and has zero syntax. That is a defect. It does not sink A: every command block in A is complete and byte-identical to B's, so nothing A adds breaks anything runnable. B pays the same information deficit *and* gets none of the content.
+
+**Neither is first-rate.** No prerequisites (node version, install, where the checkout is). No end-to-end walkthrough — sections read as reference, never as sequence. Ordering actively misleads: automated `oracle-draw.mjs` under "Observing a pairing" precedes manual `oracle-extract`/`oracle-record` under "Making an observation," with no statement of which is the normal path. `ORACLE_CORPUS` is mentioned parenthetically and never shown being set. `oracle-derive.mjs`, `oracle-instrument.mjs`, `staleness-trial.mjs`, `corpus-portability.test.mjs` are all named as machinery with no invocation. Both share every one of these. Both are prose-heavy rationale documents wearing a manual's headings — the *why* is dense and good, the *how* is thin.
+
+## 3. GAP
+
+B never states the rule that selects an `--arm` value, so the write path cannot be executed from the document.
+
+B presents `does-the-work` in an example and `generator`/`could-not-open` as flag trivia — `--emission` once per file, `--acceptance` must be `test ! -e`. Missing is the criterion that decides which one a given artifact takes: *the arm is determined by what evidence can settle the row.* A shell command that exits 0 iff the deliverable exists → `does-the-work`. A command establishing nothing is at the path → `could-not-open`. No mechanical acceptance test constructible → the artifact is executed by an agent, emissions kept, and a **second** agent classifies the emission, with the label read off that classification.
+
+Fix: insert that three-way rule before the "Adding a row" code block, name `corpus.jsonl` and its one-object-per-line format as what the command writes, and give the agentic path a worked invocation rather than a handoff to `generator-procedure.md`. Without it, B's reader can only copy the one `does-the-work` example and guess at the other two-thirds of the tool.
+
+## 4. INSPECTED
+
+- Read both files in full: `b/subject.md` (231 lines, 13099 B), `a/subject.md` (205 lines, 11522 B).
+- `ls -la` + `find -maxdepth 3` on the trial root — only the two `subject.md` files exist. No `scripts/`, no `corpus.jsonl`, no `loop.js`, no `generator-procedure.md`. Every command block in both documents is unrunnable here; no execution possible, so no verdict rests on one.
+- `diff a/subject.md b/subject.md` — confirmed the sole difference is A's `## What a row is` block at line 10, inserted after the shared intro. All remaining 205 lines identical.
+- `wc -l` both.
