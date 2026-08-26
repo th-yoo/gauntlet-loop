@@ -218,6 +218,30 @@ A cheap partial remedy, not built: have the sweep echo the byte count it wrote t
 the write itself becomes visible in the log and through the API. That verifies the write, not
 the display.
 
+## The cadence #45 delivered has never produced a run. VERIFIED
+
+#46's title is "the sweep has a cadence but no reader", and its four options are written for
+the scheduled run. That run has never happened:
+
+```
+every sweep run ever, by trigger:   push: 13    schedule: 0
+cron:                               0 6 * * 1   (Mondays 06:00 UTC)
+the schedule landed:                b97f224, 2026-08-25 UTC — after the last Monday
+today:                              Wednesday 2026-08-26
+```
+
+Node is pinned in `coverage.yml` (line 79), checked rather than assumed.
+
+**Both recorded instances of the reader problem were push-triggered runs** — run
+`32900618692` concluding success with two defects in its log, and `843b3ac` standing red for
+three commits. So gating the sweep in `ci.yml` is not a partial remedy that leaves the cron
+uncovered: it covers **every instance of RC5 that has ever occurred**, and the case it does
+not cover has never occurred once.
+
+What the cron would still catch, given the repo has no dependencies and pins its runtime:
+runner image changes, node 22 patch releases, and GitHub's own behaviour. Narrow, real, and
+so far entirely hypothetical.
+
 ## The base rate — how findings have actually travelled
 
 Three recorded instances, and the mechanism each time:
