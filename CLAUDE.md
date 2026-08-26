@@ -29,6 +29,17 @@ growth the parent file calls cheating.
   fact is still stored. That question predicts where to look; an incident only says
   where you have been.
 
+- **A check that reimplements the derivation it audits agrees with it, defect and all.** The
+  parent rule says a quantity derived downstream of the decision under test cannot audit that
+  decision; this is its sibling, and it is the one that gets built by accident. The rule
+  deciding whether a critic detected a defect lived in three files — the drawer, the
+  re-parser, and the test written to audit them — and all three compared a letter from one
+  coordinate system against a letter from another. The audit passed on twenty consecutive
+  inverted rows. An auditing check must reach an anchor the audited thing does not use: the
+  artifact, a recomputation from different inputs, or a value the subject itself reported.
+  Where a fact is stored beside the artifact it is derivable from, something must recompute
+  it and FAIL on disagreement — storing it and reading it back is not a check.
+
 - **Prefer re-running to pinning.** A pin covers what you thought to enumerate; running
   the thing covers what it actually reads. Where the dependency set is unbounded or
   unrecorded, a pin cannot be made to match the claim and only re-execution can.
