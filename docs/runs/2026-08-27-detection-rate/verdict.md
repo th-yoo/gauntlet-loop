@@ -72,13 +72,34 @@ reported because the alternative is a per-class table being read as a size
 finding it cannot support.
 
 **Size and class are collinear on this set, and that is a property of the
-transforms rather than of the draw.** Section removals span 1028–1651 bytes;
-every other trial spans 2–11. Nothing lies in between, so "large defects are
-easy" and "removal-shaped defects are easy" predict the identical table. The
-removals-dropped row is the only one that is about size at all, and it rests on
-ten trials. Separating them needs a mid-sized defect — a removed paragraph, a
-rewritten clause — and no transform in `scripts/defect-transforms.mjs` produces
-one.
+transforms rather than of the draw.** The drawn trials span 1028–1651 bytes for
+section removals and 2–11 for everything else. That is the draw; the instrument's
+reach is wider and is what settles it. Running every transform at every eligible
+site of the five source documents these trials came from:
+
+| class | sizes it can plant |
+|---|---|
+| factual-substitution | 2–5 bytes |
+| inverted-constraint | 3–11 bytes |
+| section-removal | **390–4519 bytes** |
+
+**Nothing between 11 and 390 bytes can be planted by any draw from these
+transforms**, so a section removal and a single-line edit can never be the same
+size and "large defects are easy" and "section removals are easy" predict the
+identical table. The two single-line classes DO overlap, which is why the
+removals-dropped row is the only one that is about size at all — and it rests on
+ten trials. Separating the third class needs a transform that damages a
+paragraph, and none exists.
+
+That table is computed by `test/detection-rate.test.mjs` on every run and
+printed on every branch, including the one where there is no ledger. It was a
+hard-coded sentence first — *"section removals are four-figure magnitudes and
+every other trial is a single-digit one"* — which is a fact about the draw,
+stored beside the artifact it is derivable from, and it was **already wrong in
+both halves**: inverted constraints reach 11 bytes, and the smallest section
+these documents can lose is 390. That is issue 54's shape committed inside the
+fix for issue 29, caught by running the transforms rather than by rereading the
+sentence.
 
 ### The class labels the table above rests on were unguarded
 

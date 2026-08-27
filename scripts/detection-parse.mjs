@@ -347,7 +347,7 @@ export function scoreDetection(picked, degArtifact, degradedDir) {
 // places passed every gate in this repository, per-class table and all.
 // ---------------------------------------------------------------------------
 
-import { FLIPS } from './defect-transforms.mjs'
+import { FLIPS, CLASSES } from './defect-transforms.mjs'
 
 // The size of the damage, in bytes, measured where the two texts actually
 // differ. NOT the length of the changed line: a digit swapped at column 80 of a
@@ -484,4 +484,61 @@ export function classAudit(row, note) {
     d.push(`row says ${JSON.stringify(row.defect_class)}, sealed note says ${JSON.stringify(note.defect_class)} — the two stored copies disagree, and they agree with each other by construction whenever both are edited`)
   }
   return { cls, applies: true, disagreements: d }
+}
+
+// ---------------------------------------------------------------------------
+// WHAT SIZES THIS INSTRUMENT CAN PLANT AT ALL — the capacity question, asked of
+// the transforms rather than of the draw.
+//
+// The residual under the size cut used to be a SENTENCE: "section removals are
+// four-figure magnitudes and every other trial is a single-digit one, with
+// nothing in between." True of the fifteen trials on disk, stored beside the
+// artifact it was derivable from, and printed unconditionally — so it would have
+// gone on being printed after a mid-sized transform was added, and nothing would
+// have failed. That is issue 54's shape (a disclosure held for presence, never
+// for truth) committed inside the fix for issue 29.
+//
+// So it is computed. Every transform is run at every eligible site of the real
+// documents the trials were drawn from, and the magnitudes it can produce are
+// read off the results. Add a transform tomorrow and this changes by itself.
+//
+// `limit` bounds the walk without being a picked number: the transforms index
+// their sites modulo the site count, so after one line per site everything
+// repeats, and a document cannot have more sites than it has lines.
+export function achievableMagnitudes(text) {
+  const limit = String(text).split('\n').length
+  const out = new Map()
+  for (const [name, fn] of CLASSES) {
+    const seen = out.get(name) || new Set()
+    for (let n = 0; n < limit; n++) {
+      const r = fn(String(text), n)
+      if (!r) break
+      const m = defectMagnitude({ degraded_side: 'A', removed: r.removed, inserted: r.inserted })
+      if (Number.isFinite(m)) seen.add(m)
+    }
+    if (seen.size) out.set(name, seen)
+  }
+  return out
+}
+
+// Merge what several documents can produce, and report which classes could ever
+// be confused with which on size alone. Two classes whose achievable ranges
+// OVERLAP can be told apart from size by some draw; two whose ranges are
+// disjoint cannot, by any draw from these transforms.
+export function magnitudeReach(perDoc) {
+  const merged = new Map()
+  for (const m of perDoc) for (const [k, s] of m) {
+    if (!merged.has(k)) merged.set(k, new Set())
+    for (const v of s) merged.get(k).add(v)
+  }
+  const ranges = [...merged.entries()]
+    .map(([cls, s]) => ({ cls, min: Math.min(...s), max: Math.max(...s), distinct: s.size }))
+    .sort((a, b) => a.min - b.min)
+  const overlaps = []
+  for (let i = 0; i < ranges.length; i++) {
+    for (let j = i + 1; j < ranges.length; j++) {
+      if (ranges[i].max >= ranges[j].min && ranges[j].max >= ranges[i].min) overlaps.push([ranges[i].cls, ranges[j].cls])
+    }
+  }
+  return { ranges, overlaps }
 }

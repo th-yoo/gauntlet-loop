@@ -58,7 +58,7 @@ import { dirname, join } from 'node:path'
 // Pure text-in, number-out. The size cut lives beside the parse rather than here
 // so it has one copy and can be driven with constructed input — a rule this
 // ledger has already paid for three times over.
-import { defectMagnitude, sizeCut, magnitudeSpread } from '../scripts/detection-parse.mjs'
+import { defectMagnitude, sizeCut, magnitudeSpread, achievableMagnitudes, magnitudeReach } from '../scripts/detection-parse.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // DETECTION_LEDGER lets a check point this at a throwaway file, the same
@@ -76,6 +76,64 @@ let failures = 0
 const fail = m => { console.error(`  FAIL  ${m}`); failures++ }
 const ok = (cond, m) => { if (!cond) fail(m) }
 
+// ---------------------------------------------------------------------------
+// WHAT SIZES THE INSTRUMENT CAN PLANT AT ALL, computed before any branch so that
+// every branch can state it.
+//
+// The first version of this residual was a SENTENCE — "section removals are
+// four-figure magnitudes and every other trial is a single-digit one, with
+// nothing in between" — printed unconditionally. It was a fact about the fifteen
+// trials on disk, stored beside the artifact it was derivable from, and it was
+// ALREADY WRONG: inverted constraints reach 11 bytes and the smallest section a
+// transform can remove from these documents is 390, not four figures. Storing it
+// is the defect issue 54 is about, committed inside the fix for issue 29.
+//
+// So it is run instead. Every transform is applied at every eligible site of the
+// real documents these trials were drawn from — read from the sealed notes,
+// because naming the drawer is what test/containment.test.mjs forbids.
+const REACH = (() => {
+  if (!existsSync(SEALED)) return null
+  const sources = new Set()
+  for (const f of readdirSync(SEALED).filter(f => f.endsWith('.json'))) {
+    try { const n = JSON.parse(readFileSync(join(SEALED, f), 'utf8')); if (n.source) sources.add(n.source) } catch { /* a note this cannot read contributes no source */ }
+  }
+  const per = []
+  for (const src of sources) {
+    const abs = join(ROOT, src)
+    if (existsSync(abs)) per.push(achievableMagnitudes(readFileSync(abs, 'utf8')))
+  }
+  return per.length ? { ...magnitudeReach(per), docs: per.length, named: sources.size } : null
+})()
+
+// The residual, in the terms the run itself produced. `emit` is console.log on a
+// branch that carries a verdict and console.error on one that is exiting hot —
+// the words are the same either way, because a limitation printed only where a
+// number is being asserted is printed exactly where it is least needed.
+function statSeparability(emit) {
+  if (!REACH) {
+    emit(`          NOT MEASURED: what defect SIZES this instrument can plant. The sealed notes are not`)
+    emit(`          readable from here, so whether size can be told apart from defect class is unknown`)
+    emit(`          rather than ruled out — and the per-class rates say nothing about size on their own.`)
+    return
+  }
+  emit(`          SIZES THIS INSTRUMENT CAN PLANT, over the ${REACH.docs} source document(s) the trials were drawn from:`)
+  for (const r of REACH.ranges) emit(`            ${r.cls.padEnd(21)} ${r.min}–${r.max} bytes (${r.distinct} distinct)`)
+  const gaps = []
+  for (let i = 1; i < REACH.ranges.length; i++) {
+    if (REACH.ranges[i].min > REACH.ranges[i - 1].max) gaps.push([REACH.ranges[i - 1].max, REACH.ranges[i].min, REACH.ranges[i - 1].cls, REACH.ranges[i].cls])
+  }
+  for (const [lo, hi, a, b] of gaps) {
+    emit(`          NOT SEPARABLE by any draw from these transforms: nothing can be planted between ${lo} and`)
+    emit(`          ${hi} bytes, so ${a} and ${b} can never reach the same size. Across that gap, "large`)
+    emit(`          defects are easy" and "${b} is easy" predict the same table.`)
+  }
+  if (REACH.overlaps.length) {
+    for (const [a, b] of REACH.overlaps) emit(`          SEPARABLE: ${a} and ${b} reach overlapping sizes, so a size effect between those two is not a class effect.`)
+  } else {
+    emit(`          NO two classes reach overlapping sizes, so on this instrument every size contrast is also a class contrast.`)
+  }
+}
+
 // The floor is low on purpose. #29 prices ten trials at about twenty agents, and
 // a floor set where the evidence is comfortable rather than where it is
 // sufficient is a floor that will be met by stopping early. Ten degraded trials
@@ -88,11 +146,9 @@ const REQUIRED_CLASSES = ['section-removal', 'inverted-constraint', 'factual-sub
 console.log('detection-rate: a ledger of trials that were actually run exists')
 if (!existsSync(LEDGER)) {
   fail(`runs/detection.jsonl does not exist — the critic's detection rate rests on the single observation in #29, and #18's automatic revert is blocked on it. A rate needs a set.`)
-  // The residual goes on this branch too. A limitation printed only where a
-  // number is being asserted is printed exactly where it is least needed.
-  console.error(`          NOT SEPARABLE, whenever this set is drawn: defect SIZE from defect CLASS, unless`)
-  console.error(`          the draw includes a mid-sized defect. Every transform in scripts/defect-transforms.mjs`)
-  console.error(`          produces either a whole section or a single line, and nothing in between.`)
+  // The residual goes on this branch too, in the terms the transforms themselves
+  // produce rather than in a sentence about a ledger that does not exist.
+  statSeparability(m => console.error(m))
   console.error(`\ndetection-rate: ${failures} failure(s) — n=1 is an anecdote, not a rate.`)
   process.exit(1)
 }
@@ -226,7 +282,11 @@ console.log('detection-rate: the rate, cut by how big the planted defect is')
   // WITHOUT within-class size variation there is no size contrast anywhere that
   // is not also a class contrast, and the question cannot be asked of the set at
   // all. Same argument as the per-class floor above, one level down.
-  ok(spread.some(s => s.distinct >= 2),
+  // Guarded on there being trials at all: with none, the failure above is the
+  // one to read, and "every size contrast in this set is also a class contrast"
+  // is a claim about an empty set — a message describing a situation the run is
+  // not in is how a reader gets sent to the wrong place.
+  ok(trials.length === 0 || spread.some(s => s.distinct >= 2),
      `no defect class carries more than one distinct size — every size contrast in this set is also a class contrast, so "what size can it see" cannot be asked of it. Draw trials that vary size WITHIN a class.`)
 
   const all = sizeCut(trials)
@@ -253,11 +313,7 @@ console.log('detection-rate: stating what this cannot establish')
 console.log('          NOT MEASURED: whether these defects resemble the ones a real run meets. They are')
 console.log('          planted, and a planted defect is one somebody chose. The rate is about detecting')
 console.log('          THIS set, and generalises only as far as the set does.')
-console.log('          NOT SEPARABLE: defect SIZE from defect CLASS. Section removals are four-figure')
-console.log('          magnitudes and every other trial is a single-digit one, with nothing in between,')
-console.log('          so "large defects are easy" and "removal-shaped defects are easy" predict the same')
-console.log('          table. Only a mid-sized defect — a removed paragraph, a rewritten clause — can')
-console.log('          separate them, and no transform in scripts/defect-transforms.mjs produces one.')
+statSeparability(m => console.log(m))
 console.log('          NOT MEASURED: the builder arm. #25 is the same question about the other agent, and')
 console.log('          it has no positive observation at all.')
 
@@ -323,7 +379,20 @@ if (!process.env.DETECTION_LEDGER && !process.env.DETECTION_SEALED && existsSync
     ok(/nothing to separate, so no size reading/.test(r.out),
        'a set with no misses reported a size threshold anyway — with nothing missed there is no largest missed size to read one off')
   }
-  console.log('          3 constructed set(s): one size per class, no derivable size, no misses')
+  // AND THE BRANCH WITH NO NOTES AT ALL. The residual has two paths — one that
+  // reports the sizes the transforms reach, one that says it could not find out
+  // — and a path with no case is decoration. This is also the branch where the
+  // sentence that used to be hard-coded here would still have been printed,
+  // truthfully or not, with nothing on disk to check it against.
+  {
+    const empty = mkdtempSync(join(tmpdir(), 'detection-rate-nonotes-'))
+    const r = run({ DETECTION_SEALED: empty })
+    ok(/NOT MEASURED: what defect SIZES this instrument can plant/.test(r.out),
+       'with no sealed notes the run still made a claim about what sizes it can plant, or made none at all — it must say the question is unmeasured rather than pass over it')
+    ok(!/NOT SEPARABLE by any draw/.test(r.out),
+       'a separability verdict was printed with no notes to compute it from — that is the stored sentence coming back')
+  }
+  console.log('          4 constructed set(s): one size per class, no derivable size, no misses, no notes')
 }
 
 
