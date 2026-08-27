@@ -51,6 +51,8 @@ function discoverLedgers() {
   const out = spawnSync('git', ['ls-files', '*.jsonl'], { cwd: ROOT, encoding: 'utf8' })
   return String(out.stdout || '').split('\n').filter(Boolean).sort()
 }
+import { adjudicationLedger, unspentMessage } from './adjudications.mjs'
+
 const ADJ = process.env.CAPACITY_ADJUDICATIONS || join(ROOT, 'docs', 'capacity-adjudications.jsonl')
 const argv = process.argv.slice(2)
 
@@ -123,16 +125,12 @@ export function analyseLedger(name, rows) {
 }
 
 function readAdjudications() {
-  const m = new Map()
-  if (!existsSync(ADJ)) return m
-  for (const line of readFileSync(ADJ, 'utf8').split('\n')) {
-    if (!line.trim()) continue
-    try {
-      const a = JSON.parse(line)
-      if (a.ledger && a.field) m.set(`${a.ledger} ${a.field}`, a)
-    } catch { /* a malformed line is a missing adjudication, which is the safe reading */ }
-  }
-  return m
+  // The ledger tracks which keys this run LOOKS UP, so an adjudication for a
+  // constant that no longer exists can be reported at the end. See
+  // scripts/adjudications.mjs: all three adjudication files here accepted a row
+  // naming a subject that exists nowhere.
+  return adjudicationLedger(existsSync(ADJ) ? readFileSync(ADJ, 'utf8') : '',
+                            a => (a.ledger && a.field) ? `${a.ledger} ${a.field}` : null)
 }
 
 const ledgers = discoverLedgers()
@@ -184,7 +182,9 @@ for (const f of ledgers) {
 }
 
 console.log()
-console.log(`capacity-check: ${reports.length} ledger(s), ${unexplained} unexplained constant(s)`)
+const stale = unspentMessage('constant', adjudicated.unspent(), adjudicated.malformed)
+for (const l of stale) console.log(l)
+console.log(`capacity-check: ${reports.length} ledger(s), ${unexplained} unexplained constant(s), ${stale.length} adjudication(s) that excuse nothing`)
 // THE RESIDUAL, ON EVERY BRANCH, including the clean one.
 console.log('capacity-check: NOT ESTABLISHED — this reads capacity that was OBSERVED, after the run.')
 console.log('                Whether a design COULD have disagreed is not decidable from a design')
@@ -195,4 +195,4 @@ console.log('                A varied field also does not make a claim sound —
 console.log('                construction slightly less likely.')
 
 if (argv.includes('--json')) console.log(JSON.stringify(reports, null, 2))
-if (unexplained) process.exit(1)
+if (unexplained || stale.length) process.exit(1)

@@ -23,11 +23,13 @@
 // NOTHING HERE SPAWNS.
 
 import { spawnSync } from 'node:child_process'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const REAL_ADJ = join(ROOT, 'docs', 'capacity-adjudications.jsonl')
 let failures = 0
 const fail = m => { console.error(`  FAIL  ${m}`); failures++ }
 const ok = (cond, m) => { if (!cond) fail(m) }
@@ -129,6 +131,42 @@ console.log('          unfalsifiable-by-construction less likely; it is necessar
 console.log('          NOT COVERED: measurements that emit no ledger at all. This scans every tracked')
 console.log('          .jsonl, so the reach is whatever has been written down; a run recorded only in')
 console.log('          prose is invisible to it, and nothing here can tell you such a run exists.')
+const STALE_WHY = 'a stale adjudication naming a subject that exists nowhere, written at full length so the rubber-stamp floor cannot be what rejects it — the question under test is whether anything notices that this row excuses nothing'
+
+console.log('capacity-check: an adjudication that excuses nothing is reported, not counted')
+{
+  // BUILT: a row naming a ledger and a field that exist nowhere. Every version of
+  // this check before it accepted the row and stayed green, and so did the other
+  // two adjudication files in this repository — the accounting counted a reading
+  // that had no subject. The first probe LOOKED caught, because the rubber-stamp
+  // length floor fired on a short `why`; this one is written long enough that
+  // only the staleness can reject it.
+  const dir = mkdtempSync(join(tmpdir(), 'capacity-stale-'))
+  const f = join(dir, 'adjudications.jsonl')
+  const real = existsSync(REAL_ADJ) ? readFileSync(REAL_ADJ, 'utf8').trimEnd() + '\n' : ''
+  writeFileSync(f, real + JSON.stringify({ ledger: 'runs/no-such-ledger.jsonl', field: 'invented_field', verdict: 'accepted', why: STALE_WHY }) + '\n')
+  const r = run({ CAPACITY_ADJUDICATIONS: f })
+  ok(/UNSPENT ADJUDICATION\s+runs\/no-such-ledger\.jsonl invented_field/.test(r.out),
+     `an adjudication for a ledger and field that do not exist was not reported: ${JSON.stringify(r.out.split('\n').filter(l => /ADJUDICATION|unexplained/.test(l)).slice(0, 3))}`)
+  ok(r.status !== 0, 'the stale adjudication was reported but the check still passed — a finding nothing acts on is a comment')
+
+  // AND A ROW WITH NO READABLE KEY, which every earlier version dropped inside a
+  // catch. Invisible to every lookup, so it can never be spent and could never be
+  // reported either.
+  writeFileSync(f, real + JSON.stringify({ verdict: 'accepted', why: STALE_WHY }) + '\n')
+  const r2 = run({ CAPACITY_ADJUDICATIONS: f })
+  ok(/UNREADABLE ADJUDICATION/.test(r2.out), 'a row with neither ledger nor field was dropped in silence')
+  ok(r2.status !== 0, 'an unreadable adjudication left the check green')
+
+  // AND IT STAYS QUIET when every row matches, or every run is a finding.
+  if (real) {
+    writeFileSync(f, real)
+    const r3 = run({ CAPACITY_ADJUDICATIONS: f })
+    ok(!/UNSPENT ADJUDICATION|UNREADABLE ADJUDICATION/.test(r3.out),
+       'the tracked adjudications reported themselves as unspent — then every consumer sees a finding on every run and the report means nothing')
+  }
+}
+
 
 if (failures) {
   console.error(`\ncapacity-check: ${failures} failure(s) — a design that could only answer one way is not evidence, whatever was pre-registered about it.`)

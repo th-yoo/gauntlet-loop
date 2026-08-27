@@ -52,9 +52,12 @@
 // produced a fork bomb the last time a live spawn sat where the suite could reach
 // it. So this file names none and finds the ledger by path.
 
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdtempSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { adjudicationLedger, unspentMessage } from '../scripts/adjudications.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const LEDGER = process.env.BUILDER_LEDGER || join(ROOT, 'runs', 'builder.jsonl')
@@ -226,21 +229,22 @@ console.log('builder-rate: the rates, computed from the ledger')
   // can. What it enforces is that a human looked and left the reason where the
   // next person will find it, which is the difference between a residual that is
   // disclosed and one that is forgotten.
-  const ADJ = join(ROOT, 'docs', 'runs', '2026-08-27-builder-arm', 'adjudications.jsonl')
-  const adjudicated = new Map()
-  if (existsSync(ADJ)) {
-    for (const line of readFileSync(ADJ, 'utf8').split('\n')) {
-      if (!line.trim()) continue
-      try { const a = JSON.parse(line); if (a.trial_id) adjudicated.set(a.trial_id, a) } catch {}
-    }
-  }
+  const ADJ = process.env.BUILDER_ADJUDICATIONS || join(ROOT, 'docs', 'runs', '2026-08-27-builder-arm', 'adjudications.jsonl')
+  // Lookups are tracked, so an adjudication naming a trial this run never treats
+  // as a hit is reported instead of counted. All three adjudication files here
+  // accepted a row naming a subject that exists nowhere — see
+  // scripts/adjudications.mjs for the probe and what it cost.
+  const adjudicated = adjudicationLedger(existsSync(ADJ) ? readFileSync(ADJ, 'utf8') : '', a => a.trial_id ?? null)
   const unexplained = clean.filter(r => r.repaired === true && !adjudicated.has(r.trial_id))
   for (const r of clean.filter(r => r.repaired === true)) {
     const a = adjudicated.get(r.trial_id)
     if (a) ok(a.mechanism && a.verdict, `${r.trial_id} has an adjudication with no mechanism or no verdict — "someone looked" is not a reason`)
   }
   if (adjudicated.size) {
-    console.log(`          adjudicated hits: ${[...adjudicated.values()].map(a => a.trial_id + ' = ' + a.verdict + ' (' + a.mechanism + ')').join('; ')}`)
+    console.log(`          adjudicated hits: ${adjudicated.values().map(a => a.trial_id + ' = ' + a.verdict + ' (' + a.mechanism + ')').join('; ')}`)
+  }
+  for (const l of unspentMessage('repaired underivable trial', adjudicated.unspent(), adjudicated.malformed)) {
+    fail(l.trim())
   }
   if (clean.length && unexplained.length > 0) {
     // A HIT IS A FLAG FOR INSPECTION, NOT A VERDICT — because the recoverability
@@ -265,6 +269,45 @@ console.log('          compares strings, so it catches an original that RECURS a
 console.log('          merely IMPLIED — a heading sequence gives "Step 2" away with no such string present.')
 console.log('          NOT MEASURED: whether a repair the scorer calls false was a valid fix in other words.')
 console.log('          The scorer understates by construction, which is the safe direction.')
+
+// --------------------------------------------------------------------------
+// AN ADJUDICATION THAT EXCUSES NOTHING. Built: a row naming a trial that is in no
+// ledger. Every version of this file before it accepted the row and counted it,
+// and so did the other two adjudication files here. The reason is written at full
+// length on purpose — the first probe of this elsewhere was rejected by a
+// rubber-stamp LENGTH floor, which looks like the staleness being caught and is
+// not.
+//
+// The case runs this file again with the adjudications pointed elsewhere; the
+// recursion stops because it is skipped whenever that override is set.
+// --------------------------------------------------------------------------
+if (!process.env.BUILDER_ADJUDICATIONS) {
+  console.log('builder-rate: an adjudication that excuses nothing is reported, not counted')
+  const SELF = fileURLToPath(import.meta.url)
+  const runSelf = env => {
+    const r = spawnSync(process.execPath, [SELF], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, ...env }, timeout: 120_000 })
+    return { status: r.status, out: String(r.stdout || '') + String(r.stderr || '') }
+  }
+  const WHY = 'a stale adjudication naming a trial that is in no ledger, written at full length so that a length floor cannot be what rejects it — the question under test is whether anything notices that this row excuses nothing at all'
+  const dir = mkdtempSync(join(tmpdir(), 'builder-adj-'))
+  const f = join(dir, 'adjudications.jsonl')
+  const REAL = join(ROOT, 'docs', 'runs', '2026-08-27-builder-arm', 'adjudications.jsonl')
+  const real = existsSync(REAL) ? readFileSync(REAL, 'utf8').trimEnd() + '\n' : ''
+
+  writeFileSync(f, real + JSON.stringify({ trial_id: 'b99-nonexistent-trial', verdict: 'reconstruction', mechanism: WHY, note: 'probe' }) + '\n')
+  const r = runSelf({ BUILDER_ADJUDICATIONS: f })
+  ok(/UNSPENT ADJUDICATION\s+b99-nonexistent-trial/.test(r.out),
+     `an adjudication for a trial in no ledger was not reported: ${JSON.stringify(r.out.split('\n').filter(l => /ADJUDICATION|FAIL/.test(l)).slice(0, 3))}`)
+  ok(r.status !== 0, 'the stale adjudication was reported and the run still passed')
+
+  if (real) {
+    writeFileSync(f, real)
+    const r2 = runSelf({ BUILDER_ADJUDICATIONS: f })
+    ok(!/UNSPENT ADJUDICATION/.test(r2.out), 'the tracked adjudications reported themselves as unspent — then the report fires every run and means nothing')
+    ok(r2.status === 0, `the run failed on its own unmodified adjudications: ${JSON.stringify(r2.out.split('\n').filter(l => /FAIL/.test(l)).slice(0, 2))}`)
+  }
+}
+
 
 if (failures) {
   console.error(`\nbuilder-rate: ${failures} failure(s) — the builder arm is still unmeasured.`)

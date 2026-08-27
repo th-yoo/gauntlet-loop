@@ -32,6 +32,7 @@ const OP = 'scripts/oracle-report.mjs'
 const DP = 'scripts/detection-parse.mjs'
 const DT = 'scripts/defect-transforms.mjs'
 const BP = 'scripts/builder-parse.mjs'
+const AJ = 'scripts/adjudications.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -228,6 +229,17 @@ export const PROPERTIES = [
   ['a note whose recorded degraded hash is wrong is not reproduced', DT, "  if (note.degraded_hash && hash(r.text) !== note.degraded_hash) return { status: 'hash-mismatch', cls: r.cls, n: r.n }", '  if (false) return null'],
   ['a note reproduced by another transform is a class mismatch', DT, "  if (note.defect_class && r.cls !== note.defect_class) return { status: 'class-mismatch', cls: r.cls, n: r.n }", '  if (false) return null'],
   ['a drifted source makes a note unverifiable, not verified', DT, "  if (note.original_hash && hash(sourceText) !== note.original_hash) return { status: 'drifted' }", '  if (false) return null'],
+  // --- an adjudication must be SPENT, or it is accounting that did not happen ---
+  // Three files here record a human reading to excuse what a check cannot settle,
+  // and all three accepted a row naming a subject that exists nowhere. The lookup
+  // is what marks a row spent, so these pin the tracking rather than a registry
+  // of valid keys.
+  ['a row is spent only by the lookup that consults it', AJ, '    get(key) { consulted.add(key); return rows.get(key) },', '    get(key) { return rows.get(key) },'],
+  ['a presence test consults the row it asks about', AJ, '    has(key) { consulted.add(key); return rows.has(key) },', '    has(key) { return rows.has(key) },'],
+  ['adjudications nothing consulted are reported', AJ, '    unspent() { return [...rows.entries()].filter(([k]) => !consulted.has(k)).map(([key, row]) => ({ key, row })) },', '    unspent() { return [] },'],
+  ['a row with no readable key is reported, not dropped', AJ, "    if (k === null || k === undefined || k === '') { malformed.push(JSON.stringify(a).slice(0, 80)); continue }", "    if (k === null || k === undefined || k === '') { continue }"],
+  ['an unreadable line is reported, not swallowed', AJ, '    try { a = JSON.parse(line) } catch { malformed.push(line.trim().slice(0, 80)); continue }', '    try { a = JSON.parse(line) } catch { continue }'],
+  ['an unspent adjudication names its remedy', AJ, 'Delete the row or fix its key; a row that matches nothing counts as accounting that did not happen.`)', '`)'],
 ]
 
 // THE LIST IS EXPORTED AND THE SWEEP RUNS ONLY WHEN INVOKED, and that is not tidiness.

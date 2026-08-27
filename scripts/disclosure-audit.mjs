@@ -44,6 +44,8 @@ import { dirname, join } from 'node:path'
 import { LOOP_DISCLOSURES } from '../test/drift-facts.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+import { adjudicationLedger, unspentMessage } from './adjudications.mjs'
+
 const ADJ = process.env.DISCLOSURE_ADJUDICATIONS || join(ROOT, 'docs', 'disclosure-adjudications.jsonl')
 const argv = process.argv.slice(2)
 
@@ -86,13 +88,9 @@ const testFiles = readdirSync(join(ROOT, 'test'))
     return { name: `test/${f}`, raw: norm(raw), live, behavioural: /from '\.\/harness\.mjs'/.test(raw) }
   })
 
-const adjudicated = new Map()
-if (existsSync(ADJ)) {
-  for (const line of readFileSync(ADJ, 'utf8').split('\n')) {
-    if (!line.trim()) continue
-    try { const a = JSON.parse(line); if (a.key) adjudicated.set(a.key, a) } catch { /* malformed is missing */ }
-  }
-}
+// Tracked lookups, so a row naming a disclosure key that is no longer pinned is
+// reported rather than counted. See scripts/adjudications.mjs.
+const adjudicated = adjudicationLedger(existsSync(ADJ) ? readFileSync(ADJ, 'utf8') : '', a => a.key ?? null)
 
 const rows = auditDisclosures(LOOP_DISCLOSURES, testFiles)
 let unaccounted = 0
@@ -114,7 +112,9 @@ for (const r of rows) {
 
 console.log()
 const ex = rows.filter(r => r.exercised_by.length).length
-console.log(`disclosure-audit: ${ex} exercised, ${rows.length - ex - unaccounted} adjudicated, ${unaccounted} neither`)
+const stale = unspentMessage('disclosure', adjudicated.unspent(), adjudicated.malformed)
+for (const l of stale) console.log(l)
+console.log(`disclosure-audit: ${ex} exercised, ${rows.length - ex - unaccounted} adjudicated, ${unaccounted} neither, ${stale.length} adjudication(s) that excuse nothing`)
 // THE RESIDUAL, ON EVERY BRANCH.
 console.log('disclosure-audit: NOT ESTABLISHED — that an EXERCISED disclosure is true. This checks that a')
 console.log('                  behavioural test names it in live code, which is evidence a human wired the')
@@ -124,4 +124,4 @@ console.log('                  automated check around it was satisfied by, and t
 console.log('                  from that — it can be satisfied by a test that quotes without asserting.')
 
 if (argv.includes('--json')) console.log(JSON.stringify(rows, null, 2))
-if (unaccounted) process.exit(1)
+if (unaccounted || stale.length) process.exit(1)

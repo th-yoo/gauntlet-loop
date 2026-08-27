@@ -19,7 +19,8 @@
 // NOTHING HERE SPAWNS.
 
 import { spawnSync } from 'node:child_process'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, writeFileSync, mkdtempSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { LOOP_DISCLOSURES } from './drift-facts.mjs'
@@ -145,6 +146,33 @@ console.log('          one level down from the defect that produced it: a test c
 console.log('          disclosure and assert something else entirely, and this would call it covered.')
 console.log('          NOT ESTABLISHED: that an ADJUDICATED disclosure is true either. It records that')
 console.log('          someone looked and said why it cannot be driven — nothing more.')
+
+const STALE_WHY = 'a stale adjudication naming a subject that exists nowhere, written at full length so the rubber-stamp floor cannot be what rejects it — the question under test is whether anything notices that this row excuses nothing'
+
+console.log('disclosure-audit: an adjudication that excuses nothing is reported, not counted')
+{
+  // BUILT, and the first probe of this was a false negative worth recording: a
+  // short `why` was rejected by the rubber-stamp length floor, which LOOKS like
+  // the staleness being caught and is not. Written long here so only the missing
+  // subject can reject it.
+  const dir = mkdtempSync(join(tmpdir(), 'disclosure-stale-'))
+  const f = join(dir, 'adjudications.jsonl')
+  const REAL = join(ROOT, 'docs', 'disclosure-adjudications.jsonl')
+  const real = existsSync(REAL) ? readFileSync(REAL, 'utf8').trimEnd() + '\n' : ''
+  writeFileSync(f, real + JSON.stringify({ key: 'NO_SUCH_DISCLOSURE_KEY', verdict: 'undrivable', why: STALE_WHY }) + '\n')
+  const r = run({ DISCLOSURE_ADJUDICATIONS: f })
+  ok(/UNSPENT ADJUDICATION\s+NO_SUCH_DISCLOSURE_KEY/.test(r.out),
+     `an adjudication for a disclosure key that is not pinned was not reported: ${JSON.stringify(r.out.split('\n').filter(l => /ADJUDICATION|neither/.test(l)).slice(0, 3))}`)
+  ok(r.status !== 0, 'the stale adjudication was reported but the audit still passed')
+
+  if (real) {
+    writeFileSync(f, real)
+    const r2 = run({ DISCLOSURE_ADJUDICATIONS: f })
+    ok(!/UNSPENT ADJUDICATION/.test(r2.out),
+       'the seven tracked adjudications reported themselves as unspent — then the report fires on every run and says nothing')
+  }
+}
+
 
 if (failures) {
   console.error(`\ndisclosure-audit: ${failures} failure(s) — a pinned sentence nobody checked is a claim with a guard in front of it.`)
