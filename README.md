@@ -35,8 +35,9 @@ the same method.
   and reports anything nothing notices. A passing suite says the code is right; it
   does not say the tests would catch it going wrong, and those are different
   claims. A structural edit once removed four cases beyond the one being rewritten
-  and the suite stayed green at a lower count — this is what sees that. Slow, so
-  it is not part of `run-all`: run it after touching tests.
+  and the suite stayed green at a lower count — this is what sees that. **141 properties,
+  0 unpinned.** Slow, so it is not part of `run-all`: run it after touching tests, on a
+  tree you are not editing.
 - `scripts/sweep-status.mjs` — prints the last sweep's conclusion at session start,
   wired as a `SessionStart` hook in `.claude/settings.json`. The sweep's findings
   otherwise stop at a run page nothing points at; of the three that have ever
@@ -64,6 +65,41 @@ the same method.
   observe the verdict that actually refuses a run, so the false-refusal rate is measured
   from drawn pairings rather than derived from the per-side rate under an independence
   assumption nothing measured.
+- **The measurement instruments**, each with a gate `run-all` already runs and a
+  mutation battery rather than a reading:
+  - `scripts/detection-draw.mjs` / `detection-parse.mjs` — does the critic pick the
+    undegraded artifact? **12/15 = 80%**, Wilson 95% CI 55–93%, **0/5** false alarms over
+    twenty blinded trials. Published first as its exact complement, 17%, because the
+    critic's `ARTIFACT` letter was compared against the directory the degraded bytes were
+    staged under. Ledger `runs/detection.jsonl`, verdict in `docs/runs/`.
+  - `scripts/builder-draw.mjs` / `builder-parse.mjs` — can the builder repair a defect
+    whose answer is not reachable from the trial directory? On the **derivable** arm —
+    where the original is reconstructible from the artifact's own contents — **8/12
+    restored exactly, 9/12 located**. The other 18 trials are the leak detector: there the
+    original is *not* reconstructible, so a repair is either a leak or a reconstruction
+    the recoverability check missed, and every hit carries a recorded reading of which.
+  - `scripts/defect-transforms.mjs` — the three plants both instruments use, in one copy,
+    plus what is derivable from a plant: its size, its class, and whether a sealed note is
+    something the transforms can still **produce** from its source. All 105 undrifted
+    notes on file reproduce exactly; a note edited to agree with a ledger row does not.
+  - `scripts/guard-sweep.mjs` — does each of drift-guard's 40 hand-written facts still
+    bite? **40/40**, 0 redundant, recomputed every run rather than stored.
+  - `scripts/capacity-check.mjs` — could the design have produced another answer? It asks
+    the ledgers, not the prose, whether a field ever took a second value.
+  - `scripts/disclosure-audit.mjs` — is each pinned disclosure **driven** by a behavioural
+    test, or recorded as undrivable with the reason? **12 exercised, 7 adjudicated, 0
+    unaccounted.**
+  - `scripts/constructed-verify.mjs` — a pairing set whose answers nobody wrote: the role
+    is derived by running the artifact, not by judging it.
+  - `scripts/adjudications.mjs` — the three files above excuse what they cannot settle by
+    recording a human reading with a reason. This makes the **lookup** mark a row spent,
+    so an adjudication naming something that no longer exists is reported instead of
+    counted. All three accepted such a row until it was built.
+- **Both ledgers are re-derived from the evidence they came from**, not read back:
+  every scored field in `runs/detection.jsonl` and `runs/builder.jsonl` is recomputed from
+  the raw response, the artifact the builder left, and the sealed note, and a disagreement
+  is a failure. Before that, flipping one `repaired` field moved a published figure from
+  8/12 to 9/12 with the whole suite green.
 - `test/` — drift guard, the offline loop harness, and the trial tests.
 - `docs/runs/` — a record per live run: what was compared, what the verdict was,
   and what it does **not** establish. This is the only evidence here about whether
@@ -113,9 +149,13 @@ deleted.
 - **Regressions are measured, not reverted.** The builder copies the artifact before
   editing and one fresh critic says which version is closer to the goal, so a round that
   made things worse is named in the record (`regressed`) with the path of what it lost to.
-  Nothing rolls back: that would hand rollback authority to an evaluator whose detection
-  rate is n=1 (#29). The rate at which rounds actually regress is what this produces, and
-  it is what would justify turning revert on.
+  Nothing rolls back, and the reason has changed: it used to be that the critic's
+  detection rate was a single observation. It is now measured at **12/15 = 80%**, and that
+  argument is gone — but the interval runs 55% to 93%, the trials differ by one mechanical
+  transform, and a wrong revert is quieter than a wrong refusal, which at least stops the
+  run. So revert stays off as an operator's decision with no answer on file, rather than
+  as a settled one. The rate at which rounds actually regress is what this produces, and
+  it is still what would justify turning it on.
 - **k critics on one piece is ours, not his.** Both source texts say one critic
   per piece, singular. It is disclosed in every run rather than presented as
   fidelity.
@@ -126,12 +166,18 @@ deleted.
 node test/run-all.mjs
 ```
 
-Drift guard and the loop suite. The loop suite runs `loop.js`
-against a stubbed agent runtime, so it proves the control flow — the exit rule,
-the escalation, the split positions, the halt paths, the verdict shape — behaves
-as the file's own comments claim. It proves nothing about whether a real critic
-given the real prompt produces a good verdict: every `agent()` call in the tests
+That globs every `test/*.test.mjs` — 33 suites, and it is what CI runs. It covers the
+drift guard, the offline loop harness, and every measurement instrument above.
+
+The loop suite runs `loop.js` against a stubbed agent runtime, so it proves the control
+flow — the exit rule, the escalation, the split positions, the halt paths, the verdict
+shape — behaves as the file's own comments claim. It proves nothing about whether a real
+critic given the real prompt produces a good verdict: every `agent()` call in the tests
 is a lookup table, not a model.
+
+`node scripts/coverage-sweep.mjs` is separate and slow: **141 properties, ~70 minutes**
+on the runner. Do not run it against a tree you are still editing — it applies each
+mutation in place.
 
 Every guard here has been checked by building the input that should break it. One
 of those mutations passed, and the mutation turned out to be malformed rather than
