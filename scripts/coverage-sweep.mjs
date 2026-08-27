@@ -30,6 +30,8 @@ const OR = 'scripts/oracle-record.mjs'
 const OE = 'scripts/oracle-extract.mjs'
 const OP = 'scripts/oracle-report.mjs'
 const DP = 'scripts/detection-parse.mjs'
+const DT = 'scripts/defect-transforms.mjs'
+const BP = 'scripts/builder-parse.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -205,11 +207,20 @@ export const PROPERTIES = [
   // construction: a trial relabelled in both places passed the whole suite, and
   // moved a row from one column of the verdict's per-class table to another.
   // Each mutation below was APPLIED and the suite watched to go red.
-  ['a mislabelled defect class disagrees with its own bytes', DP, '  if (cls !== null && cls !== note.defect_class) {', '  if (false) {'],
-  ['the ledger row\'s class is crossed against the bytes, not against the note', DP, '  if (cls !== null && cls !== row.defect_class) {', '  if (false) {'],
-  ['two stored copies of the class must agree with each other too', DP, '  if (row.defect_class !== note.defect_class) {', '  if (false) {'],
-  ['a defect\'s size is the span that differs, not the line it sits in', DP, '  const mag = d.out.length + d.in.length', "  const mag = String(note.removed ?? '').length"],
+  ['a mislabelled defect class disagrees with its own bytes', DT, '  if (cls !== null && cls !== note.defect_class) {', '  if (false) {'],
+  ['the ledger row\'s class is crossed against the bytes, not against the note', DT, '  if (cls !== null && cls !== row.defect_class) {', '  if (false) {'],
+  ['two stored copies of the class must agree with each other too', DT, '  if (row.defect_class !== note.defect_class) {', '  if (false) {'],
+  ['a defect\'s size is the span that differs, not the line it sits in', DT, '  const mag = d.out.length + d.in.length', "  const mag = String(note.removed ?? '').length"],
   ['every miss falls at or below the size cut\'s threshold', DP, '  const thr = Math.max(...misses.map(x => x.mag))', '  const thr = Math.min(...misses.map(x => x.mag))'],
+  // --- the builder ledger is re-derived, so its scorers are pinnable at all ---
+  // Before that, runs/builder.jsonl was compared against nothing: flipping one
+  // row's `repaired` moved the published figure from 8/12 to 9/12 and the whole
+  // suite stayed green. These four are the scorers whose output the ledger now
+  // has to agree with, and each mutation was APPLIED and watched to go red.
+  ['a builder repair needs the damaged text gone, not only the original present', BP, '  return hay.includes(original) && !hay.includes(damaged)', '  return hay.includes(original)'],
+  ['a builder located verdict reads the artifact, not a constant', BP, '  return !norm(fileText).includes(damaged)', '  return true'],
+  ['an untouched builder artifact is not an edit', BP, "  return norm(fileText) !== norm(note.degraded_text || '')", '  return true'],
+  ['a builder unit is the defect, not the document it was planted in', BP, "  return [note.source, note.defect_class, String(note.removed || '').trim()].join(' ')", '  return [note.source].join(\' \')'],
 ]
 
 // THE LIST IS EXPORTED AND THE SWEEP RUNS ONLY WHEN INVOKED, and that is not tidiness.

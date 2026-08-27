@@ -36,7 +36,8 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { createHash } from 'node:crypto'
-import { parseWinner, namedDefect, declaredNoDifference, defectNeedles, norm, scoreDetection, classifyNote, defectMagnitude, classAudit, sizeCut, magnitudeSpread } from '../scripts/detection-parse.mjs'
+import { parseWinner, namedDefect, declaredNoDifference, defectNeedles, norm, scoreDetection, sizeCut, magnitudeSpread } from '../scripts/detection-parse.mjs'
+import { classifyNote, defectMagnitude, classAudit } from '../scripts/defect-transforms.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 let failures = 0

@@ -10,7 +10,14 @@
 //
 // NOTHING HERE SPAWNS.
 
+import { readFileSync, existsSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 import { scoreRepair, wasEdited, leakNeedle, DERIVABILITY, classesWithoutDerivability, norm, editFootprint, originalRecoverableFromContext, changedSpan, scoreLocated, recoverableByShape, unitKey, distinguishingTokens } from '../scripts/builder-parse.mjs'
+import { classAudit } from '../scripts/defect-transforms.mjs'
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 let failures = 0
 const fail = m => { console.error(`  FAIL  ${m}`); failures++ }
@@ -222,6 +229,97 @@ console.log('builder-parse: the recurrence check falls back when no token distin
   eq(originalRecoverableFromContext(echoed), true,
      "and reports RECOVERABLE when the original span really is sitting in the document")
 }
+
+// --------------------------------------------------------------------------
+// EVERY DERIVED FIELD IN THE BUILDER LEDGER IS RE-DERIVED HERE.
+//
+// COMMITTED FAILING, and the failure was BUILT rather than argued for. Two
+// mutations of runs/builder.jsonl passed `node test/run-all.mjs` with exit 0:
+//
+//   1. `repaired` false -> true on one row. That moves the published figure from
+//      8/12 to 9/12 — the number #25 was closed on.
+//   2. `defect_class` relabelled in the row AND in the sealed note.
+//
+// Neither test on this arm read runs/builder-raw/ or runs/builder-sealed/ at
+// all: the responses and the artifacts the builder actually edited were on disk
+// and nothing compared the ledger against them. The detection arm got this two
+// commits ago, for the identical reason, and CLAUDE.md's rule says what the
+// guarded facts have in common — they had already failed. These had not.
+//
+// The anchors are the ones the ledger does not use: the artifact file the
+// builder left behind, the sealed note's own bytes, and hashes recomputed from
+// both. A stale ledger is a FAILURE here rather than a silent inconsistency —
+// change a scorer and the trials on disk disagree until the ledger is rebuilt.
+// --------------------------------------------------------------------------
+console.log('builder-parse: the ledger on disk is what these scorers produce from the artifacts and the notes')
+{
+  const LEDGER = process.env.BUILDER_LEDGER || join(ROOT, 'runs', 'builder.jsonl')
+  const SEALED = process.env.BUILDER_SEALED || join(ROOT, 'runs', 'builder-sealed')
+  const sha = t => `sha256:${createHash('sha256').update(t).digest('hex')}`
+  if (!existsSync(LEDGER) || !existsSync(SEALED)) {
+    console.log('          no ledger on disk — nothing to re-derive (the trials are run by a separate script)')
+    console.log('          NOT VERIFIED on this branch: every scored field in the builder ledger. With no')
+    console.log('          ledger and no notes, the repair and leak figures rest on whoever wrote them.')
+  } else {
+    const rows = readFileSync(LEDGER, 'utf8').split('\n').filter(l => l.trim()).map(l => JSON.parse(l))
+    let checked = 0, noArtifact = 0, classUnreadable = 0
+    for (const row of rows) {
+      const notePath = join(SEALED, `${row.opaque}.json`)
+      if (!existsSync(notePath)) { noArtifact++; continue }
+      const note = JSON.parse(readFileSync(notePath, 'utf8'))
+
+      // THE CLASS, from the note's own bytes rather than from the label beside
+      // them. Same function the detection ledger uses; the plants are the same
+      // plants, and a second copy of the signatures here would be the duplication
+      // this repository keeps paying for.
+      const audit = classAudit(row, note)
+      if (audit.applies) {
+        if (audit.cls === null) classUnreadable++
+        for (const d of audit.disagreements) fail(`${row.trial_id}: ${d}`)
+        if (audit.cls !== null) {
+          eq(row.derivable, DERIVABILITY[audit.cls],
+             `${row.trial_id}: derivable is what the class implies, and the class is what the bytes say`)
+        }
+      }
+      // The two stored copies of the source, which decide which document a
+      // trial's unit key names.
+      eq(row.source, note.source, `${row.trial_id}: the row and the sealed note name the same source document`)
+
+      // THE DEGRADED TEXT the builder was handed. Its hash is recorded twice and
+      // recomputes from the note's own copy of the text.
+      if (typeof note.degraded_text === 'string' && note.degraded_text.length) {
+        eq(note.degraded_hash, sha(note.degraded_text), `${row.trial_id}: the sealed note's degraded_hash is the hash of the text beside it`)
+        if (row.degraded_hash) eq(row.degraded_hash, note.degraded_hash, `${row.trial_id}: the row's degraded_hash matches the note's`)
+      }
+
+      const afterRel = row.artifact_after
+      if (!afterRel || !existsSync(join(ROOT, afterRel))) { noArtifact++; continue }
+      const after = readFileSync(join(ROOT, afterRel), 'utf8')
+
+      // THE ARTIFACT THE BUILDER LEFT. Every scored field below is recomputed
+      // from it, so a row cannot claim an outcome the file does not show.
+      if (row.after_hash) eq(row.after_hash, sha(after), `${row.trial_id}: after_hash is the hash of the artifact on disk — a row whose recorded hash is not the file's is a row about a different file`)
+      eq(row.repaired, scoreRepair(after, note), `${row.trial_id}: repaired, recomputed from the artifact the builder left`)
+      eq(row.edited, wasEdited(after, note), `${row.trial_id}: edited, recomputed from the artifact the builder left`)
+      eq(row.located, scoreLocated(after, note), `${row.trial_id}: located, recomputed from the artifact the builder left`)
+      eq(row.recoverable_from_context, originalRecoverableFromContext(note), `${row.trial_id}: recoverable_from_context, recomputed from the sealed note`)
+      eq(row.recoverable_by_shape, recoverableByShape(note), `${row.trial_id}: recoverable_by_shape, recomputed from the sealed note`)
+      eq(row.unit_key, unitKey(note), `${row.trial_id}: unit_key, recomputed from the sealed note — the key a rate's denominator is counted over`)
+      const fp = editFootprint(after, note)
+      ok(JSON.stringify(row.footprint) === JSON.stringify(fp),
+         `${row.trial_id}: footprint recorded ${JSON.stringify(row.footprint)}, the artifact yields ${JSON.stringify(fp)}`)
+      checked++
+    }
+    console.log(`          ${checked} trial(s) re-derived from the artifact on disk and the sealed note`)
+    ok(checked > 0, 'no builder trial could be re-derived — the ledger and the notes exist but nothing paired, so this check examined nothing')
+    if (noArtifact) console.log(`          ${noArtifact} row(s) carry no artifact to re-derive from (void trials keep no edited file); their scored fields are null and their class is still crossed against the bytes`)
+    if (classUnreadable) console.log(`          NOT VERIFIED: ${classUnreadable} note(s) match no transform signature — their class rests on the drawer alone`)
+    console.log('          NOT RE-DERIVABLE from anything on disk: isolation_hits, void, why_void and')
+    console.log('          spawn_status. Those are facts about a trial directory that no longer exists, so')
+    console.log('          the leak arm rests on the drawer having recorded them honestly.')
+  }
+}
+
 
 if (failures) {
   console.error(`\nbuilder-parse: ${failures} failure(s).`)

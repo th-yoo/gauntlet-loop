@@ -58,7 +58,8 @@ import { dirname, join } from 'node:path'
 // Pure text-in, number-out. The size cut lives beside the parse rather than here
 // so it has one copy and can be driven with constructed input — a rule this
 // ledger has already paid for three times over.
-import { defectMagnitude, sizeCut, magnitudeSpread, achievableMagnitudes, magnitudeReach } from '../scripts/detection-parse.mjs'
+import { sizeCut, magnitudeSpread } from '../scripts/detection-parse.mjs'
+import { defectMagnitude, achievableMagnitudes, magnitudeReach } from '../scripts/defect-transforms.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // DETECTION_LEDGER lets a check point this at a throwaway file, the same
