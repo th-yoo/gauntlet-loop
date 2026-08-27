@@ -77,6 +77,21 @@ console.log('capacity-check: it can still FAIL — the adjudications are load-be
   console.log(`          with adjudications withheld: ${m[1]} unexplained — ${fieldLines.length} field-level, ${ledgerLines.length} ledger-level`)
 }
 
+console.log('capacity-check: constants inside a COHORT are found, not only whole-ledger ones')
+{
+  // WITHOUT THIS the cohort pass can be deleted and everything still passes — a
+  // mutation removing it survived the first version of this file. It is the pass
+  // that reaches issue 50's own instance: `correct` is true on all 48 rows of
+  // oracle/results.jsonl carrying a `pairing`, while varying across the whole
+  // ledger. A whole-ledger scan cannot see that, and the pairing run is precisely
+  // a subset.
+  const r = run({ CAPACITY_ADJUDICATIONS: join(ROOT, 'test', 'no-such-adjudications.jsonl') })
+  const cohortLines = r.out.split('\n').filter(l => /a distinct experiment inside this ledger/.test(l))
+  ok(cohortLines.length > 0,
+     'no cohort was reported with adjudications withheld — a constant that holds inside a subset is invisible to a whole-ledger scan, and the run issue 50 cites IS a subset')
+  console.log(`          ${cohortLines.length} cohort(s) detected`)
+}
+
 console.log('capacity-check: the adjudications say what the constant COSTS, not merely that it exists')
 {
   const path = join(ROOT, 'docs', 'capacity-adjudications.jsonl')
@@ -111,8 +126,9 @@ console.log('          not decidable from a design description, and the run issu
 console.log('          own capacity in prose while its pairings were chosen for clarity.')
 console.log('          NOT ESTABLISHED: that a VARIED field makes a claim sound. Variation only makes')
 console.log('          unfalsifiable-by-construction less likely; it is necessary, never sufficient.')
-console.log('          NOT COVERED: measurements with no ledger. The pairing run that motivated issue')
-console.log('          50 lives in prose alone, so nothing here can reach it — which is its own finding.')
+console.log('          NOT COVERED: measurements that emit no ledger at all. This scans every tracked')
+console.log('          .jsonl, so the reach is whatever has been written down; a run recorded only in')
+console.log('          prose is invisible to it, and nothing here can tell you such a run exists.')
 
 if (failures) {
   console.error(`\ncapacity-check: ${failures} failure(s) — a design that could only answer one way is not evidence, whatever was pre-registered about it.`)

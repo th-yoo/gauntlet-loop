@@ -82,16 +82,27 @@ adjudication removed.
   ability to *skip* the post-hoc half; it does not answer the pre-run question.
 - **That a varied field makes a claim sound.** Variation makes unfalsifiable-by-construction
   less likely. It is necessary, never sufficient.
-- **Anything about the run that motivated the issue.** The pairing-stability run emitted
-  **no machine-readable data at all** — 8 pairings, 3 draws each, recorded in a fenced block
-  in prose — so nothing here can reach it. Reconstructing a ledger from that narrative was
-  considered and rejected: its stated figures do not cleanly reconcile (32 spawns against
-  "8 pairings at 3 draws each" and "16 redraws"), and inventing structure to make a run
-  checkable is the failure this repository names most often, one level up.
+- **CORRECTED, and the correction is the better result.** This document first claimed the
+  pairing-stability run "emitted no machine-readable data at all" and that nothing here could
+  reach it. That was false. `oracle/results.jsonl` carries **48 rows with a `pairing` field** —
+  the 8 pairings at 3 draws, both sides — and the claim was only made because the scan had been
+  scoped by hand to `runs/`, which is the hand-enumeration issue 3 is about, committed inside
+  the instrument built for issue 50.
 
-  That unreachability is itself a finding. **A measurement whose outcomes live only in prose
-  cannot be capacity-checked by anything.** Whether run documents should be required to emit a
-  ledger is a decision, not a patch, and it is not taken here.
+  The scan now discovers every tracked `.jsonl`, and analyses **cohorts**: a field present on
+  some rows and absent on others marks a distinct experiment, so each such subset is checked on
+  its own. With that, the check reaches the run the issue cites and finds exactly the property
+  the issue describes:
+
+      cohort "pairing" (48 of 90 rows) — correct: one value across those 48 rows: true
+
+  The probe was correct on every draw of every pairing. **That run could not have produced an
+  incorrect prediction**, so no claim about the probe's accuracy is falsifiable by it — while
+  its write-up asserts "it could have" in prose. Adjudicated in full in
+  `docs/capacity-adjudications.jsonl`.
+
+- **Measurements that emit no ledger remain invisible.** The reach is whatever has been written
+  down, and nothing here can tell you a prose-only run exists.
 
 ## Reproducing
 
