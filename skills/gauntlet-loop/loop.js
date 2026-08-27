@@ -2164,7 +2164,7 @@ return {
       : fitted && fitted.verdict === 'partial'
         ? `PART OF THE GOAL IS TRACEABLE TO THE CANDIDATE'S OWN WORDING. ${fitted.reasoning} Verdicts on those clauses measure the overlap, not the work. Nothing here can see when the goal was written or by whom.`
         : 'The goal is operator-supplied, and reads as independent of the candidate. That is a fact about the two texts: nothing here can see when the goal was written or by whom, and a goal written after looking at the candidate can be phrased so that it does not overlap with it.',
-    'k>1 is an ADDITION, not source fidelity. Both primary texts say one critic per piece, singular; the source gets width by decomposing the goal, which this loop does not do. What k restores is the source\'s property — every judge satisfied — by a mechanism the source does not describe.',
+    'k>1 is an ADDITION, not source fidelity. Both primary texts say one critic per piece, SINGULAR, and get width by decomposing the goal — which this loop also does, when a lead returns a usable split. So k is a SECOND axis of width the source never describes: the source multiplies PIECES and holds judges at one, and k multiplies JUDGES within a piece. What k buys is a stronger reading of "every judge satisfied" than one critic can give; what it is not is fidelity, and at the default k=1 that phrase quantifies over a set of one.',
     'Critic and builder share a model family, so the critic may be blind to exactly the mistakes the builder is prone to making.',
     'THE BLINDNESS PROBE MODELS THE FILESYSTEM ONLY, and the critic and builder both hold WebSearch and WebFetch. ' +
     'The probe resolves an artifact\'s citations against this working tree, so a `clean` verdict means neither artifact ' +
