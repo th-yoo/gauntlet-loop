@@ -1,0 +1,11 @@
+**snapshot**: `/tmp/gauntlet-builder-trials/6efe39076abb/subject.snapshot-r1.md`
+**failed**: none
+
+**Changed**: one number, line 93.
+
+- Was: "The old cohort's **22** observations remain in the ledger, reported separately, neither deleted nor blended in."
+- Now: "The old cohort's **15** observations…"
+
+**Why 22 was the wrong one, not 15**: two other places state the old instrument's count — line 3 (`old instrument sha256:e788e8e1904448c0… — 15 observations, 1 flip`) and line 55 (same inside the cohort-split block). 22 appeared once, unsupported. Likely drift from the later new-cohort total (12+11=23, line 147).
+
+Nothing else touched. Byte-for-byte identical to snapshot except that digit pair.

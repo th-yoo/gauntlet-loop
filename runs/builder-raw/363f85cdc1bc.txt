@@ -1,0 +1,10 @@
+**snapshot**: `/tmp/gauntlet-builder-trials/363f85cdc1bc/subject.snapshot-r5.md`
+
+**changed**: one line, `subject.md:83`. `does-the-work    13 obs / 6 distinct` → `6 obs / 6 distinct`.
+
+**why that line**: `13` contradicted three things in the document.
+- Same line's own ratio and interval: `0/6, 95% CI [0%, 39%]`. 39% is the exact 0-event 95% upper bound for n=6 (`1 − 0.05^(1/6)`); for n=13 it would be ~21%.
+- Later counts go *down* otherwise: the next block reports `does-the-work 9 obs` after adding three second draws — 6+3=9, not 13+3.
+- Arm structure: that pass drew all eleven rows once under the current wording, with the extra repeats on `partial-handoff` (generator arm, 3 draws → 7 obs). Six distinct does-the-work rows, one draw each = 6.
+
+Nothing else touched.

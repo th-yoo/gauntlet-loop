@@ -1,0 +1,9 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/4d9bc4feed9e/subject.snapshot-r1.md`
+
+**failed:** none
+
+**changed:** one line, line 42. "A staging URL by Friday the 12th." → "A staging URL by Friday the 11th."
+
+**why that statement:** doc pins deadline inside current quarter (intro: "not going to get it this quarter"; today 2026-08-27, Q3 2026). Next 12th in that window is 2026-09-12, a Saturday — so "Friday the 12th" states a false fact. 2026-09-11 is a Friday.
+
+Nothing else touched. Byte diff: 1814 → 1814.

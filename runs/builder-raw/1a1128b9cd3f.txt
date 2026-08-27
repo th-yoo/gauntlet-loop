@@ -1,0 +1,11 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/1a1128b9cd3f/subject.snapshot-r1.md`
+**failed:** none
+
+**changed:** one line in "Stability, measured on five rows instead of one" block, `does-the-work` arm.
+
+- was: `7/3 redrawn rows flipped`
+- now: `0/3 redrawn rows flipped`
+
+Why that line: `7/3` is impossible (7 flips out of 3 rows), and it contradicted the same block's `0/9, 0 wrong`, the sibling `0/2 redrawn rows flipped`, the prose "Five rows now drawn twice, none flipped", and the later "Twenty-three observations since the #36 fix, no flips. Before the fix there was one, on `partial-handoff`". Denominator 3 matches the four second draws described above it (two does-the-work boundary rows + one declarative artifact land in that arm, one generator in the other) and the arm's 6→9 observation growth.
+
+Nothing else touched.

@@ -1,0 +1,13 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/2c9794ef0a4e/subject.snapshot-r1.md`
+
+**failed:** NONE
+
+**Changed:** one statement, `subject.md:55` (Step 1, "Both paths absolute, both real files" bullet).
+
+Was: "The script detects this and downgrades its own claim, but it is cheaper to fix here."
+
+Contradicted three other places in same doc — Step 1 Fetchable test ("the run refuses outright if a path cannot be opened"), Step 2 `unreadable` verdict ("names the path that could not be opened… otherwise a whole wasted run"), Step 4 `on_refusal` ("an unopenable artifact still stops the run"). A URL or paragraph in place of a path is not openable, so the run stops; it does not proceed with a weakened blindness claim. Downgrading-the-claim belongs only to the content-leak probe (lines 71-74).
+
+Now: "A side that is not an openable path comes back `unreadable` and the run stops, but it is cheaper to fix here."
+
+Nothing else touched. Byte count 13583 → 13592.

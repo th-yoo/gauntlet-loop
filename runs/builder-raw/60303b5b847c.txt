@@ -1,0 +1,3 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/60303b5b847c/subject.snapshot-pre-round.md`
+
+**changed:** S3, line 50. Section states arm holds 6 rows ("every `produces-an-instruction` row was a markdown document, 6 of 6"), then the residual paragraph called the same rows "four artifacts". Changed `four artifacts` to `six artifacts`. One word. Nothing else touched.

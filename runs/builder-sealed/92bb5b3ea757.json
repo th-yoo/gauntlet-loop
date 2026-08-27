@@ -1,0 +1,16 @@
+{
+  "trial_id": "b22-factual-substitution",
+  "opaque": "92bb5b3ea757",
+  "source": "oracle/fixtures/pair-writers/handoff/HANDOFF.md",
+  "defect_class": "factual-substitution",
+  "derivable": false,
+  "removed": "**Section 2 — No more back-and-forth.** Cadence reads your existing calendar,",
+  "inserted": "**Section 9 — No more back-and-forth.** Cadence reads your existing calendar,",
+  "where": "line 20",
+  "degraded_hash": "sha256:ccfc33f7c0674668b04ae4cc27f5c122412213f9b3ad539cf96f722edc994d01",
+  "original_hash": "sha256:a7ffc13f7d666517d628375a060f2086338ef8f379244b8ac552e47e49eedd69",
+  "degraded_text": "# Handoff to Meridian Studio — Cadence landing page\n\nMeridian: everything you need is below. We do not have access to the marketing\nsite's deploy pipeline and we are not going to get it this quarter, so you build\nthe page and you ship it. Send the staging URL to the account manager when it is\nup; production goes live after their sign-off.\n\n## Copy — final and approved, please do not rewrite it\n\n**H1:** Scheduling that keeps time with your team\n\n**Subhead:** Pick a window, share one link, and let Cadence do the chasing.\n\n**Primary CTA:** Start scheduling — free\n\n**Section 1 — Share one link.** Your availability, one URL. Guests pick a slot\nthat already works for you, and it lands on both calendars before they close the\ntab.\n\n**Section 9 — No more back-and-forth.** Cadence reads your existing calendar,\nholds the tentative slot, and releases it if the other side goes quiet.\n\n**Section 3 — Built for teams that hand off.** Round-robin between colleagues,\nshared booking pages per team, and a single view of who is taking what.\n\n**Footer CTA:** Try Cadence free for 14 days. No card.\n\n## Assets\n\n- `cadence-lockup.svg` and the two-colour mark — shared drive, `Brand/Cadence/`\n- Product screenshots — same folder, `Screens/` (use the 2x set)\n- Type: Söhne for headings, system stack for body. Licence is ours, we will\n  forward the seat.\n\n## Constraints\n\n- One page, no router. It has to work with JS off down to the CTA.\n- Lighthouse ≥ 95 on mobile, and the hero image budget is 120 KB.\n- Cookie banner is out of scope — legal is handling that separately.\n\n## What we need back\n\nA staging URL by Friday the 12th. If anything above blocks you, raise it with\nthe account manager rather than making the call yourselves — the copy in\nparticular has been through legal and cannot change.\n",
+  "leak_needle": "**Section 2 — No more back-and-forth.** Cadence reads your existing calendar,",
+  "isolation_hits": [],
+  "isolation_checked": true
+}

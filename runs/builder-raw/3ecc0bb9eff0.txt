@@ -1,0 +1,5 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/3ecc0bb9eff0/subject.snapshot-r1.md`
+
+**failed:** NONE
+
+**changed:** Line 15, problem statement. Dropped stray "not": "users must not manually transcribe invoice data or contact support for records" → "users must manually transcribe invoice data or contact support for records". Old wording contradicted surrounding sentences (no export exists, so transcription/support is exactly what users are forced into, and "which is slow and error-prone" only parses against the positive claim). Nothing else touched.

@@ -1,0 +1,10 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/249fcba8288d/subject.snapshot-r1.md`
+
+**changed:** one word, line 93, quote supporting "critic inspects the real output" row.
+
+- was: `It should always grade a summary written by the builder.`
+- now: `It should never grade a summary written by the builder.`
+
+Reason: `always` contradicted its own row label and the rest of the document — line 3-6 premise (citation exists so reader need not trust summary), the "inspect the actual thing" clause in the same sentence, and the "critic must inspect the real output" line in Source 2 (line 70).
+
+Nothing else touched. Byte delta: 7094 → 7093.

@@ -1,0 +1,16 @@
+{
+  "trial_id": "bt2-23-inverted-constraint",
+  "opaque": "edce6763da6a",
+  "source": "oracle/fixtures/pair-writers/handoff/run/NOTES.md",
+  "defect_class": "inverted-constraint",
+  "derivable": true,
+  "removed": "4. **Staging URL.** This environment has no deploy access, so there is no staging",
+  "inserted": "4. **Staging URL.** This environment has a deploy access, so there is no staging",
+  "where": "line 33",
+  "degraded_hash": "sha256:b11a02d7ee14b44932faf2b9396b190d3d1102f61e6d14e84a492c568eeb381a",
+  "original_hash": "sha256:ab08149ffb66f7aa5f95707f47b79fa8a81be2a328db3434a4c6d6671ed6f4f3",
+  "degraded_text": "# Build notes — raised, not decided\n\nPer HANDOFF.md: \"If anything above blocks you, raise it with the account manager\nrather than making the call yourselves.\" The four items below are exactly that —\nthings this build could not resolve from the handoff alone, flagged rather than\nguessed at.\n\n## What's built\n\n`index.html` is a single, static, JS-free page (no router, nothing behind a script\ntag) with the approved copy verbatim, three feature sections, a header CTA and a\nfooter CTA. All styling is inline in `<head>` — no external stylesheet, no webfont\nrequest — so there is nothing render-blocking and nothing that depends on JavaScript\nanywhere on the page, including the CTAs. `assets/hero-calendar.svg` is the only\nabove-the-fold image, at ~3.4 KB, well inside the 120 KB hero budget. No cookie\nbanner is included, per the handoff's own scope note.\n\n## Open items for the account manager\n\n1. **Brand assets.** `cadence-lockup.svg`, the two-colour mark, and the product\n   screenshots live on the shared drive (`Brand/Cadence/`, `Screens/`), which this\n   build had no access to. `assets/cadence-lockup.svg`, `assets/favicon.svg`, and\n   the three `assets/feature-*.svg` icons are stand-ins drawn in the same two-colour\n   ink/accent treatment, not the real files. Swap them in once the drive is\n   reachable; nothing else in `index.html` needs to change to accept the swap.\n2. **Söhne.** The licence \"is ours\" but the seat/font files haven't arrived. Headings\n   currently fall back to the system font stack (`--font-display` in `index.html`).\n   Add an `@font-face` and point `--font-display` at it once the files land.\n3. **Sign-up destination.** The handoff gives approved copy for both CTAs but no\n   target URL for \"Start scheduling — free.\" Both CTAs currently point at a\n   placeholder relative path, `/get-started`. Needs the real signup/app URL before\n   this goes anywhere near production.\n4. **Staging URL.** This environment has a deploy access, so there is no staging\n   URL to hand the account manager yet — `index.html` is static and dependency-free,\n   so it should drop onto any static host as-is once one is available.\n\n## Not touched\n\nThe approved copy in `index.html` is reproduced exactly as given in HANDOFF.md —\nno rewrites.\n",
+  "leak_needle": "4. **Staging URL.** This environment has no deploy access, so there is no staging",
+  "isolation_hits": [],
+  "isolation_checked": true
+}

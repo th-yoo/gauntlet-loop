@@ -1,0 +1,10 @@
+**snapshot**: `/tmp/gauntlet-builder-trials/1ac633b97165/subject.snapshot-r1.md`
+
+**changed**: one sentence, line 41 (Calibration section).
+
+- was: "**The result is genuinely ambiguous and the judge said so rather than picking.**"
+- now: "**The result is genuinely ambiguous, and the judge said so in prose while still having to pick.**"
+
+**why that statement**: "rather than picking" contradicted two other places in same section — section header records a pick (`CALIBRATED, attempt 1, 0 voids, 0 misses`), and line 49-51 states `CAL_JUDGE_SCHEMA` asks for `caught: boolean` and "a binary schema forces the judge to round it". Judge could not have declined to pick.
+
+Nothing else touched. Byte-diff limited to that line.

@@ -1,0 +1,5 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/2abf827c7a7c/subject.snapshot-r1.md`
+
+**failed:** NONE
+
+**changed:** One bullet in "What it does not do". Old text claimed "The split is not checked... no part of this run would notice" — contradicted the "A split that wins is checked once more, whole" section, the `SPLIT_UNSOUND` status row, and the `split_check` verdict field, all of which describe exactly that detection. Rewrote the bullet to state what is actually unverified (the lead's split criterion), and to record the whole-artifact round's two real limits already stated elsewhere: it declines when pieces edited other paths, and a win there is consistency not proof. Nothing else touched.

@@ -1,0 +1,5 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/3a707aaae591/subject.snapshot-r1.md`
+
+**failed:** none
+
+**changed:** line 62 only. Old text claimed 2 recovered defects included "the one nominated in advance as the miss test." Contradicts the Invocation section, which states gate 1 ("one agent would miss X, because one agent Y") does not apply and cannot be completed honestly for this run — so nothing was nominated in advance. Replaced with the bare count plus an explicit note that no advance miss prediction exists. Nothing else touched.

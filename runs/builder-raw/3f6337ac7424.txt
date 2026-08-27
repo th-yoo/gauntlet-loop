@@ -1,0 +1,7 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/3f6337ac7424/subject.snapshot-r1.md`
+
+**changed:** one word, line 89. `round-2` → `round-1`.
+
+**why:** Run 2 header say "WON at round 1", stats line say "no build round", body say "It won round 1, 2/0". So run 2 had no round 2 — "Both round-2 critics of run 2" contradict three other statements. Only critics that existed in run 2 were round 1's two.
+
+Nothing else touched. Byte delta: 6740 → 6740.

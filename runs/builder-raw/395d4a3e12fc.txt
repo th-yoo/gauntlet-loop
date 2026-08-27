@@ -1,0 +1,13 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/395d4a3e12fc/subject.snapshot.md`
+
+**failed:** NONE
+
+**changed:** one sentence, "Reading the report" section.
+
+Doc stated its not-posed threshold twice with different numbers. Pairing section: "Below five distinct pairings the rate is not posed at all, which is the threshold the per-side arm already applies to distinct artifacts" — threshold five. Per-side section said the report "says 'cannot be posed' rather than printing a rate a single-digit sample cannot support" — implies threshold ten, and calls a 5–9 sample unsupportable when the doc's own rule poses it.
+
+Fixed per-side sentence to name five:
+
+> ...and says "cannot be posed" rather than printing a rate fewer than five distinct artifacts can support.
+
+Nothing else touched.

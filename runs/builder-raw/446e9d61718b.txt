@@ -1,0 +1,10 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/446e9d61718b/subject.md.snapshot-r1`
+
+**changed:** one sentence, line 101, in "What is actually enforced".
+
+- was: `A clean probe result can withdraw that claim, never strengthen it.`
+- now: `A dirty probe result withdraws that claim; a clean one never strengthens it.`
+
+**why:** inverted against its own preceding sentences. Lines 98–100 say the probe reports whether either artifact says where it came from, and **when it does** the run withholds the blindness claim. So withdrawal is triggered by a *dirty* result, not a clean one. Old wording assigned the withdrawal to the clean case, contradicting the rule stated two lines above.
+
+Nothing else touched.

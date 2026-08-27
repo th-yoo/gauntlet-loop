@@ -1,0 +1,16 @@
+{
+  "trial_id": "bt3-26-factual-substitution",
+  "opaque": "bc7867d55b1a",
+  "source": "oracle/fixtures/rfp-notice/OUTPUT.md",
+  "defect_class": "factual-substitution",
+  "derivable": false,
+  "removed": "  5 December)",
+  "inserted": "  12 December)",
+  "where": "line 15",
+  "degraded_hash": "sha256:8af771feec3a2f8fe68d5f9a4238c2338ac33f3406796c7d01e98fd450a9f1fe",
+  "original_hash": "sha256:d5bfb70858ac551abbb18e6fad47cdda89dede7698512c038a3ca47c8d8843cc",
+  "degraded_text": "# Denby Warehouse Stock Tracking System — Procurement Action Plan\n\n**Status: system not yet in place.** This document tracks the process from\nRFP publication through to a working system in use by staff. It is a plan\nand tracker, not the system itself.\n\n## Source\n\nDerived from `RFP.md` (Request for proposals — warehouse inventory system).\n\n## Key dates and facts, as stated in the RFP\n\n- Submission deadline: 14 November, to procurement@denby-coop.example\n- Award notified within three weeks of the closing date (by approximately\n  12 December)\n- A single supplier is awarded\n- The evaluation panel meets once, after the closing date\n- The cooperative does not build the system itself — the awarded supplier\n  delivers it\n- Evaluation weighting: 40% cost, 40% approach, 20% support terms\n\n## What a compliant proposal must cover, per the RFP\n\n- Approach to stock counts across three storage bays\n- Barcode hardware to be supplied, and its cost\n- Training for six warehouse staff\n- Support terms for the first twelve months\n\n## Steps remaining to reach a working system in use by staff\n\n1. Publish/circulate the RFP to prospective suppliers (if not already done),\n   ahead of 14 November\n2. Receive and log proposals by the 14 November deadline\n3. Convene the evaluation panel after closing; score each proposal against\n   the 40% cost / 40% approach / 20% support weighting\n4. Notify the awarded supplier within three weeks of closing\n5. Awarded supplier delivers barcode hardware and the stock-count approach\n   across the three bays\n6. Awarded supplier trains the six warehouse staff\n7. Twelve-month support term begins\n8. Confirm staff are actively using the system day-to-day — this is the\n   actual completion criterion, not the award decision\n\n## What cannot be resolved from this document alone\n\n- No proposal has been submitted, so no scoring, award, hardware delivery,\n  or training can happen yet\n- No details of current stock-tracking practice, warehouse layout, or IT\n  environment are given — a supplier will need these, but they are not\n  addressed here\n- No supplier, product, or cost has been chosen; none is fabricated here\n\n## Status against the goal\n\nGoal: \"the Denby warehouse has a working stock tracking system in use by\nstaff.\"\n\n**Not met.** The RFP is the opening step of a multi-week procurement\nprocess (submission → evaluation → award → delivery → training → support).\nNo system exists, and none can exist, until a supplier is awarded and\ncompletes delivery and training — none of which has occurred yet.\n",
+  "leak_needle": null,
+  "isolation_hits": null,
+  "isolation_checked": false
+}

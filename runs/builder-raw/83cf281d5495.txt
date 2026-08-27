@@ -1,0 +1,7 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/83cf281d5495/subject.snapshot-r1.md`
+
+**changed:** one bullet in "What it does not do" (was line 306).
+
+Old text claimed "**The split is not checked.** ... Every piece can win while the artifact as a whole is worse than the reference, and no part of this run would notice." That contradicted the "A split that wins is checked once more, whole" section, the `SPLIT_UNSOUND` status row, and the `split_check` verdict field — all of which say that exact case IS detected.
+
+New text narrows the claim to what actually goes unchecked (the lead's criterion for picking pieces), and states the recheck's real limits: fires only where pieces edited the judged artifact, and a win there is consistency not seam-proof. Nothing else touched.

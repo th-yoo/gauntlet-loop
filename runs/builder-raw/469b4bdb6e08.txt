@@ -1,0 +1,9 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/469b4bdb6e08/subject.snapshot-r1.md`
+
+**failed:** none
+
+**changed:** one line, `subject.md:150`. Was `which matches MODEL_SHAPED but resolves to a binary.` Now `...but resolves to no binary.`
+
+Statement sat under a bullet calling the canary inert, and under a doc whose whole thesis is a canary must be model-shaped AND unrunnable (lines 35-37, 277-280, 376-378). "Resolves to a binary" said the opposite — an inert canary that resolves to a real executable is the executable canary that caused the bomb. Path is `/nonexistent/claude-inert-canary`, which resolves to nothing (exit 127, as line 279 and 309 state).
+
+Nothing else touched.

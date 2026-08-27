@@ -1,0 +1,16 @@
+{
+  "trial_id": "b25-inverted-constraint",
+  "opaque": "abd93e8df878",
+  "source": "oracle/fixtures/partial-handoff/OUTPUT.md",
+  "defect_class": "inverted-constraint",
+  "derivable": true,
+  "removed": "**not achieved** by phase one and cannot be achieved from this document alone.",
+  "inserted": "**not achieved** by phase one and can be achieved from this document alone.",
+  "where": "line 26",
+  "degraded_hash": "sha256:45055d39574a861ca7d8d5dd608d2e2b28ed2590f4b3a2d575196bda94144359",
+  "original_hash": "sha256:c5ae7db9e09c22cdc3d962f63df15949879bc09ae6f37574c5e0ab808de87552",
+  "degraded_text": "# Analytics rollout — phase one: status report\n\n## What was run\n\nExecuted the three phase-one commands exactly as given in `setup.md`:\n\n    mkdir -p ./analytics/config\n    printf 'endpoint: unset\\nsample_rate: 1.0\\n' > ./analytics/config/client.yml\n    printf 'provisioned\\n' > ./analytics/STATUS\n\n## Resulting state\n\n- `./analytics/config/client.yml` exists, containing:\n  ```\n  endpoint: unset\n  sample_rate: 1.0\n  ```\n- `./analytics/STATUS` exists, containing: `provisioned`\n\nPhase one is complete: the config tree exists and STATUS reads `provisioned`,\nmatching what `setup.md` describes as the deliverable for this phase.\n\n## Goal status: NOT MET\n\nThe stated goal — **the analytics dashboard shows live event data** — is\n**not achieved** by phase one and can be achieved from this document alone.\n\nPer `setup.md` itself:\n\n- The client config's `endpoint` is literally `unset`, so nothing is wired\n  up to send events anywhere yet.\n- \"Phase two is not ours\": the data pipeline that actually populates the\n  dashboard is built by the platform team, from a ticket filed *after*\n  phase one lands, and is scheduled for next quarter.\n- The document states explicitly: \"Nothing you run here causes any event to\n  be recorded — the dashboard stays empty until platform picks the ticket up\n  next quarter.\"\n\nSo provisioning is done, but no event data flows and the dashboard remains\nempty. Closing that gap requires the platform team's phase-two pipeline\nwork, which is out of scope for this document and not something achievable\nby running anything in this directory.\n\n## Suggested next step (outside this document's scope)\n\nFile the handoff ticket to the platform team referencing this provisioned\nconfig tree (`./analytics/STATUS` = `provisioned`) so phase two can be\nscheduled.\n",
+  "leak_needle": "**not achieved** by phase one and cannot be achieved from this document alone.",
+  "isolation_hits": [],
+  "isolation_checked": true
+}

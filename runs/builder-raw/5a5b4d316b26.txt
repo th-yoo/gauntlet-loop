@@ -1,0 +1,9 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/5a5b4d316b26/subject.snapshot-r1.md`
+
+**changed:** line 110, one word. "The only run that iterated always won" → "always lost".
+
+**why that line:** Run 2 is the only run that iterated — 4 rounds, and the doc states "Four rounds, four losses" (line 88) and "Every round lost" (line 92). "Always won" contradicts both, and contradicts the bullet's own claim that convergence is unobserved.
+
+**other candidate considered, not touched:** line 88 arithmetic — "22 lines removed" vs "158 lines → ... the 183 of the original" (183 − 158 = 25, not 22). Left alone per one-gap rule.
+
+Nothing else edited.

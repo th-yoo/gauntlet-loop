@@ -1,0 +1,9 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/2dd68238a5a1/subject.snapshot-r1.md`
+
+**failed:** NONE
+
+**changed:** one word, line 26. Was `and can be achieved from this document alone`, now `and cannot be achieved from this document alone`.
+
+Why that line: it was the self-contradiction. Section header says `Goal status: NOT MET`; body of same section says phase two belongs to platform team, `endpoint` is `unset`, dashboard stays empty until next quarter; closing paragraph says closing gap is "not something achievable by running anything in this directory". Line 26 alone claimed the opposite.
+
+Nothing else touched.

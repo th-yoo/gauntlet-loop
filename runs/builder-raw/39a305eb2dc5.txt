@@ -1,0 +1,5 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/39a305eb2dc5/subject.snapshot-r1.md`
+
+**failed:** NONE
+
+**changed:** One word deleted, line 14 "Problem it solves". Was "users must not manually transcribe invoice data or contact support for records, which is slow and error-prone" — negation contradicted rest of sentence and of paragraph (no-export state is the problem being described, and "which is slow and error-prone" refers to doing those things). Now reads "users must manually transcribe invoice data or contact support for records". Nothing else touched.

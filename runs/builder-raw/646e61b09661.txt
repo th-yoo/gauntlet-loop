@@ -1,0 +1,8 @@
+**snapshot**: `/tmp/gauntlet-builder-trials/646e61b09661/subject.round-snapshot.md`
+**failed**: NONE
+
+**Changed**: line 44, `23 redraws` → `16 redraws`.
+
+**Why that statement**: document states same quantity twice with different values. Pre-registration decision rule said "0 flips over 23 redraws"; result section says "to the extent 16 redraws can rule anything out". Run spec is 8 pairings × 2 new draws = 16 redraws beyond the existing draw, so 16 is the value the rest of document supports.
+
+Nothing else touched.

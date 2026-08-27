@@ -1,0 +1,3 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/2d08548bd05e/subject.snapshot-r1.md`
+
+**changed:** line 20, `**Section 9 —` → `**Section 2 —`. Copy block ran Section 1, Section 9, Section 3; the middle label contradicted the sequence it sits in. One-token edit, nothing else touched.

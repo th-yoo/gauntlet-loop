@@ -1,0 +1,6 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/1d2e0c6798d7/subject.snapshot.md`
+**failed:** NONE
+
+**Changed:** one word, line 146. Was: "Step 2 is unchanged: a second agent that has **always** seen the script classifies the OUTPUT with the addressee question." Now: "has **never** seen the script".
+
+**Why that statement:** it contradicted the rest of the document. S3 says the generator arm "reads its label off a **blind** second agent"; *The result* says "The label came from the **blind classifier**". A classifier that had seen the script is not blind, and would carry the exact shape confound S1 is about. Nothing else touched.

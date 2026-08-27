@@ -61,6 +61,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join, relative } from 'node:path'
 import { tmpdir } from 'node:os'
 import { runLoop } from '../test/harness.mjs'
+import { CLASSES } from './defect-transforms.mjs'
 import { parseWinner, namedDefect, declaredNoDifference, artifactSides, degradedArtifact, scoreDetection } from './detection-parse.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -127,75 +128,6 @@ const SOURCES = [
   'docs/README.md',
 ]
 
-// ---------------------------------------------------------------------------
-// THE THREE TRANSFORMS. Each is deterministic given (text, n): the nth eligible
-// site is damaged, so nothing here encodes a judgement about which damage is
-// findable. Each returns the exact removed and inserted strings, which is what
-// makes the sealed note checkable rather than descriptive.
-// ---------------------------------------------------------------------------
-
-function sectionRemoval(text, n) {
-  const lines = text.split('\n')
-  const heads = lines.map((l, i) => (/^## +\S/.test(l) ? i : -1)).filter(i => i !== -1)
-  if (heads.length < 2) return null
-  const start = heads[n % (heads.length - 1)]
-  const end = heads[(n % (heads.length - 1)) + 1]
-  const removed = lines.slice(start, end).join('\n')
-  if (removed.split('\n').length < 4) return null
-  return {
-    text: lines.slice(0, start).concat(lines.slice(end)).join('\n'),
-    removed, inserted: '',
-    where: `the section beginning "${lines[start].slice(0, 60)}"`,
-  }
-}
-
-// A constraint flipped to its opposite. The document still reads as prose and
-// still looks complete, which is the point: this is the class a reader most
-// easily misses and the one a 22-line hole says nothing about.
-const FLIPS = [
-  ['must not', 'must'], ['must', 'must not'],
-  ['never', 'always'], ['always', 'never'],
-  ['cannot', 'can'], ['is not', 'is'],
-  ['no ', 'a '], ['without', 'with'],
-]
-function invertedConstraint(text, n) {
-  const lines = text.split('\n')
-  const sites = []
-  lines.forEach((l, i) => {
-    if (l.trim().startsWith('//') || !l.trim()) return
-    for (const [from, to] of FLIPS) if (l.includes(from)) { sites.push({ i, from, to }); break }
-  })
-  if (!sites.length) return null
-  const s = sites[n % sites.length]
-  const before = lines[s.i]
-  const after = before.replace(s.from, s.to)
-  if (after === before) return null
-  const out = lines.slice()
-  out[s.i] = after
-  return { text: out.join('\n'), removed: before, inserted: after, where: `line ${s.i + 1}` }
-}
-
-// A number changed to another number. Nothing else moves, so a critic that
-// detects this one is reading for correctness rather than for shape.
-function factualSubstitution(text, n) {
-  const lines = text.split('\n')
-  const sites = []
-  lines.forEach((l, i) => { if (/\b\d{1,4}\b/.test(l) && !l.trim().startsWith('//')) sites.push(i) })
-  if (!sites.length) return null
-  const i = sites[n % sites.length]
-  const before = lines[i]
-  const after = before.replace(/\b(\d{1,4})\b/, (m, d) => String(Number(d) + 7))
-  if (after === before) return null
-  const out = lines.slice()
-  out[i] = after
-  return { text: out.join('\n'), removed: before, inserted: after, where: `line ${i + 1}` }
-}
-
-const CLASSES = [
-  ['section-removal', sectionRemoval],
-  ['inverted-constraint', invertedConstraint],
-  ['factual-substitution', factualSubstitution],
-]
 
 // ---------------------------------------------------------------------------
 // STAGE. Builds the trial set on disk with a sealed note per trial. No spawns.

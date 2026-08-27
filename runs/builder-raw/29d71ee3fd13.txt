@@ -1,0 +1,3 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/29d71ee3fd13/subject.snapshot-r1.md`
+
+**changed:** one clause, `subject.md:33`. Item 4 read "This environment has a deploy access, so there is no staging URL" — the stated cause contradicted its own conclusion. Now "This environment has **no** deploy access, so there is no staging URL". Nothing else touched.

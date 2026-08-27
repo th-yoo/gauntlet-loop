@@ -1,0 +1,7 @@
+**snapshot**: `/tmp/gauntlet-builder-trials/137bd2bbfd2e/subject.snapshot-r1.md`
+
+**failed**: NONE
+
+**changed**: Final step in "Steps remaining" list was numbered `15.` after steps 1–7 — asserted steps 8–14 that do not exist anywhere in the document. Renumbered to `8.`. One character-level edit; nothing else touched.
+
+Other cross-checks made and left alone (no change needed): 14 November + three weeks = 5 December matches; 40/40/20 weighting sums to 100 and matches its restatement in step 3; three bays, six staff, twelve months all consistent between RFP-requirements section and steps.

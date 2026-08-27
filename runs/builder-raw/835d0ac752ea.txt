@@ -1,0 +1,5 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/835d0ac752ea/subject.md.snapshot-r1`
+
+**changed:** line 1 title. Was "This artifact has a corpus row, and the reason is the finding" — contradicted section "Why there is no row" (lines 47–61: "The corpus cannot express what this is", "has no home", "That gap is filed rather than worked around here"). Now reads "This artifact has **no** corpus row, and the reason is the finding".
+
+Nothing else touched.

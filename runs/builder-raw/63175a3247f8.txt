@@ -1,0 +1,7 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/63175a3247f8/subject.snapshot-r1.md`
+
+**changed:** one table cell in S3. Short-circuit total was `13.0 min`; now `6.0 min`.
+
+**why that statement:** 32 min full / 13.0 min = 2.5x, but same section labels result "**Identical verdict, 5.3x faster**" and concludes "a six-minute job". Rest of document repeats 6.0 min three times — "short-circuited sweep 6.0 min (measured over all 117 properties)", "the sweep is 6.0 minutes with a first-failure short-circuit", "It is reducible, by 5.3x". 32/6.0 = 5.3. So 13.0 was the lone outlier contradicting four other statements.
+
+Nothing else touched.

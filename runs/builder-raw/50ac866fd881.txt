@@ -1,0 +1,9 @@
+**snapshot**: `/tmp/gauntlet-builder-trials/50ac866fd881/subject.before-spawncount-fix.md`
+
+**failed**: none
+
+**changed**: one line, `subject.md:44` — "Three real spawns per row." → "Two real spawns per row."
+
+**why that line**: procedure section spawns exactly two agents — step 1 executor, step 2 classifier ("a second fresh agent"). Step "Record" spawns nothing. "Three" contradicted the procedure it summarizes.
+
+Nothing else touched. Noted but left alone: step label `10. Record.` follows steps 1 and 2.

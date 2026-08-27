@@ -1,0 +1,11 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/0f5b26635d0d/subject.snapshot-r1.md`
+**failed:** NONE
+
+**Changed:** one line, section "The base rate — how findings have actually travelled" (subject.md:320).
+
+- Was: "**Zero reached a person by any mechanism.**"
+- Now: "**Zero reached a person by a mechanism this repository built.**"
+
+**Why that statement:** the table directly above it is headed "how it reached a person" and gives a mechanism for each of three findings — a human opened the log, the operator asked, an agent found it. All three reached a person. The old sentence denied that in the same breath as "All three were ad-hoc curiosity", and the sentence after it ("every transport that exists today has a measured success rate of zero") shows the intended claim was about built transports, not about any mechanism at all.
+
+Nothing else touched. Other candidates I found but left alone: `mutate.test.mjs` quoted as 8.46 s in S3 and 8.44 s in the transfer-test section; "eleven suspects" against 14 numbered S-sections; S3/"What follows" saying the gate "already refuses" against the root-cause section's correction that nothing in the repo refuses anything.

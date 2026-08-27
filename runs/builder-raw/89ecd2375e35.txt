@@ -1,0 +1,7 @@
+**snapshot:** `/tmp/gauntlet-builder-trials/89ecd2375e35/subject.snapshot-r1.md`
+
+**changed:** one word, line 61. `"because the stop is instant"` → `"because the stop is not instant"`.
+
+**why that statement:** it contradicted three other claims in same document — Step 4 live-run text says loop "will stop at the **next round boundary**"; says in-flight critic or builder "is **not** aborted; that round finishes first"; and says `TaskStop` "is faster", which only holds if token removal is slower.
+
+Nothing else touched. Byte delta: +4.
