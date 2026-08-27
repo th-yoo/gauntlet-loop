@@ -44,12 +44,22 @@ console.log('sweep-summary: the property list can be imported without running th
   let out = null, timedOut = false
   try {
     out = execFileSync(process.execPath, ['-e',
-      `import(${JSON.stringify(SWEEP)}).then(m => console.log(Array.isArray(m.PROPERTIES) ? m.PROPERTIES.length : 'NO EXPORT'))`],
+      // String(), not a bare number. `console.log` of a NUMBER goes through
+      // util.inspect, which colourises when FORCE_COLOR is set — this check then
+      // read `\x1b[33m125\x1b[39m`, got NaN out of Number(), and failed a repo
+      // whose list was fine. A string is printed verbatim.
+      `import(${JSON.stringify(SWEEP)}).then(m => console.log(String(Array.isArray(m.PROPERTIES) ? m.PROPERTIES.length : 'NO EXPORT')))`],
       { encoding: 'utf8', cwd: ROOT, timeout: 15_000, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
   } catch (e) {
     timedOut = e.killed || e.signal === 'SIGTERM' || /ETIMEDOUT/.test(String(e.code))
     out = String(e.stdout || '').trim()
   }
+  // AND STRIPPED ANYWAY. Fixing the probe fixes the probe; this reads the output
+  // of a child process, and any child can be made to colourise by an environment
+  // variable nobody here sets. Depending on the emitter being written correctly
+  // is the fragile half — the reader is the half that can be made not to care.
+  out = out.replace(/\u001b\[[0-9;]*m/g, '').trim()
+
   if (timedOut) {
     fail('importing scripts/coverage-sweep.mjs starts the sweep — so nothing can read its list except by re-parsing its source, which is how one parser went blind and two more were written')
   } else if (out === 'NO EXPORT' || out === '') {
