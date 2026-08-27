@@ -37,7 +37,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { createHash } from 'node:crypto'
 import { parseWinner, namedDefect, declaredNoDifference, defectNeedles, norm, scoreDetection, sizeCut, magnitudeSpread } from '../scripts/detection-parse.mjs'
-import { classifyNote, defectMagnitude, classAudit } from '../scripts/defect-transforms.mjs'
+import { classifyNote, defectMagnitude, classAudit, verifyPlant } from '../scripts/defect-transforms.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 let failures = 0
@@ -382,6 +382,49 @@ console.log('detection-parse: the size cut is arithmetic, and the arithmetic is 
   ok(spread.every(x => x.distinct === 1), `neither class in this set varies in size; got ${JSON.stringify(spread)}`)
   ok(magnitudeSpread([...t, { mag: 99, detected: true, cls: 'y' }]).find(x => x.cls === 'y').distinct === 2,
      'a class carrying two distinct sizes was reported as carrying one — that check is what says whether a size question can be asked at all')
+}
+
+
+// --------------------------------------------------------------------------
+// AND THE SEALED NOTES THEMSELVES ARE RE-RUN, because every field above is now
+// anchored on them. A note whose `removed` and `inserted` were edited to agree
+// with a ledger row is exactly as invisible as the two stored copies of
+// `defect_class` were before this file crossed them — one level down.
+//
+// The instrument is run again on the live source document: every class at every
+// site, until one produces the note's exact bytes. That also derives the class a
+// THIRD time, from the transform that can actually make them.
+//
+// A source that has since changed cannot check anything, and is counted rather
+// than failed — a document is allowed to be edited. What is not allowed is a
+// note that the instrument could not have produced from a document it CAN still
+// read.
+// --------------------------------------------------------------------------
+console.log('detection-parse: every sealed note is something the transforms can still produce from its source')
+{
+  const SEALED_DIR = process.env.DETECTION_SEALED || join(ROOT, 'runs', 'detection-sealed')
+  const sha = t => `sha256:${createHash('sha256').update(t).digest('hex')}`
+  if (!existsSync(SEALED_DIR)) {
+    console.log('          no sealed notes on disk — the notes every field above rests on are UNVERIFIED here')
+  } else {
+    const counts = {}
+    const bad = []
+    for (const f of readdirSync(SEALED_DIR).filter(f => f.endsWith('.json'))) {
+      const note = JSON.parse(readFileSync(join(SEALED_DIR, f), 'utf8'))
+      const src = note.source ? join(ROOT, note.source) : null
+      const text = src && existsSync(src) ? readFileSync(src, 'utf8') : null
+      const v = verifyPlant(note, text, sha)
+      counts[v.status] = (counts[v.status] || 0) + 1
+      if (v.status === 'unreachable' || v.status === 'hash-mismatch' || v.status === 'class-mismatch') bad.push([note.trial_id, v, JSON.stringify(note.source)])
+    }
+    for (const [id, v, src] of bad) {
+      fail(`${id}: the sealed note is ${v.status} — re-running every transform at every site of ${src} does not yield these bytes${v.cls ? ` (a ${v.cls} at site ${v.n} comes closest)` : ''}. Every scored field above is derived from this note.`)
+    }
+    console.log(`          ${Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(' · ')}`)
+    ok((counts.reproduced || 0) > 0,
+       'not one sealed note could be re-run against its source — every source has drifted or is missing, so the notes the whole ledger rests on are unverified and this check confirmed nothing')
+    if (counts.drifted) console.log(`          NOT VERIFIABLE: ${counts.drifted} note(s) whose source document has changed since the trial. A note is not wrong for having an edited source, and it is not checked either.`)
+  }
 }
 
 

@@ -221,6 +221,13 @@ export const PROPERTIES = [
   ['a builder located verdict reads the artifact, not a constant', BP, '  return !norm(fileText).includes(damaged)', '  return true'],
   ['an untouched builder artifact is not an edit', BP, "  return norm(fileText) !== norm(note.degraded_text || '')", '  return true'],
   ['a builder unit is the defect, not the document it was planted in', BP, "  return [note.source, note.defect_class, String(note.removed || '').trim()].join(' ')", '  return [note.source].join(\' \')'],
+  // --- the sealed notes are the anchor, and are themselves re-run -------------
+  // Added when both ledgers became re-derivations OF THE NOTES: an anchor nothing
+  // checks is a stored fact one level down. Every mutation was APPLIED.
+  ['a sealed note must reproduce, not merely resemble', DT, '      if (r.removed === removed && r.inserted === inserted) return { cls, n, text: r.text }', '      if (r.removed === removed) return { cls, n, text: r.text }'],
+  ['a note whose recorded degraded hash is wrong is not reproduced', DT, "  if (note.degraded_hash && hash(r.text) !== note.degraded_hash) return { status: 'hash-mismatch', cls: r.cls, n: r.n }", '  if (false) return null'],
+  ['a note reproduced by another transform is a class mismatch', DT, "  if (note.defect_class && r.cls !== note.defect_class) return { status: 'class-mismatch', cls: r.cls, n: r.n }", '  if (false) return null'],
+  ['a drifted source makes a note unverifiable, not verified', DT, "  if (note.original_hash && hash(sourceText) !== note.original_hash) return { status: 'drifted' }", '  if (false) return null'],
 ]
 
 // THE LIST IS EXPORTED AND THE SWEEP RUNS ONLY WHEN INVOKED, and that is not tidiness.

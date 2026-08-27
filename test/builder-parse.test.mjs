@@ -10,12 +10,12 @@
 //
 // NOTHING HERE SPAWNS.
 
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { scoreRepair, wasEdited, leakNeedle, DERIVABILITY, classesWithoutDerivability, norm, editFootprint, originalRecoverableFromContext, changedSpan, scoreLocated, recoverableByShape, unitKey, distinguishingTokens } from '../scripts/builder-parse.mjs'
-import { classAudit } from '../scripts/defect-transforms.mjs'
+import { classAudit, verifyPlant } from '../scripts/defect-transforms.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -317,6 +317,49 @@ console.log('builder-parse: the ledger on disk is what these scorers produce fro
     console.log('          NOT RE-DERIVABLE from anything on disk: isolation_hits, void, why_void and')
     console.log('          spawn_status. Those are facts about a trial directory that no longer exists, so')
     console.log('          the leak arm rests on the drawer having recorded them honestly.')
+  }
+}
+
+
+// --------------------------------------------------------------------------
+// AND THE SEALED NOTES THEMSELVES ARE RE-RUN, because every field above is now
+// anchored on them. A note whose `removed` and `inserted` were edited to agree
+// with a ledger row is exactly as invisible as the two stored copies of
+// `defect_class` were before this file crossed them — one level down.
+//
+// The instrument is run again on the live source document: every class at every
+// site, until one produces the note's exact bytes. That also derives the class a
+// THIRD time, from the transform that can actually make them.
+//
+// A source that has since changed cannot check anything, and is counted rather
+// than failed — a document is allowed to be edited. What is not allowed is a
+// note that the instrument could not have produced from a document it CAN still
+// read.
+// --------------------------------------------------------------------------
+console.log('builder-parse: every sealed note is something the transforms can still produce from its source')
+{
+  const SEALED_DIR = process.env.BUILDER_SEALED || join(ROOT, 'runs', 'builder-sealed')
+  const sha = t => `sha256:${createHash('sha256').update(t).digest('hex')}`
+  if (!existsSync(SEALED_DIR)) {
+    console.log('          no sealed notes on disk — the notes every field above rests on are UNVERIFIED here')
+  } else {
+    const counts = {}
+    const bad = []
+    for (const f of readdirSync(SEALED_DIR).filter(f => f.endsWith('.json'))) {
+      const note = JSON.parse(readFileSync(join(SEALED_DIR, f), 'utf8'))
+      const src = note.source ? join(ROOT, note.source) : null
+      const text = src && existsSync(src) ? readFileSync(src, 'utf8') : null
+      const v = verifyPlant(note, text, sha)
+      counts[v.status] = (counts[v.status] || 0) + 1
+      if (v.status === 'unreachable' || v.status === 'hash-mismatch' || v.status === 'class-mismatch') bad.push([note.trial_id, v, JSON.stringify(note.source)])
+    }
+    for (const [id, v, src] of bad) {
+      fail(`${id}: the sealed note is ${v.status} — re-running every transform at every site of ${src} does not yield these bytes${v.cls ? ` (a ${v.cls} at site ${v.n} comes closest)` : ''}. Every scored field above is derived from this note.`)
+    }
+    console.log(`          ${Object.entries(counts).map(([k, v]) => `${k}: ${v}`).join(' · ')}`)
+    ok((counts.reproduced || 0) > 0,
+       'not one sealed note could be re-run against its source — every source has drifted or is missing, so the notes the whole ledger rests on are unverified and this check confirmed nothing')
+    if (counts.drifted) console.log(`          NOT VERIFIABLE: ${counts.drifted} note(s) whose source document has changed since the trial. A note is not wrong for having an edited source, and it is not checked either.`)
   }
 }
 

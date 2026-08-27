@@ -247,3 +247,61 @@ export function magnitudeReach(perDoc) {
   }
   return { ranges, overlaps }
 }
+
+// ---------------------------------------------------------------------------
+// IS THIS SEALED NOTE SOMETHING THIS INSTRUMENT COULD HAVE PRODUCED?
+//
+// Both ledgers are now re-derived from their sealed notes — so the note is the
+// anchor, and an anchor nothing checks is a stored fact one level down. A note
+// whose `removed` and `inserted` were edited to agree with a ledger row is
+// exactly as invisible as the two stored copies of `defect_class` were.
+//
+// The check is a RE-RUN rather than a reconstruction. Reversing the damage by
+// hand — replacing `inserted` back with `removed` — needs a second copy of what
+// each transform does to whitespace, and the first version of that got section
+// removals wrong on all five: the splice drops the newline BETWEEN the removed
+// block and the line after it, so a plain string replacement leaves a blank line
+// and every hash missed. Re-running has no such copy to get wrong.
+//
+// Every class at every site is tried, so the class that reproduces the note is
+// DERIVED here too — a third independent reading of `defect_class`, from the
+// transform that can actually produce those bytes.
+//
+// Returns { cls, n, text } — the reproducing class, the site index, and the
+// degraded document it yields, for the caller to hash — or null when no
+// (class, site) on this source produces these bytes.
+export function reproducePlant(note, sourceText) {
+  if (!note || typeof sourceText !== 'string') return null
+  const removed = String(note.removed ?? ''), inserted = String(note.inserted ?? '')
+  const limit = sourceText.split('\n').length
+  for (const [cls, fn] of CLASSES) {
+    for (let n = 0; n < limit; n++) {
+      const r = fn(sourceText, n)
+      if (!r) break
+      if (r.removed === removed && r.inserted === inserted) return { cls, n, text: r.text }
+    }
+  }
+  return null
+}
+
+// The verdict on one sealed note, in one place because two instruments hold
+// notes and a loop written twice is a rule written twice. `hash` is supplied by
+// the caller so this module stays pure text in, verdict out — nothing here reads
+// a file or imports crypto.
+//
+//   drifted         the source document has changed since the trial; the note
+//                   cannot be checked against it and is NOT thereby wrong
+//   unreachable     no class at any site of this source produces these bytes
+//   hash-mismatch   the bytes reproduce but the recorded degraded_hash does not
+//   class-mismatch  reproduced by a different transform than the label claims
+//   reproduced      the instrument, run again, yields this note exactly
+export function verifyPlant(note, sourceText, hash) {
+  if (!note || note.degraded_side === 'none') return { status: 'control' }
+  if (typeof sourceText !== 'string') return { status: 'drifted' }
+  if (note.original_hash && hash(sourceText) !== note.original_hash) return { status: 'drifted' }
+  const r = reproducePlant(note, sourceText)
+  if (!r) return { status: 'unreachable' }
+  if (note.degraded_hash && hash(r.text) !== note.degraded_hash) return { status: 'hash-mismatch', cls: r.cls, n: r.n }
+  if (note.defect_class && r.cls !== note.defect_class) return { status: 'class-mismatch', cls: r.cls, n: r.n }
+  return { status: 'reproduced', cls: r.cls, n: r.n }
+}
