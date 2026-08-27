@@ -25,8 +25,6 @@ the same method.
 - `agents/` — the five restricted agent types the loop spawns. This is where
   independence stops being a promise.
 - `commands/` — `/gauntlet-loop:loop` to start, `/gauntlet-loop:cancel-loop` to stop.
-- `scripts/canary.mjs` — generates a provably false anchor from a true one, so a
-  reviewer's specificity can be measured without a human writing the fake.
 - `scripts/mutate.mjs` — applies one mutation, runs the suite, and reports whether
   anything noticed. Deciding whether a check *can fail* is how this repo decides
   whether it is a check at all, and doing that by hand went wrong repeatedly: a
@@ -66,7 +64,7 @@ the same method.
   observe the verdict that actually refuses a run, so the false-refusal rate is measured
   from drawn pairings rather than derived from the per-side rate under an independence
   assumption nothing measured.
-- `test/` — drift guard, the offline loop harness, and the canary and trial tests.
+- `test/` — drift guard, the offline loop harness, and the trial tests.
 - `docs/runs/` — a record per live run: what was compared, what the verdict was,
   and what it does **not** establish. This is the only evidence here about whether
   the method works, and it is written to be read against the claims above rather
@@ -128,7 +126,7 @@ deleted.
 node test/run-all.mjs
 ```
 
-Drift guard, the loop suite, and the canary suite. The loop suite runs `loop.js`
+Drift guard and the loop suite. The loop suite runs `loop.js`
 against a stubbed agent runtime, so it proves the control flow — the exit rule,
 the escalation, the split positions, the halt paths, the verdict shape — behaves
 as the file's own comments claim. It proves nothing about whether a real critic

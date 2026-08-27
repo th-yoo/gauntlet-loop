@@ -24,7 +24,6 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const MUTATE = join(ROOT, 'scripts', 'mutate.mjs')
 const L = 'skills/gauntlet-loop/loop.js'
 const S = 'scripts/seed-loop-trial.mjs'
-const C = 'scripts/canary.mjs'
 const OA = 'scripts/oracle-add.mjs'
 const OR = 'scripts/oracle-record.mjs'
 const OE = 'scripts/oracle-extract.mjs'
@@ -114,7 +113,6 @@ export const PROPERTIES = [
   ['the escalation line is only bought on a winning round', L, 'if (firstVerdict && firstVerdict.candidateWon && CRITICS > 1) {', 'if (firstVerdict && CRITICS > 1) {'],
   ['the exit requires every critic, not most', L, 'const candidateWon = dissenters.length === 0', 'const candidateWon = dissenters.length < positions.length'],
 
-  ['a canary never quotes the line it cites', C, 'if (candidate !== truth && pass(candidate)) return { text: candidate, from: src }', 'if (pass(candidate)) return { text: candidate, from: src }'],
 
   ['a refused size measurement is reported, not dropped', L, '} else if (m) {', '} else if (false) {'],
   ['a run where nothing was measurable says so', L, 'if (sizeUnmeasured.length && !sizeByRound.length) {', 'if (false) {'],
@@ -193,13 +191,11 @@ export const PROPERTIES = [
   ['the report keeps the independence caveat', OP, 'ASSUMING the two sides fail independently', 'REMOVED'],
 
   // --- the shipped tools refuse a wrong invocation (#98) --------------------
-  // NOT listed: needleFrom's `!lines.length` guard. It sweeps NOT CAUGHT and that
-  // is correct — removing it yields [].sort()[0] === undefined, which the !needle
-  // check refuses with the same message and the same exit code (verified by
-  // running both). It is redundant, not uncovered, and an entry here would be a
-  // property no test can pin.
-  ['too few arguments are refused before a file is opened', C, 'args.length < 2', 'args.length < 0'],
-  ['a line number that is not an integer is refused', C, '!Number.isInteger(lineNo) || lineNo < 1', 'lineNo < 1'],
+  // The three canary.mjs entries that stood here went with the script itself on
+  // 2026-08-27 — see docs/decisions/0002-the-canary-has-no-consumer.md. They
+  // pinned real behaviour of a file that no longer exists, so this is a coverage
+  // reduction rather than a regression, and the count moving 144 -> 141 is the
+  // reason it is written down.
   ['--check refuses a half-given invocation', S, 'if (!degraded || !sealedPath) {', 'if (false) {'],
   ['an option value that is itself an option is a missing value', S, 'return v === undefined || FLAGS.includes(v) ? null : v', 'return v === undefined ? null : v'],
   // --- the defect's class and size are DERIVED, and stay derived (issue 29) ---
