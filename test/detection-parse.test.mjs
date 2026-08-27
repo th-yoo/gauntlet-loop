@@ -36,7 +36,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { createHash } from 'node:crypto'
-import { parseWinner, namedDefect, declaredNoDifference, defectNeedles, norm, scoreDetection } from '../scripts/detection-parse.mjs'
+import { parseWinner, namedDefect, declaredNoDifference, defectNeedles, norm, scoreDetection, classifyNote, defectMagnitude, classAudit, sizeCut, magnitudeSpread } from '../scripts/detection-parse.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 let failures = 0
@@ -116,15 +116,18 @@ console.log('detection-parse: the winner is read from the heading, not from pros
 // --------------------------------------------------------------------------
 console.log('detection-parse: the ledger on disk is what this parse produces from the raw responses')
 {
-  const LEDGER = join(ROOT, 'runs', 'detection.jsonl')
-  const RAW = join(ROOT, 'runs', 'detection-raw')
-  const SEALED = join(ROOT, 'runs', 'detection-sealed')
+  // The overrides exist so the block below can be driven with a constructed
+  // ledger. A guard that has only ever seen data that satisfies it is a guard
+  // nobody has watched fail.
+  const LEDGER = process.env.DETECTION_LEDGER || join(ROOT, 'runs', 'detection.jsonl')
+  const RAW = process.env.DETECTION_RAW || join(ROOT, 'runs', 'detection-raw')
+  const SEALED = process.env.DETECTION_SEALED || join(ROOT, 'runs', 'detection-sealed')
   if (!existsSync(LEDGER) || !existsSync(RAW) || !existsSync(SEALED)) {
     console.log('          no ledger on disk — nothing to re-derive (the trials are run by a separate script)')
   } else {
     const rows = readFileSync(LEDGER, 'utf8').split('\n').filter(l => l.trim()).map(l => JSON.parse(l))
     const byOpaque = new Map(rows.map(r => [r.opaque, r]))
-    let checked = 0
+    let checked = 0, classChecked = 0, classUnreadable = 0
     for (const f of readdirSync(RAW).filter(f => f.endsWith('.txt')).sort()) {
       const id = f.replace(/\.txt$/, '')
       const notePath = join(SEALED, `${id}.json`)
@@ -145,10 +148,36 @@ console.log('detection-parse: the ledger on disk is what this parse produces fro
       ok(row.detected === detected, `${row.trial_id}: ledger records detected=${row.detected}, the response yields ${detected} — re-parse`)
       ok(row.named_defect === namedDefect(text, note), `${row.trial_id}: ledger records named_defect=${row.named_defect}, the response yields ${namedDefect(text, note)} — re-parse`)
       ok(row.declared_no_difference === declaredNoDifference(text), `${row.trial_id}: ledger records declared_no_difference=${row.declared_no_difference}, the response yields ${declaredNoDifference(text)} — re-parse`)
+
+      // THE CLASS LABEL IS ALSO A DERIVABLE FACT, and until this line nothing
+      // recomputed it. It is stored TWICE — on the row and in the note — and two
+      // stored copies agree with each other by construction: relabelling one
+      // trial in both places passed every gate in this repository, including
+      // this file, while moving a row out of the per-class table the #29 verdict
+      // reports. That is the rule from CLAUDE.md fired exactly as written —
+      // "guards placed where something once broke leave every other derivable
+      // fact unguarded" — and what the four fields above have in common is that
+      // they had already failed.
+      //
+      // The anchor is the note's own BYTES, which is a different anchor from
+      // either stored copy. `classifyNote` returns null rather than guessing
+      // when the bytes match no transform signature; those are counted and
+      // reported below, not failed, because a transform nobody has written yet
+      // must not read as a corrupt ledger.
+      const audit = classAudit(row, note)
+      if (audit.applies) {
+        classChecked++
+        if (audit.cls === null) classUnreadable++
+        for (const d of audit.disagreements) fail(`${row.trial_id}: ${d}`)
+      }
       checked++
     }
     console.log(`          ${checked} trial(s) re-derived from the raw response and the sealed note`)
+    console.log(`          ${classChecked - classUnreadable}/${classChecked} defect_class label(s) recomputed from the sealed bytes`)
     ok(checked > 0, 'no trial could be re-derived — raw responses and sealed notes exist but nothing paired, so this check examined nothing')
+    ok(classChecked === 0 || classUnreadable < classChecked,
+       `none of the ${classChecked} degraded trial(s) could have its class recomputed from its own bytes — every signature returned null, so this check confirmed nothing about the labels the per-class rates are computed from`)
+    if (classUnreadable) console.log(`          NOT VERIFIED: ${classUnreadable} note(s) match no transform signature — their class label rests on the drawer alone`)
   }
 }
 
@@ -226,6 +255,134 @@ console.log('detection-parse: the needle beats a length-matched fragment of unto
     }
   }
 }
+
+// --------------------------------------------------------------------------
+// CAN THE CLASS AUDIT FAIL? Built, not reasoned about.
+//
+// The ledger it runs against is correct, so a green run there establishes
+// nothing on its own: this repository has shipped a check whose PASS condition
+// was satisfied by the subject being broken. Every case below is a note or a row
+// constructed to be wrong in ONE way, and the audit must name that way — not
+// merely return something non-empty.
+//
+// The real ledger was mutated the same way before any of this was written: one
+// trial relabelled `factual-substitution` -> `section-removal` in BOTH the row
+// and the note passed `node test/run-all.mjs` with exit 0, per-class table and
+// all. That is the reproducible these cases keep.
+// --------------------------------------------------------------------------
+console.log('detection-parse: a mislabelled defect class is caught by the bytes, not by the label beside it')
+{
+  const digits = { degraded_side: 'A', defect_class: 'factual-substitution',
+                   removed: 'the budget is 12 rounds', inserted: 'the budget is 19 rounds' }
+  const flip = { degraded_side: 'A', defect_class: 'inverted-constraint',
+                 removed: 'a critic must never see the sealed note', inserted: 'a critic must always see the sealed note' }
+  const section = { degraded_side: 'A', defect_class: 'section-removal', inserted: '',
+                    removed: '## What a row is\n\nOne JSON object per line.\n\n- `id` — the trial\n' }
+
+  ok(classifyNote(digits) === 'factual-substitution', 'a digits-only divergence reads as a factual substitution')
+  ok(classifyNote(flip) === 'inverted-constraint', 'a FLIPS pair rewriting the line reads as an inverted constraint')
+  ok(classifyNote(section) === 'section-removal', 'a removed `## ` section of four lines or more reads as a section removal')
+
+  // THE MUTATION. Same bytes, a different label — in both stored copies, which is
+  // what makes it invisible to a check that compares them with each other.
+  const lied = { ...digits, defect_class: 'section-removal' }
+  const a = classAudit({ trial_id: 't', defect_class: 'section-removal' }, lied)
+  // ONE ASSERTION PER PATH. Asking only for "bytes are a factual-substitution"
+  // is satisfied by EITHER message, so disabling the note comparison left this
+  // case green and the sweep reported the property unpinned. The two
+  // comparisons are separate paths and either can be disabled while the other
+  // keeps the disagreement list non-empty.
+  ok(a.disagreements.some(d => /the sealed note says .* its own removed\/inserted bytes are a factual-substitution/.test(d)),
+     `the SEALED NOTE's label was not crossed against its own bytes: ${JSON.stringify(a.disagreements)}`)
+  ok(a.disagreements.some(d => /the ledger row says .* the sealed bytes are a factual-substitution/.test(d)),
+     `the LEDGER ROW's label was not crossed against the bytes: ${JSON.stringify(a.disagreements)}`)
+
+  // ONE STORED COPY EDITED, not both. A separate path: the recomputation agrees
+  // with the note and disagrees with the row.
+  const half = classAudit({ trial_id: 't', defect_class: 'inverted-constraint' }, digits)
+  ok(half.disagreements.some(d => /two stored copies disagree/.test(d)),
+     'a row and its note carrying different labels was not reported')
+  ok(half.disagreements.some(d => /the ledger row says/.test(d)),
+     'the row label was not crossed against the bytes — only against the note, which is the copy-against-copy comparison this exists to replace')
+
+  // AND IT MUST STAY QUIET WHEN NOTHING IS WRONG, or every row is a finding.
+  ok(classAudit({ trial_id: 't', defect_class: 'factual-substitution' }, digits).disagreements.length === 0,
+     'a consistent row was reported as a disagreement')
+
+  // A CONTROL HAS NO CLASS TO AUDIT.
+  ok(classAudit({ trial_id: 't', defect_class: null }, { degraded_side: 'none' }).applies === false,
+     'an undegraded control was audited for a defect class it does not have')
+
+  // UNREADABLE IS NOT WRONG. A transform nobody has written yet leaves bytes that
+  // match no signature, and reporting that as a corrupt ledger would make the
+  // audit refuse the next class added.
+  ok(classifyNote({ degraded_side: 'A', defect_class: 'whatever', removed: 'alpha beta', inserted: 'gamma delta' }) === null,
+     'bytes matching no transform signature were classified anyway — that is a guess')
+  ok(classAudit({ trial_id: 't', defect_class: 'whatever' }, { degraded_side: 'A', defect_class: 'whatever', removed: 'alpha beta', inserted: 'gamma delta' }).disagreements.length === 0,
+     'an unclassifiable note was reported as a mislabelling')
+}
+
+console.log('detection-parse: the defect SIZE is the span that differs, not the line it sits in')
+{
+  const pad = 'x'.repeat(200)
+  const small = { degraded_side: 'A', removed: `${pad} 12 ${pad}`, inserted: `${pad} 19 ${pad}` }
+  // 12 -> 19 diverges in one digit on each side, so the span is 2 bytes wide
+  // while the line it sits in is over 400. Measuring the LINE would make every
+  // single-line edit the same size as every other, which is the reading the
+  // per-class table already invites.
+  ok(defectMagnitude(small) === 2,
+     `a one-digit swap inside a 400-character line measured ${defectMagnitude(small)}, not the 2 bytes that actually differ`)
+  const twoDigit = { degraded_side: 'A', removed: `${pad} 12 ${pad}`, inserted: `${pad} 97 ${pad}` }
+  ok(defectMagnitude(twoDigit) === 4,
+     `both digits differing measured ${defectMagnitude(twoDigit)} — the size must grow with the damage, or it is a constant wearing a number`)
+  ok(defectMagnitude({ degraded_side: 'none' }) === null, 'a control has no defect size')
+  ok(defectMagnitude({ degraded_side: 'A', removed: 'same', inserted: 'same' }) === null,
+     'two identical texts reported a size — a trial with nothing planted would then enter the size cut')
+}
+
+
+console.log('detection-parse: the size cut is arithmetic, and the arithmetic is checked against a set with a known answer')
+{
+  // Four trials, one missed, at a size the set also carries above it. Every
+  // number below is countable by hand, which is the point: the cut is reported
+  // in a verdict and a plausible-looking wrong number is the failure mode that
+  // gets quoted.
+  const t = [
+    { mag: 1, detected: false, cls: 'x' }, { mag: 1, detected: true, cls: 'x' },
+    { mag: 5, detected: true, cls: 'y' }, { mag: 5, detected: true, cls: 'y' },
+  ]
+  const c = sizeCut(t)
+  ok(c.maxMissMag === 1, `the threshold is the largest MISSED size; got ${c.maxMissMag}`)
+  ok(c.below && c.below.n === 2 && c.below.detected === 1, `at or below the threshold: expected 1/2, got ${JSON.stringify(c.below)}`)
+  ok(c.above && c.above.n === 2 && c.above.detected === 2, `above the threshold: expected 2/2, got ${JSON.stringify(c.above)}`)
+  // C(2,1)/C(4,1) — one miss, two of four trials at or below the threshold.
+  ok(Math.abs(c.p - 0.5) < 1e-9, `p should be 0.5 on this set; got ${c.p}`)
+
+  // TWO SIZES ON THE SAME SIDE OF THE THRESHOLD MUST NOT COLLAPSE. A cut that
+  // read the SMALLEST missed size instead would put the second miss above its
+  // own threshold and report a separation that is not there.
+  const two = sizeCut([
+    { mag: 1, detected: false, cls: 'x' }, { mag: 4, detected: false, cls: 'x' },
+    { mag: 9, detected: true, cls: 'x' }, { mag: 9, detected: true, cls: 'x' },
+  ])
+  ok(two.maxMissMag === 4 && two.below.n === 2 && two.above.n === 2,
+     `a set with misses at two sizes was cut at ${two.maxMissMag} into ${JSON.stringify([two.below, two.above])} — every miss must fall at or below the threshold, or the threshold is not one`)
+
+  // NOTHING TO SEPARATE. Both degenerate sets must decline to report a threshold
+  // rather than divide by one that does not exist.
+  ok(sizeCut(t.map(x => ({ ...x, detected: true }))).maxMissMag === null, 'a set with no misses reported a size threshold')
+  ok(sizeCut(t.map(x => ({ ...x, detected: false }))).maxMissMag === null, 'a set with nothing detected reported a size threshold')
+  ok(sizeCut([]).n === 0 && sizeCut([]).maxMissMag === null, 'an empty set reported a cut')
+  // A trial with no derivable size is not a trial of size zero.
+  ok(sizeCut([{ mag: null, detected: true, cls: 'x' }, ...t]).n === 4, 'a trial with no derivable size was counted into the cut as if it had one')
+
+  const spread = magnitudeSpread(t)
+  ok(spread.length === 2, `expected two classes, got ${JSON.stringify(spread)}`)
+  ok(spread.every(x => x.distinct === 1), `neither class in this set varies in size; got ${JSON.stringify(spread)}`)
+  ok(magnitudeSpread([...t, { mag: 99, detected: true, cls: 'y' }]).find(x => x.cls === 'y').distinct === 2,
+     'a class carrying two distinct sizes was reported as carrying one — that check is what says whether a size question can be asked at all')
+}
+
 
 if (failures) {
   console.error(`\ndetection-parse: ${failures} failure(s) — a field that overstates is worse than one that understates, because a number gets quoted.`)

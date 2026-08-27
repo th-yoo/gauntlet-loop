@@ -50,9 +50,15 @@
 // test/containment.test.mjs fails if any file the suite runs so much as names a
 // spawner. So this file names none, and finds the ledger by path.
 
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, mkdtempSync, readdirSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+// Pure text-in, number-out. The size cut lives beside the parse rather than here
+// so it has one copy and can be driven with constructed input — a rule this
+// ledger has already paid for three times over.
+import { defectMagnitude, sizeCut, magnitudeSpread } from '../scripts/detection-parse.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // DETECTION_LEDGER lets a check point this at a throwaway file, the same
@@ -61,6 +67,10 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // it, and doing that against the tracked ledger would mean writing fabricated
 // rows into the evidence.
 const LEDGER = process.env.DETECTION_LEDGER || join(ROOT, 'runs', 'detection.jsonl')
+// The sealed notes carry the bytes the size cut below is computed from, and they
+// take the same override for the same reason: a constructed set is the only way
+// to know whether the size checks can fail.
+const SEALED = process.env.DETECTION_SEALED || join(ROOT, 'runs', 'detection-sealed')
 
 let failures = 0
 const fail = m => { console.error(`  FAIL  ${m}`); failures++ }
@@ -78,6 +88,11 @@ const REQUIRED_CLASSES = ['section-removal', 'inverted-constraint', 'factual-sub
 console.log('detection-rate: a ledger of trials that were actually run exists')
 if (!existsSync(LEDGER)) {
   fail(`runs/detection.jsonl does not exist — the critic's detection rate rests on the single observation in #29, and #18's automatic revert is blocked on it. A rate needs a set.`)
+  // The residual goes on this branch too. A limitation printed only where a
+  // number is being asserted is printed exactly where it is least needed.
+  console.error(`          NOT SEPARABLE, whenever this set is drawn: defect SIZE from defect CLASS, unless`)
+  console.error(`          the draw includes a mid-sized defect. Every transform in scripts/defect-transforms.mjs`)
+  console.error(`          produces either a whole section or a single line, and nothing in between.`)
   console.error(`\ndetection-rate: ${failures} failure(s) — n=1 is an anecdote, not a rate.`)
   process.exit(1)
 }
@@ -176,12 +191,141 @@ console.log('detection-rate: the rate, computed from the ledger')
   ok(Number.isFinite(rate), 'the rate is computable from the ledger')
 }
 
+// --------------------------------------------------------------------------
+// THE SIZE CUT — the third of #29's three questions, and the one nothing asked.
+//
+// #29: "A high rate on large removals and a low one on small edits would tell us
+// what size of defect this instrument can see, which is the number an operator
+// actually needs." The set was built for the other two — sides crossed, controls
+// present, three classes — and the verdict reported the per-CLASS table in the
+// size question's place, with neither document recording that size was left out.
+// A residual that is not printed is a residual nobody is told about.
+//
+// Magnitude is DERIVED from each sealed note's own bytes, at the span where the
+// two texts diverge. It is not a stored field and must not become one: this is
+// the same ledger whose stored `degraded_side` disagreed with the prompt for
+// twenty trials.
+// --------------------------------------------------------------------------
+console.log('detection-rate: the rate, cut by how big the planted defect is')
+{
+  const trials = []
+  let noNote = 0
+  for (const r of readable) {
+    const p = join(SEALED, `${r.opaque}.json`)
+    if (!existsSync(p)) { noNote++; continue }
+    const note = JSON.parse(readFileSync(p, 'utf8'))
+    const mag = defectMagnitude(note)
+    if (!Number.isFinite(mag)) { noNote++; continue }
+    trials.push({ mag, detected: r.detected === true, cls: r.defect_class })
+  }
+  ok(noNote === 0,
+     `${noNote} readable degraded trial(s) have no derivable defect size — a size cut computed over the rest is a cut over a subset nobody is shown, which is how the denominator moved the first time`)
+
+  const spread = magnitudeSpread(trials)
+  for (const s of spread) console.log(`          ${s.cls.padEnd(21)} ${s.distinct} distinct size(s), ${s.min}–${s.max} bytes`)
+  // WITHOUT within-class size variation there is no size contrast anywhere that
+  // is not also a class contrast, and the question cannot be asked of the set at
+  // all. Same argument as the per-class floor above, one level down.
+  ok(spread.some(s => s.distinct >= 2),
+     `no defect class carries more than one distinct size — every size contrast in this set is also a class contrast, so "what size can it see" cannot be asked of it. Draw trials that vary size WITHIN a class.`)
+
+  const all = sizeCut(trials)
+  const noRemoval = sizeCut(trials.filter(t => t.cls !== 'section-removal'))
+  const show = (label, c) => {
+    if (c.maxMissMag === null) {
+      console.log(`          ${label}: n=${c.n}, ${c.misses} miss(es) — nothing to separate, so no size reading`)
+      return
+    }
+    console.log(`          ${label}: every miss is ${c.maxMissMag} byte(s) or smaller · ` +
+      `at or below ${c.maxMissMag}B ${c.below.detected}/${c.below.n} · above ${c.above.detected}/${c.above.n} · p=${c.p.toFixed(3)} (post-hoc)`)
+  }
+  show('all classes    ', all)
+  // The confound, dropped rather than argued about: every section-removal is a
+  // four-figure magnitude and every other trial a single-digit one, so on the
+  // full set "large" and "removal-shaped" are the same column.
+  show('removals dropped', noRemoval)
+  console.log('          the threshold is read off the misses, so p is post-hoc and this separation is')
+  console.log('          suggestive, not established. It is reported because the alternative is a')
+  console.log('          per-class table being read as a size finding it cannot support.')
+}
+
 console.log('detection-rate: stating what this cannot establish')
 console.log('          NOT MEASURED: whether these defects resemble the ones a real run meets. They are')
 console.log('          planted, and a planted defect is one somebody chose. The rate is about detecting')
 console.log('          THIS set, and generalises only as far as the set does.')
+console.log('          NOT SEPARABLE: defect SIZE from defect CLASS. Section removals are four-figure')
+console.log('          magnitudes and every other trial is a single-digit one, with nothing in between,')
+console.log('          so "large defects are easy" and "removal-shaped defects are easy" predict the same')
+console.log('          table. Only a mid-sized defect — a removed paragraph, a rewritten clause — can')
+console.log('          separate them, and no transform in scripts/defect-transforms.mjs produces one.')
 console.log('          NOT MEASURED: the builder arm. #25 is the same question about the other agent, and')
 console.log('          it has no positive observation at all.')
+
+// --------------------------------------------------------------------------
+// CAN THE SIZE CHECKS FAIL? Each one is driven with a set constructed to break
+// it, and must come back naming what is wrong rather than merely exiting hot.
+//
+// This repository has shipped a trial that reported CAUGHT against a script that
+// did not parse, because the question asked was `exit !== 0`. So each case reads
+// the refusal's own words, and a crash is a crash.
+//
+// The cases run this file again with the sealed notes or the ledger pointed
+// elsewhere; the recursion stops because the battery is skipped whenever either
+// override is set. Nothing here spawns a model — the child is this same file.
+// --------------------------------------------------------------------------
+if (!process.env.DETECTION_LEDGER && !process.env.DETECTION_SEALED && existsSync(SEALED)) {
+  console.log('detection-rate: the size checks can fail — one constructed set per branch')
+  const SELF = fileURLToPath(import.meta.url)
+  const run = env => {
+    const r = spawnSync(process.execPath, [SELF], { cwd: ROOT, encoding: 'utf8', env: { ...process.env, ...env }, timeout: 120_000 })
+    return { status: r.status, out: String(r.stdout || '') + String(r.stderr || '') }
+  }
+  const notes = readdirSync(SEALED).filter(f => f.endsWith('.json'))
+  const fixture = (name, edit) => {
+    const dir = mkdtempSync(join(tmpdir(), `detection-rate-${name}-`))
+    for (const f of notes) {
+      const note = JSON.parse(readFileSync(join(SEALED, f), 'utf8'))
+      writeFileSync(join(dir, f), JSON.stringify(edit(note) ?? note))
+    }
+    return dir
+  }
+
+  // ONE SIZE PER CLASS. Every degraded note gets a two-byte substitution, so the
+  // magnitudes are derivable and identical — which isolates this branch from the
+  // one below, where they are not derivable at all.
+  {
+    const dir = fixture('flat', n => n.degraded_side === 'none' ? n : ({ ...n, removed: 'a 1 b', inserted: 'a 8 b' }))
+    const r = run({ DETECTION_SEALED: dir })
+    ok(r.status !== 0, 'a set where every defect is the same size passed — then the size cut is reported over a column that cannot vary, which is the shape of issue 50')
+    ok(/no defect class carries more than one distinct size/.test(r.out),
+       `the flat set was rejected for some other reason than the one under test: ${JSON.stringify(r.out.split('\n').filter(l => /FAIL/.test(l)).slice(0, 2))}`)
+  }
+
+  // A SIZE THAT CANNOT BE DERIVED. Identical bytes on both sides yield no span,
+  // so the trial has no magnitude and the cut would silently run over the rest.
+  {
+    const dir = fixture('nomag', n => n.degraded_side === 'none' ? n : ({ ...n, removed: 'identical', inserted: 'identical' }))
+    const r = run({ DETECTION_SEALED: dir })
+    ok(r.status !== 0, 'trials with no derivable defect size passed — the size cut would then be computed over a subset nobody is shown')
+    ok(/no derivable defect size/.test(r.out),
+       `the underivable set was rejected for some other reason than the one under test: ${JSON.stringify(r.out.split('\n').filter(l => /FAIL/.test(l)).slice(0, 2))}`)
+  }
+
+  // AND THE BRANCH WITH NOTHING TO SEPARATE. A set the critic got right every
+  // time carries no size reading at all, and must say so rather than divide by a
+  // missing threshold.
+  {
+    const dir = mkdtempSync(join(tmpdir(), 'detection-rate-perfect-'))
+    const led = join(dir, 'detection.jsonl')
+    writeFileSync(led, rows.map(r => JSON.stringify(r.degraded_side === 'none' ? r : { ...r, detected: true })).join('\n') + '\n')
+    const r = run({ DETECTION_LEDGER: led })
+    ok(r.status === 0, `a ledger with no misses failed: ${JSON.stringify(r.out.split('\n').filter(l => /FAIL/.test(l)).slice(0, 2))}`)
+    ok(/nothing to separate, so no size reading/.test(r.out),
+       'a set with no misses reported a size threshold anyway — with nothing missed there is no largest missed size to read one off')
+  }
+  console.log('          3 constructed set(s): one size per class, no derivable size, no misses')
+}
+
 
 if (failures) {
   console.error(`\ndetection-rate: ${failures} failure(s) — the critic's detection rate is not yet a measured quantity.`)

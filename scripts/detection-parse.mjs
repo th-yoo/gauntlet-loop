@@ -172,14 +172,27 @@ export const norm = x => String(x).replace(/[`*#|]/g, ' ').replace(/\s+/g, ' ').
 // has yet lost its needle. Above it the field starts returning null, and a trial
 // that drops out is worse than one scored strictly.
 const MIN_NEEDLE = 12
-function distinctiveNeedle(mine, theirs) {
-  const a = norm(mine), b = norm(theirs)
-  if (!a || a === b) return null
+
+// WHERE TWO STRINGS DIVERGE — the span left once the common prefix and the
+// common suffix are removed. One copy, because three things now want it: the
+// needle (below), the defect's MAGNITUDE, and the class recomputation. Two of
+// those were written after the needle, and a second hand-rolled copy of a
+// prefix/suffix walk is the shape this module's own header records as the way
+// the scoring rule came to exist three times.
+export function divergence(a, b) {
+  a = String(a); b = String(b)
   let p = 0
   while (p < a.length && p < b.length && a[p] === b[p]) p++
   let s = 0
   while (s < a.length - p && s < b.length - p && a[a.length - 1 - s] === b[b.length - 1 - s]) s++
-  const lo = p, hi = a.length - s
+  return { p, s, out: a.slice(p, a.length - s), in: b.slice(p, b.length - s) }
+}
+
+function distinctiveNeedle(mine, theirs) {
+  const a = norm(mine), b = norm(theirs)
+  if (!a || a === b) return null
+  const d = divergence(a, b)
+  const lo = d.p, hi = a.length - d.s
   for (let w = 0; w <= a.length; w++) {
     const cand = a.slice(Math.max(0, lo - w), Math.min(a.length, hi + w)).trim()
     if (cand.length >= MIN_NEEDLE && !b.includes(cand)) return cand
@@ -314,4 +327,161 @@ export function scoreDetection(picked, degArtifact, degradedDir) {
   if (picked === null || picked === undefined || picked === 'neither') return null
   if (degArtifact !== 'A' && degArtifact !== 'B') return null
   return picked !== degArtifact
+}
+
+// ---------------------------------------------------------------------------
+// HOW BIG THE PLANTED DEFECT IS, and WHICH CLASS THE BYTES SAY IT IS.
+//
+// #29 asked three questions of this instrument. Two were built into the set —
+// crossed sides, undegraded controls, three defect classes — and the third was
+// not: "a high rate on large removals and a low one on small edits would tell us
+// what size of defect this instrument can see, which is the number an operator
+// actually needs." Nothing computed a size, so the verdict reported per-CLASS
+// rates and left every size reading to the reader's guess about what a class
+// implies.
+//
+// Both quantities below are DERIVED from the sealed note's own bytes. That is
+// the point rather than a convenience: `defect_class` is stored twice — on the
+// ledger row and in the note — and two stored copies of a derivable fact agree
+// with each other by construction. A ledger with one trial relabelled in both
+// places passed every gate in this repository, per-class table and all.
+// ---------------------------------------------------------------------------
+
+import { FLIPS } from './defect-transforms.mjs'
+
+// The size of the damage, in bytes, measured where the two texts actually
+// differ. NOT the length of the changed line: a digit swapped at column 80 of a
+// 90-character line is a two-byte defect, and calling it 90 would make every
+// single-line edit look like the same size as every other. Un-normalised on
+// purpose — norm() folds case and strips markdown, and a defect that is only a
+// case change is still a defect the critic either saw or did not.
+export function defectMagnitude(note) {
+  if (!note || note.degraded_side === 'none') return null
+  const d = divergence(String(note.removed ?? ''), String(note.inserted ?? ''))
+  const mag = d.out.length + d.in.length
+  return mag > 0 ? mag : null
+}
+
+// WHAT THE BYTES SAY THE CLASS IS. Each transform leaves a signature in what it
+// removed and inserted, and the signature is checked against the note rather
+// than against the label beside it:
+//
+//   section-removal       nothing inserted, and what left was a whole `## `
+//                         section of four lines or more
+//   factual-substitution  one line, and the two sides differ only in digits
+//   inverted-constraint   one line, and one FLIPS pair rewrites the removed
+//                         line into exactly the inserted one
+//
+// FLIPS is imported rather than restated. A private copy of the flip table here
+// would be a second place for the next correction to miss, which is the defect
+// this module's header already records at three copies.
+//
+// AMBIGUITY RETURNS NULL, and null is not a failure — it is this function
+// declining to guess, the same way artifactSides() refuses a mapping it cannot
+// read. A caller that treats null as "wrong class" would turn a transform nobody
+// has written yet into a test failure.
+export function classifyNote(note) {
+  if (!note || note.degraded_side === 'none') return null
+  const removed = String(note.removed ?? ''), inserted = String(note.inserted ?? '')
+  if (!removed && !inserted) return null
+  const hits = []
+
+  if (inserted === '' && removed.split('\n').length >= 4 && /^## +\S/.test(removed.split('\n')[0])) {
+    hits.push('section-removal')
+  }
+  if (!removed.includes('\n') && !inserted.includes('\n') && removed && inserted) {
+    const d = divergence(removed, inserted)
+    if (d.out && d.in && /^\d+$/.test(d.out) && /^\d+$/.test(d.in)) hits.push('factual-substitution')
+    for (const [from, to] of FLIPS) {
+      if (removed.includes(from) && removed.replace(from, to) === inserted) { hits.push('inverted-constraint'); break }
+    }
+  }
+  // Two signatures matching is as unreadable as none. Returning the first would
+  // be picking, and picking is what this function exists to stop.
+  return hits.length === 1 ? hits[0] : null
+}
+
+// ---------------------------------------------------------------------------
+// THE SIZE CUT — #29's third question, and the one the set was not built for.
+//
+// The issue asked for three things. Crossed sides and undegraded controls were
+// built in; three defect classes were built in; "what size of defect this
+// instrument can see" was not, and the verdict reported per-CLASS rates in its
+// place. Those are not the same cut, and on the ledger as drawn they are not
+// even separable: every section-removal is a four-figure magnitude and every
+// single-line edit is a single-digit one, with nothing in between, so "big
+// defects are easy" and "removal-shaped defects are easy" predict the identical
+// table.
+//
+// So the cut is computed WITH the confound rather than instead of it: the same
+// statistic is reported over all trials and again with the removals dropped,
+// and the second one is the one that is about size at all.
+//
+// THE THRESHOLD IS READ OFF THE MISSES, which makes the p-value post-hoc and
+// NOT a test. It is the probability that every miss would land at or below the
+// largest missed magnitude if detection were assigned at random — reported so
+// that a suggestive separation cannot be quoted as an established one. A
+// pre-registered threshold would need a set drawn to pin it, which is what the
+// residual below asks for.
+export function sizeCut(trials) {
+  const t = trials.filter(x => Number.isFinite(x.mag) && typeof x.detected === 'boolean')
+  const n = t.length
+  const misses = t.filter(x => !x.detected)
+  const out = {
+    n, detected: t.filter(x => x.detected).length, misses: misses.length,
+    magnitudes: [...new Set(t.map(x => x.mag))].sort((a, b) => a - b),
+    maxMissMag: null, below: null, above: null, p: null,
+  }
+  if (!n || !misses.length || misses.length === n) return out
+  const thr = Math.max(...misses.map(x => x.mag))
+  const lo = t.filter(x => x.mag <= thr), hi = t.filter(x => x.mag > thr)
+  out.maxMissMag = thr
+  out.below = { n: lo.length, detected: lo.filter(x => x.detected).length }
+  out.above = { n: hi.length, detected: hi.filter(x => x.detected).length }
+  // C(k,m)/C(n,m), computed as a product so nothing overflows and nothing needs
+  // a factorial table.
+  const k = lo.length, m = misses.length
+  let p = 1
+  for (let i = 0; i < m; i++) p *= (k - i) / (n - i)
+  out.p = p
+  return out
+}
+
+// Which classes carry more than one distinct magnitude. WITHOUT this there is no
+// size contrast anywhere that is not also a class contrast, and no size question
+// can be asked of the set at all — the same argument the per-class floor already
+// makes one level down ("a rate averaged over one kind of damage is a rate about
+// that kind").
+export function magnitudeSpread(trials) {
+  const by = new Map()
+  for (const x of trials) {
+    if (!Number.isFinite(x.mag)) continue
+    if (!by.has(x.cls)) by.set(x.cls, new Set())
+    by.get(x.cls).add(x.mag)
+  }
+  return [...by.entries()].map(([cls, mags]) => ({ cls, distinct: mags.size, min: Math.min(...mags), max: Math.max(...mags) }))
+}
+
+// THE CLASS AUDIT, as one function rather than as three assertions inside a
+// loop. The scoring rule in this module was written three times and all three
+// copies carried the same defect; a comparison spread across a test file is the
+// same shape starting over. Here it can also be handed constructed rows, which
+// is the only way to watch it fail.
+//
+// Returns the recomputed class (null when the bytes match no signature) and the
+// disagreements found, in the subject's own terms.
+export function classAudit(row, note) {
+  if (!note || note.degraded_side === 'none') return { cls: null, applies: false, disagreements: [] }
+  const cls = classifyNote(note)
+  const d = []
+  if (cls !== null && cls !== note.defect_class) {
+    d.push(`the sealed note says defect_class=${JSON.stringify(note.defect_class)}, its own removed/inserted bytes are a ${cls}`)
+  }
+  if (cls !== null && cls !== row.defect_class) {
+    d.push(`the ledger row says defect_class=${JSON.stringify(row.defect_class)}, the sealed bytes are a ${cls} — the per-class rates in the verdict are computed from that field`)
+  }
+  if (row.defect_class !== note.defect_class) {
+    d.push(`row says ${JSON.stringify(row.defect_class)}, sealed note says ${JSON.stringify(note.defect_class)} — the two stored copies disagree, and they agree with each other by construction whenever both are edited`)
+  }
+  return { cls, applies: true, disagreements: d }
 }

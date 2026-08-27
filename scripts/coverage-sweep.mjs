@@ -29,6 +29,7 @@ const OA = 'scripts/oracle-add.mjs'
 const OR = 'scripts/oracle-record.mjs'
 const OE = 'scripts/oracle-extract.mjs'
 const OP = 'scripts/oracle-report.mjs'
+const DP = 'scripts/detection-parse.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -198,6 +199,17 @@ export const PROPERTIES = [
   ['a line number that is not an integer is refused', C, '!Number.isInteger(lineNo) || lineNo < 1', 'lineNo < 1'],
   ['--check refuses a half-given invocation', S, 'if (!degraded || !sealedPath) {', 'if (false) {'],
   ['an option value that is itself an option is a missing value', S, 'return v === undefined || FLAGS.includes(v) ? null : v', 'return v === undefined ? null : v'],
+  // --- the defect's class and size are DERIVED, and stay derived (issue 29) ---
+  // Added with the size cut. `defect_class` is stored on the ledger row and in
+  // the sealed note, and two stored copies agree with each other by
+  // construction: a trial relabelled in both places passed the whole suite, and
+  // moved a row from one column of the verdict's per-class table to another.
+  // Each mutation below was APPLIED and the suite watched to go red.
+  ['a mislabelled defect class disagrees with its own bytes', DP, '  if (cls !== null && cls !== note.defect_class) {', '  if (false) {'],
+  ['the ledger row\'s class is crossed against the bytes, not against the note', DP, '  if (cls !== null && cls !== row.defect_class) {', '  if (false) {'],
+  ['two stored copies of the class must agree with each other too', DP, '  if (row.defect_class !== note.defect_class) {', '  if (false) {'],
+  ['a defect\'s size is the span that differs, not the line it sits in', DP, '  const mag = d.out.length + d.in.length', "  const mag = String(note.removed ?? '').length"],
+  ['every miss falls at or below the size cut\'s threshold', DP, '  const thr = Math.max(...misses.map(x => x.mag))', '  const thr = Math.min(...misses.map(x => x.mag))'],
 ]
 
 // THE LIST IS EXPORTED AND THE SWEEP RUNS ONLY WHEN INVOKED, and that is not tidiness.

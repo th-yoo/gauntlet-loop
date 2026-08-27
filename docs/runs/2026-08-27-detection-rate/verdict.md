@@ -40,6 +40,69 @@ By defect class:
 | factual-substitution | 4 / 5 |
 | inverted-constraint | 3 / 5 |
 
+## And by how big the defect is — #29's third question, answered late
+
+The issue asked three things of this instrument. Two were built into the set:
+sides crossed with undegraded controls, and three defect classes rather than one.
+The third was not, and neither this document nor the gate said so:
+
+> A high rate on large removals and a low one on small edits would tell us what
+> size of defect this instrument can see, which is the number an operator
+> actually needs.
+
+The per-class table was reported in its place. It is not the same cut. Defect
+size is now **derived** from each sealed note's own bytes — the span where the
+removed and inserted texts diverge, not the length of the line it sits in — and
+computed by `test/detection-rate.test.mjs` on every run:
+
+| cut | at or below 3 bytes | above 3 bytes |
+|---|---|---|
+| all 15 degraded trials | 3 / 6 = 50% | **9 / 9 = 100%** |
+| with section removals dropped (n=10) | 3 / 6 = 50% | **4 / 4 = 100%** |
+
+**Every one of the three misses is a defect of three bytes or fewer** — `0`→`7`,
+and `no `→`a ` twice. Above three bytes the critic did not miss: 9 of 9, and 4 of
+4 once section removals are out of the set.
+
+P(all three misses landing at or below the largest missed size, under random
+assignment) is **0.044** over the fifteen and **0.167** with removals dropped.
+**Both are post-hoc**: the threshold is read off the misses rather than
+pre-registered, so this separation is suggestive and is not a result. It is
+reported because the alternative is a per-class table being read as a size
+finding it cannot support.
+
+**Size and class are collinear on this set, and that is a property of the
+transforms rather than of the draw.** Section removals span 1028–1651 bytes;
+every other trial spans 2–11. Nothing lies in between, so "large defects are
+easy" and "removal-shaped defects are easy" predict the identical table. The
+removals-dropped row is the only one that is about size at all, and it rests on
+ten trials. Separating them needs a mid-sized defect — a removed paragraph, a
+rewritten clause — and no transform in `scripts/defect-transforms.mjs` produces
+one.
+
+### The class labels the table above rests on were unguarded
+
+`defect_class` is stored twice, on the ledger row and in the sealed note, and
+until now nothing recomputed it. Two stored copies of a derivable fact agree with
+each other by construction: relabelling one trial in **both** places — a
+factual substitution recorded as a section removal — moved a row from one column
+of the per-class table to another and passed `node test/run-all.mjs` with exit 0.
+That was built and run before the fix, not reasoned about.
+
+`classifyNote()` now reads the class out of the note's own bytes — nothing
+inserted and a `## ` section of four lines or more gone; one line differing only
+in digits; one line rewritten by a `FLIPS` pair — and
+`test/detection-parse.test.mjs` fails when that disagrees with either stored
+copy. Three mutations are caught, in both directions and with only one copy
+edited. Bytes matching no signature return null and are reported as unverified
+rather than as corrupt, so a transform nobody has written yet does not read as a
+broken ledger.
+
+This is CLAUDE.md's rule firing exactly as written — *"guards placed where
+something once broke leave every other derivable fact unguarded"*. What the four
+fields this file already re-derives have in common is that they had all failed
+before. `defect_class` had not.
+
 ## What this establishes
 
 **The critic discriminates.** On this set it picks the undegraded artifact about
@@ -229,6 +292,11 @@ The identical basenames are what made the defect invisible in prose: `a/` and
 - **Fifteen is small.** The interval is 38 points wide, 55% to 93%. What it
   excludes is chance, not much else — and the per-class figures (5/5, 4/5, 3/5)
   are each too small to separate from one another.
+- **Defect SIZE, separately from defect CLASS.** Every section removal is a
+  four-figure magnitude and every other trial a single-digit one, so the two cuts
+  are the same column on this set. The 100%-above-three-bytes figure is real and
+  post-hoc, and the only version of it that is not also a class effect rests on
+  ten trials.
 - **The denominator moved once already, for a reason that had nothing to do with
   the critic.** This document first reported the rate over twelve trials, because
   `parseWinner` demanded a `#` heading and dropped three responses that answered

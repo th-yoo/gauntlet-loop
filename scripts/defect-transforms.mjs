@@ -37,7 +37,7 @@ export function sectionRemoval(text, n) {
 // A constraint flipped to its opposite. The document still reads as prose and
 // still looks complete, which is the point: this is the class a reader most
 // easily misses and the one a 22-line hole says nothing about.
-const FLIPS = [
+export const FLIPS = [
   ['must not', 'must'], ['must', 'must not'],
   ['never', 'always'], ['always', 'never'],
   ['cannot', 'can'], ['is not', 'is'],
