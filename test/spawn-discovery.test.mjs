@@ -86,6 +86,23 @@ function spawnerSource(binary) {
   ].join('\n')
 }
 
+// Runs the DEPLOYED containment check over a tree holding exactly this source.
+function runContainmentWithSource(src) {
+  const dir = mkdtempSync(join(tmpdir(), 'spawn-discovery-'))
+  try {
+    mkdirSync(join(dir, 'scripts'), { recursive: true })
+    mkdirSync(join(dir, 'test'), { recursive: true })
+    copyFileSync(join(HERE, 'containment.test.mjs'), join(dir, 'test', 'containment.test.mjs'))
+    if (src) writeFileSync(join(dir, 'scripts', 'fixture-runner.mjs'), src)
+    const r = spawnSync(process.execPath, [join(dir, 'test', 'containment.test.mjs')], {
+      encoding: 'utf8', timeout: 30_000, env: { ...process.env, GAUNTLET_SUITE: '1' },
+    })
+    return { code: r.status, out: `${r.stdout || ''}${r.stderr || ''}` }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
 // Runs the DEPLOYED containment check over a tree containing zero or one spawner.
 function runContainmentOver(binary) {
   const dir = mkdtempSync(join(tmpdir(), 'spawn-discovery-'))
@@ -163,6 +180,63 @@ console.log('spawn-discovery: a repository it cannot see into does not read as a
   const sameWords = /nothing to contain/.test(blind.out) && /nothing to contain/.test(EMPTY.out)
   ok(!(sameVerdict && sameWords),
      `a tree holding an unguarded spawner and a tree holding none produce the same exit code (${blind.code}) and the same "nothing to contain" line. Containment cannot distinguish "there is nothing to guard" from "there is something I cannot see", and it reports the safe one.`)
+}
+
+// --------------------------------------------------------------------------
+// 5. THE SHELL HOLE. A spawn is not what its binary is called; it is what it
+//    runs. `sh` is on the INERT list because a shell reads no prompt and starts
+//    no agent — but it carries whatever command it is handed, so
+//    `sh -c "<runner> -p ..."` is a spawn of that runner wearing `sh` as a name.
+//    Three shapes, and the third is not even matched by the scan today because
+//    its binary is a variable rather than a string literal:
+//
+//      sh -c '<runner> -p hi'          the command is a literal
+//      sh -c cmd                       the command is computed
+//      spawnSync(cmd, {shell: true})   the BINARY is computed
+//
+//    AND TWO NEGATIVE CONTROLS, which are the half that makes this a measurement.
+//    A rule that flags every shell call catches all three above and is useless:
+//    it would flag test/loop.test.mjs and test/corpus-portability.test.mjs, both
+//    of which shell out to genuinely inert things. Those two shapes are in the
+//    set, taken from those real call sites, and a rule reading the COMMAND scores
+//    5/5 while a rule reading "is it a shell" scores 3/5.
+// --------------------------------------------------------------------------
+const RUNNER = 'cod' + 'ex'
+const SHELL_SHAPES = [
+  { name: 'shell runs a runner named in the command',
+    body: `${'spawn'}Sync('sh', ['-c', ${JSON.stringify(`${RUNNER} -p hi`)}])`,
+    contained: false },
+  { name: 'shell runs a command computed at runtime',
+    body: `const cmd = process.argv[2]\n${'spawn'}Sync('sh', ['-c', cmd])`,
+    contained: false },
+  { name: 'the binary itself is computed, with shell: true',
+    body: `const cmd = process.argv[2]\n${'spawn'}Sync(cmd, { shell: true })`,
+    contained: false },
+  { name: 'shell runs a literal pipeline of inert tools',
+    body: `${'spawn'}Sync('sh', ['-c', 'git ls-files -z | xargs -0 tar -cf - | tar -xf - -C /tmp/x'])`,
+    contained: true },
+  { name: 'shell runs an inert command with an interpolated argument',
+    body: `const quoted = process.argv[2]\n${'spawn'}Sync('sh', ['-c', \`printf %s \${quoted}\`])`,
+    contained: true },
+]
+
+console.log('spawn-discovery: a shell is judged by the command it carries, not by being a shell')
+{
+  const wrong = []
+  for (const shape of SHELL_SHAPES) {
+    const src = `import { ${'spawn'}Sync } from 'node:child_process'\nconst MAX_FIXTURE_SPAWNS = 1\n${shape.body}\n`
+    const r = runContainmentWithSource(src)
+    const caught = r.code !== 0
+    const want = !shape.contained
+    console.log(`          ${caught ? 'flagged ' : 'passed  '} ${shape.name}${caught === want ? '' : '   <- WRONG'}`)
+    if (caught !== want) wrong.push(shape)
+  }
+  const missed = wrong.filter(w => !w.contained).map(w => w.name)
+  const falseAlarms = wrong.filter(w => w.contained).map(w => w.name)
+  ok(missed.length === 0,
+     `containment let ${missed.length} unguarded shell spawn(s) through: ${missed.join('; ')}. A shell is a spawn of whatever it is handed, and reading the binary name says nothing about that.`)
+  ok(falseAlarms.length === 0,
+     `containment flagged ${falseAlarms.length} shell call(s) that run only inert tools: ${falseAlarms.join('; ')}. Both shapes are taken from real call sites in this suite. A rule that flags every shell call has stopped reading the command and is measuring nothing.`)
 }
 
 if (failures) {
