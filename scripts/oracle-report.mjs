@@ -28,6 +28,7 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { MODEL_SHAPED } from './model-shaped.mjs'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -113,6 +114,21 @@ if (corpus.length) {
     }
     const cmd = row.evidence && row.evidence.acceptance_command
     if (!cmd) { ungrounded.push(`row ${JSON.stringify(row.id)}: no acceptance command recorded, so nothing grounds it`); continue }
+    // REFUSED AT READ TIME, NOT ONLY AT WRITE TIME. oracle-add refuses a mechanical
+    // grounding whose acceptance command names a model, and this file re-runs that command
+    // through a shell every time the report is built — so the refusal was placed where the
+    // row is created and nowhere on the path that executes it. A row written before that
+    // refusal existed, or edited in the ledger by hand, is executed here unchecked. Same
+    // rule this repository induced twice: a guard placed where something once broke leaves
+    // every other path to the same act unguarded.
+    //
+    // Ungrounded rather than fatal: a row this cannot verify mechanically is a row without
+    // grounding, which is what the list already means, and killing the whole report over
+    // one row would hide the rest.
+    if (MODEL_SHAPED.test(cmd)) {
+      ungrounded.push(`row ${JSON.stringify(row.id)}: its acceptance command names a model, so re-running it here would settle grounding with the judgement under test — \`${cmd.length > 90 ? cmd.slice(0, 90) + '…' : cmd}\``)
+      continue
+    }
     const r = spawnSync(cmd, { shell: true, cwd: ROOT, stdio: 'ignore', timeout: 60_000 })
     if (r.status !== 0) {
       ungrounded.push(`row ${JSON.stringify(row.id)}: its acceptance command exits ${r.status === null ? 'nothing (killed or timed out)' : r.status} now, and exited 0 when the row was added — \`${cmd.length > 90 ? cmd.slice(0, 90) + '…' : cmd}\``)

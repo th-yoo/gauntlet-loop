@@ -240,7 +240,7 @@ console.log('spawn-discovery: a shell is judged by the command it carries, not b
 }
 
 if (failures) {
-  console.error(`\nspawn-discovery: ${failures} failure(s) — the containment guard is bounded by a list of names, and the list is shared with what it audits.`)
+  console.error(`\nspawn-discovery: ${failures} failure(s) — a spawn is what it runs, not what its binary is called.`)
   process.exit(1)
 }
 console.log('\nspawn-discovery: OK — an unguarded spawner is caught by what it does, not by what its binary is called.')

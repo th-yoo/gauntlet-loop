@@ -53,9 +53,112 @@ function ok(cond, msg) { if (!cond) throw new Error(`ASSERT FAILED: ${msg}`) }
 // command it is handed, and `sh -c "<model runner> -p ..."` is invisible to a scan that
 // reads the binary. That hole is not new and is not closed here; oracle-add's own
 // MODEL_SHAPED refusal is what stands in front of the acceptance-command case.
-const INERT = new Set(['git', 'gh', 'grep', 'ls', 'sh', 'bash', 'node', 'npm', 'cat', 'sed', 'awk', 'find', 'which', 'env', 'true', 'echo'])
+const INERT = new Set(['git', 'gh', 'grep', 'ls', 'sh', 'bash', 'node', 'npm', 'cat', 'sed', 'awk', 'find', 'which', 'env', 'true', 'echo', 'printf', 'tar', 'xargs', 'cp', 'mkdir', 'rm', 'test', 'diff', 'sort', 'head', 'tail', 'wc'])
 const isInert = bin => INERT.has(String(bin).trim().split(/[\s/]+/).pop())
-const SPAWN_CALL = /\b(spawnSync|spawn|execFileSync|execFile|execSync|exec)\s*\(\s*['"`]([^'"`\n]+)['"`]/g
+// THE LOOKBEHIND IS LOAD-BEARING. `\b` happily matches the `exec` in `/re/.exec(str)`, so
+// every regex test in the tree read as a spawn whose binary was the haystack. The old rule
+// never noticed because MODEL_SHAPED filtered the nonsense out; under a rule that treats an
+// unrecognised binary as suspicious, that noise becomes failures. A spawn call is not a
+// method on something else.
+const SPAWN_CALL = /(?<![.\w$])(spawnSync|spawn|execFileSync|execFile|execSync|exec)\s*\(\s*['"`]([^'"`\n]+)['"`]/g
+
+// A SHELL IS A SPAWN OF WHATEVER IT IS HANDED, and that is the second way the old rule
+// went blind. `sh` reads no prompt and starts no agent, so it belongs on INERT — but
+// `sh -c "<runner> -p ..."` is a spawn of that runner wearing `sh` as a name. Three
+// shapes exist in this repository and the third is not matched by SPAWN_CALL at all,
+// because its binary is a variable rather than a string literal:
+//
+//   sh -c '<runner> -p hi'          the command is a literal
+//   sh -c cmd                       the command is computed
+//   spawnSync(cmd, { shell: true }) the BINARY is computed
+//
+// So a shell call is judged by the COMMAND, not by the shell. A rule that flagged every
+// shell call would catch all three and be worthless — test/loop.test.mjs shells out to
+// `printf` and test/corpus-portability.test.mjs to a git/xargs/tar pipeline, and both are
+// in test/spawn-discovery.test.mjs as negative controls precisely so that a rule which has
+// stopped reading the command scores 3 of 5 rather than passing.
+const SHELLS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh'])
+// Anything reached by a spawn whose command is not statically legible. `exec`/`execSync`
+// take the command as the first argument, so their literal IS the command; the shell
+// family takes it after `-c`.
+const ANY_SPAWN_CALL = /(?<![.\w$])(spawnSync|spawn|execFileSync|execFile|execSync|exec)\s*\(/g
+
+// AND THE NAME MUST BE THE IMPORTED ONE. `spawn(s)` inside the log line
+// `${spawned} spawn(s) this invocation` matched ANY_SPAWN_CALL and reported two of this
+// repository's own drawers as spawning a computed binary. A word followed by a bracket is
+// not a call to child_process; what makes it one is that the file imported it.
+function spawnNames(src) {
+  const names = new Set()
+  for (const m of src.matchAll(/import\s*\{([^}]*)\}\s*from\s*['"]node:child_process['"]/g)) {
+    for (const part of m[1].split(',')) {
+      const n = part.split(/\s+as\s+/).pop().trim()
+      if (n) names.add(n)
+    }
+  }
+  return names
+}
+
+// The statically visible command words of a shell argument: the first word of each
+// pipeline or list segment, up to the first interpolation. Returns null when nothing is
+// legible — a bare identifier says nothing about what will run and must not be waived.
+function commandWords(argText) {
+  if (argText === null) return null
+  const staticPart = argText.split('${')[0]
+  if (!staticPart.trim()) return null
+  const words = staticPart.split(/\||&&|\|\||;|\n/).map(seg => seg.trim().split(/\s+/)[0]).filter(Boolean)
+  return words.length ? words : null
+}
+
+// A bare identifier after `-c` is not automatically unreadable: scripts/staleness-trial.mjs
+// builds its command as a same-file `const` two lines earlier. Resolving one hop is the
+// difference between reading what is there and demanding a barrier in front of a command
+// that is plainly `sh <fixture> | grep -qx ok`. Narrow on purpose — exactly one initializer
+// in the file, and its right-hand side has to start with a quote. Anything else is unknown.
+function resolveConst(src, ident) {
+  if (!/^[A-Za-z_$][\w$]*$/.test(ident)) return null
+  const decls = [...src.matchAll(new RegExp(`\\b(?:const|let|var)\\s+${ident}\\s*=\\s*(['"\`])`, 'g'))]
+  if (decls.length !== 1) return null
+  const q = decls[0][1]
+  const start = decls[0].index + decls[0][0].length
+  let out = ''
+  for (let i = start; i < src.length; i++) {
+    if (src[i] === '\\') { out += src[i + 1] || ''; i++; continue }
+    if (src[i] === q) return out
+    out += src[i]
+  }
+  return null
+}
+
+// Does this identifier name a path built from ROOT? Follows `const X = join(Y, ...)` a few
+// hops, because test/push-gate.test.mjs writes it in two — `HOOK_DIR = join(ROOT, ...)`
+// then `HOOK = join(HOOK_DIR, ...)` — and a rule that reads one hop and not two is a rule
+// about how somebody happened to break the line.
+function rootedInRepo(src, ident, depth = 0) {
+  if (depth > 4) return false
+  const m = new RegExp(`\\b(?:const|let|var)\\s+${ident}\\s*=\\s*join\\s*\\(\\s*([A-Za-z_$][\\w$]*)`).exec(src)
+  if (!m) return false
+  return m[1] === 'ROOT' || rootedInRepo(src, m[1], depth + 1)
+}
+
+// The literal handed to a shell after `-c`, or null when it is an expression. Deliberately
+// narrow: anything it cannot read confidently comes back null and is treated as unknown.
+function shellCommandLiteral(callText, src) {
+  const dashC = /['"`]-c['"`]\s*,\s*/.exec(callText)
+  if (!dashC) return null
+  const rest = callText.slice(dashC.index + dashC[0].length)
+  const q = rest[0]
+  if (q !== "'" && q !== '"' && q !== '`') {
+    const ident = /^([A-Za-z_$][\w$]*)\s*[,)\]]/.exec(rest)
+    return ident ? resolveConst(src, ident[1]) : null
+  }
+  let out = ''
+  for (let i = 1; i < rest.length; i++) {
+    if (rest[i] === '\\') { out += rest[i + 1] || ''; i++; continue }
+    if (rest[i] === q) return out
+    out += rest[i]
+  }
+  return null
+}
 
 // COMMENT-STRIPPED, and this file learned it the same way loop.js's guard did. The header
 // of the spawner names `spawnSync('claude', ...)` while explaining what has never been
@@ -87,9 +190,46 @@ for (const rel of ALL) {
   const raw = readFileSync(join(ROOT, rel), 'utf8')
   const src = stripLineComments(raw)
   const hits = []
-  for (const m of src.matchAll(SPAWN_CALL)) {
-    if (isInert(m[2])) dismissed.set(m[2], (dismissed.get(m[2]) || 0) + 1)
-    else hits.push({ index: m.index, binary: m[2] })
+  const imported = spawnNames(src)
+  for (const m of src.matchAll(ANY_SPAWN_CALL)) {
+    if (!imported.has(m[1])) continue
+    const callText = src.slice(m.index, m.index + 600)
+    const lit = /^[a-zA-Z]+\s*\(\s*(['"`])([^'"`\n]*)\1/.exec(callText)
+    const binary = lit ? lit[2] : null
+
+    // THE BINARY IS AN EXPRESSION. Nothing is known about what runs, so nothing can be
+    // waived. scripts/oracle-add.mjs:320 is this shape and executes a caller-supplied
+    // string; the old scan did not match it at all.
+    if (binary === null) {
+      if (/process\.execPath/.test(callText.slice(0, 40))) continue
+      // A BINARY THAT IS A FILE IN THIS REPOSITORY is covered by this scan already:
+      // whatever it spawns is audited here too, so executing it adds no reach. That is a
+      // compositional argument, not an exemption — it holds only because the target is
+      // inside the tree being scanned. test/push-gate.test.mjs runs `.githooks/pre-push`
+      // this way, in a throwaway repo against a stub suite.
+      const arg = /^[a-zA-Z]+\s*\(\s*([A-Za-z_$][\w$]*)\s*[,)]/.exec(callText)
+      if (arg && rootedInRepo(src, arg[1])) continue
+      hits.push({ index: m.index, binary: '(computed)', kind: 'command', why: 'the binary is an expression' })
+      continue
+    }
+    if (!isInert(binary)) { hits.push({ index: m.index, binary, kind: 'agent' }); continue }
+
+    // AN INERT BINARY THAT IS A SHELL still runs something. Read the command.
+    if (SHELLS.has(String(binary).trim().split(/[\s/]+/).pop())) {
+      const words = commandWords(shellCommandLiteral(callText, src))
+      if (words === null) {
+        hits.push({ index: m.index, binary, kind: 'command', why: 'the shell command is an expression' })
+        continue
+      }
+      const unvouched = words.filter(w => !isInert(w))
+      if (unvouched.length) {
+        hits.push({ index: m.index, binary, kind: 'command', why: `the shell runs ${unvouched.join(', ')}` })
+        continue
+      }
+      dismissed.set(`${binary} -c ${words.join(' ')}`, 1)
+      continue
+    }
+    dismissed.set(binary, (dismissed.get(binary) || 0) + 1)
   }
   // THE STRIPPER'S OWN BLINDNESS, asserted rather than hoped for. It cuts at the first
   // `//` on a line, so a spawn call sitting after a `//` inside a string — a URL, a regex
@@ -119,7 +259,57 @@ for (const rel of ALL) {
 // — so what is left to report is which calls the INERT list dismissed. That list is the
 // remaining way to go blind, so it is printed rather than trusted silently, and a tree
 // with no spawn calls at all is distinguished from one where every call was waved through.
-if (!spawners.length) {
+const agents = spawners.filter(sp => sp.hits.some(h => h.kind === 'agent'))
+      .map(sp => ({ ...sp, hits: sp.hits.filter(h => h.kind === 'agent') }))
+const executors = spawners.filter(sp => sp.hits.some(h => h.kind === 'command'))
+      .map(sp => ({ ...sp, hits: sp.hits.filter(h => h.kind === 'command') }))
+
+// ── 4. AND A SHELL IS A SPAWN OF WHATEVER IT IS HANDED ─────────────────────────────
+//
+// A site whose command is not statically legible is not an agent spawn — it is a site
+// that BECOMES one depending on data. Rules 1-3 are the wrong barrier for it: rule 1
+// would forbid the suite from importing scripts/constructed-verify.mjs for its pure
+// functions, and a top-level GAUNTLET_SUITE exit in a module that is imported would kill
+// the importer rather than guard anything.
+//
+// What these sites carry instead is a CONTENT refusal — the command is checked for a
+// model before it runs (scripts/constructed-verify.mjs and scripts/oracle-add.mjs both do
+// this, via scripts/model-shaped.mjs). Either barrier is accepted here; what is not
+// accepted is neither.
+//
+// THE RESIDUAL, and it is stated here rather than in a comment because this is the branch
+// that carries the verdict: this checks that a refusal EXISTS in the file, not that the
+// value it refuses is the value that reaches the spawn, and not that it is positioned
+// before it. Position is meaningless for a spawn defined as a helper at the top of a file
+// and invoked later — scripts/constructed-verify.mjs:50 is exactly that shape. Proving the
+// refusal guards the value would take dataflow this file does not do. What is closed here
+// is the visibility gap: these sites were not found at all.
+{
+  const CONTENT_REFUSAL = /MODEL_SHAPED|namesAModel/
+  if (!executors.length) {
+    console.log('containment: no spawn runs a command this scan cannot read')
+  } else {
+    for (const { rel, src, hits } of executors) {
+      const why = [...new Set(hits.map(h => h.why))].join('; ')
+      const guarded = /^if \(process\.env\.GAUNTLET_SUITE\)/m.test(src)
+      const refuses = CONTENT_REFUSAL.test(src)
+      // A THIRD BARRIER, and it is the mechanism the whole design rests on: a call that
+      // sets GAUNTLET_SUITE in the CHILD's env marks every descendant, so any spawner the
+      // command reaches refuses before it spawns. scripts/mutate.mjs runs a gate's check
+      // command — a computed binary — and does exactly this.
+      const marks = hits.some(h => /GAUNTLET_SUITE:\s*'1'/.test(src.slice(h.index, h.index + 600)))
+      ok(guarded || refuses || marks,
+         `${rel} spawns a command this scan cannot read (${why}) and carries neither barrier: no top-level GAUNTLET_SUITE refusal, and nothing that checks the command for a model before running it. A shell is a spawn of whatever it is handed, so a site that runs an unreadable command needs one of the two.`)
+      console.log(`          ${rel} — ${why} — ${guarded ? 'suite-guarded' : refuses ? 'refuses a model-named command' : 'marks its child with the suite flag'}`)
+    }
+    console.log(`containment: every spawn of an unreadable command carries a barrier OK`)
+    console.log('          NOT CHECKED: that the refused value is the value that reaches the spawn, or that')
+    console.log('          it is positioned before it. That needs dataflow this file does not do; what is')
+    console.log('          established is that these sites are found at all, which they previously were not.')
+  }
+}
+
+if (!agents.length) {
   const total = [...dismissed.values()].reduce((a, b) => a + b, 0)
   if (!total) {
     console.log('containment: no spawn-family call anywhere in scripts/ or test/ — nothing to contain')
@@ -133,7 +323,7 @@ if (!spawners.length) {
   {
     const reachable = [...scanDir('test'), join('scripts', 'mutate.mjs'), join('scripts', 'coverage-sweep.mjs')]
       .filter(r => basename(r) !== basename(import.meta.url))
-    for (const { rel } of spawners) {
+    for (const { rel } of agents) {
       const stem = basename(rel, '.mjs')
       for (const r of reachable) {
         if (!existsSync(join(ROOT, r))) continue
@@ -141,7 +331,7 @@ if (!spawners.length) {
            `${r} names the model-spawner ${rel}. Anything the suite or a mutation sweep runs must not be able to reach one — that is how this repo reached depth 13. Assert on its refusal in SOURCE, as this file does, rather than by invoking it.`)
       }
     }
-    console.log(`containment: no file the suite or a sweep runs names any of the ${spawners.length} spawner(s) — ${spawners.map(s => s.hits[0].binary).join(', ')} OK`)
+    console.log(`containment: no file the suite or a sweep runs names any of the ${agents.length} agent-spawner(s) — ${agents.map(s => s.hits[0].binary).join(', ')} OK`)
   }
 
   // ── 2. THE REFUSAL IS REACHED BEFORE ANY SPAWN CAN BE ──────────────────────────────
@@ -150,7 +340,7 @@ if (!spawners.length) {
   // and a guard nested inside a function nobody calls is decoration — so it must also be
   // at top level, which is what the unindented match tests.
   {
-    for (const { rel, src, hits } of spawners) {
+    for (const { rel, src, hits } of agents) {
       const guard = /^if \(process\.env\.GAUNTLET_SUITE\)/m.exec(src)
       ok(guard, `${rel} spawns a model and has no top-level GAUNTLET_SUITE refusal. run-all and mutate's check set that marker and every descendant inherits it, so it is the only barrier that survives an agent re-entering this repo from inside a suite run.`)
       const exitAfterGuard = src.indexOf('process.exit', guard.index)
@@ -169,7 +359,7 @@ if (!spawners.length) {
   // the child spawned — so a ceiling on how many are started is the half that limits the
   // damage, and both are required.
   {
-    for (const { rel, src, hits } of spawners) {
+    for (const { rel, src, hits } of agents) {
       for (const h of hits) {
         const callSite = src.slice(h.index, h.index + 400)
         ok(/timeout:/.test(callSite), `${rel} spawns ${h.binary} with no timeout at the call site — a spawn that hangs reports nothing, and nothing reads as "not run" rather than "wedged"`)
