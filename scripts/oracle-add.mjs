@@ -28,6 +28,7 @@ import { existsSync, readFileSync, appendFileSync, mkdirSync, statSync } from 'n
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path'
+import { MODEL_SHAPED } from './model-shaped.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // ORACLE_CORPUS lets a test point this at a throwaway file. It exists because a
@@ -294,7 +295,6 @@ if (grounding !== 'absence' && statSync(abs).isDirectory()) {
 // and it is therefore evadable — a model call disguised behind a local HTTP endpoint
 // passes it. Stated rather than papered over: it stops the careless case, not the
 // determined one, and the corpus's own note field is where a reader should look.
-const MODEL_SHAPED = /\b(claude|anthropic|openai|gpt|llm|ollama|gemini)\b/i
 if (grounding === 'mechanical' && MODEL_SHAPED.test(acceptance)) {
   console.error(`add: the acceptance command mentions a model ("${acceptance}").`)
   console.error('A mechanical grounding has to be established WITHOUT the kind of judgement being tested — a')

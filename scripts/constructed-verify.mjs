@@ -40,6 +40,7 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { MODEL_SHAPED } from './model-shaped.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const MANIFEST = process.env.CONSTRUCTED_MANIFEST || join(ROOT, 'oracle', 'constructed.jsonl')
@@ -52,7 +53,6 @@ const ok = cmd => sh(cmd).status === 0
 // REFUSE A COMMAND THAT COULD CONSULT A MODEL, the same rule oracle-add.mjs
 // applies to acceptance commands: a ground truth produced by the kind of
 // judgement under test cannot audit that judgement.
-const MODEL_SHAPED = /\b(claude|anthropic|openai|gpt|llm|ollama|gemini)\b/i
 
 export function deriveRole(probe, runner = { ok, sh }) {
   if (!probe) return { role: null, why: 'no probe declared' }

@@ -31,8 +31,30 @@ import { dirname, join, basename } from 'node:path'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 function ok(cond, msg) { if (!cond) throw new Error(`ASSERT FAILED: ${msg}`) }
 
-// The same rule oracle-add uses, applied to a call site rather than to a shell string.
-const MODEL_SHAPED = /\b(claude|anthropic|openai|gpt|llm|ollama|gemini)\b/i
+// SUSPICIOUS BY DEFAULT, and that inversion is the whole of issue #55.
+//
+// This file used to discover spawners with `MODEL_SHAPED` — the same regex, byte for
+// byte, that scripts/oracle-add.mjs and scripts/constructed-verify.mjs use to REFUSE a
+// model-backed command. One regex in two roles: the detector and the definition of what
+// is detected. It could not disagree with itself, so a spawner whose binary was `codex`
+// was invisible here AND unrefused there, and one omission disarmed the guard and the
+// thing it guards in the same edit. test/spawn-discovery.test.mjs runs the deployed check
+// over thirteen fixture spawners identical but for the binary's name; on the old rule it
+// caught seven.
+//
+// So the question asked here is no longer "is this binary on the model list" but "is this
+// binary known to be inert". A name nobody has vouched for is a candidate spawner and has
+// to carry the guard. The list still has to be maintained — but adding a model runner is
+// now the case that FAILS CLOSED, and forgetting to update a list is what the old rule
+// punished with silence.
+//
+// WHAT INERT MEANS HERE: it reads no prompt and starts no agent, so it cannot re-enter
+// this repository. `sh` is on the list and is the residual — a shell carries whatever
+// command it is handed, and `sh -c "<model runner> -p ..."` is invisible to a scan that
+// reads the binary. That hole is not new and is not closed here; oracle-add's own
+// MODEL_SHAPED refusal is what stands in front of the acceptance-command case.
+const INERT = new Set(['git', 'gh', 'grep', 'ls', 'sh', 'bash', 'node', 'npm', 'cat', 'sed', 'awk', 'find', 'which', 'env', 'true', 'echo'])
+const isInert = bin => INERT.has(String(bin).trim().split(/[\s/]+/).pop())
 const SPAWN_CALL = /\b(spawnSync|spawn|execFileSync|execFile|execSync|exec)\s*\(\s*['"`]([^'"`\n]+)['"`]/g
 
 // COMMENT-STRIPPED, and this file learned it the same way loop.js's guard did. The header
@@ -55,16 +77,19 @@ function scanDir(rel) {
 }
 const ALL = [...scanDir('scripts'), ...scanDir('test')]
 
-// A spawner is a file with at least one spawn-family call whose BINARY is model-shaped.
-// Matching the binary and not the file keeps a comment mentioning claude from counting,
-// and keeps `spawnSync(process.execPath, [...])` out of it.
+// A spawner is a file with at least one spawn-family call whose BINARY is not known
+// inert. Matching the binary and not the file keeps a comment mentioning a runner from
+// counting, and keeps `spawnSync(process.execPath, [...])` out of it — that is not a
+// string literal, so the pattern never sees it.
 const spawners = []
+const dismissed = new Map()
 for (const rel of ALL) {
   const raw = readFileSync(join(ROOT, rel), 'utf8')
   const src = stripLineComments(raw)
   const hits = []
   for (const m of src.matchAll(SPAWN_CALL)) {
-    if (MODEL_SHAPED.test(m[2])) hits.push({ index: m.index, binary: m[2] })
+    if (isInert(m[2])) dismissed.set(m[2], (dismissed.get(m[2]) || 0) + 1)
+    else hits.push({ index: m.index, binary: m[2] })
   }
   // THE STRIPPER'S OWN BLINDNESS, asserted rather than hoped for. It cuts at the first
   // `//` on a line, so a spawn call sitting after a `//` inside a string — a URL, a regex
@@ -73,22 +98,36 @@ for (const rel of ALL) {
   // because it fails silent. A vanished match is legitimate ONLY when what precedes it on
   // the line is genuinely a comment.
   for (const m of raw.matchAll(SPAWN_CALL)) {
-    if (!MODEL_SHAPED.test(m[2])) continue
+    if (isInert(m[2])) continue
     if (hits.some(h => src.slice(h.index, h.index + m[0].length) === m[0])) continue
     const lineStart = raw.lastIndexOf('\n', m.index) + 1
     const before = raw.slice(lineStart, m.index).trim()
     ok(before.startsWith('//') || before.startsWith('*'),
-       `${rel} has a model-shaped spawn of ${m[2]} that disappears when comments are stripped, and what precedes it on the line (${JSON.stringify(before.slice(-60))}) is not a comment — a "//" inside a string is cutting live code out of this scan. Move the call to its own line; this is a limit of the stripper, not an absence of a spawner.`)
+       `${rel} has a spawn of the unvouched binary ${m[2]} that disappears when comments are stripped, and what precedes it on the line (${JSON.stringify(before.slice(-60))}) is not a comment — a "//" inside a string is cutting live code out of this scan. Move the call to its own line; this is a limit of the stripper, not an absence of a spawner.`)
   }
   if (hits.length) spawners.push({ rel, src, hits })
 }
 
-// A scan matching nothing cannot fail informatively — the drift-guard lesson. If this
-// finds no spawner, either containment is moot or the pattern has gone blind, and those
-// are different situations that must not print the same way.
+// A scan matching nothing cannot fail informatively — the drift-guard lesson. The old
+// version of this branch printed its own failure mode in as many words ("the discovery
+// pattern has gone blind") and then exited 0 with every case below it inside the `else`:
+// a residual stated on a branch that decides nothing is stated where it cannot act, and a
+// tree holding a spawner it could not see printed the same line as a tree holding none.
+//
+// Under a rule that asks whether a binary is VOUCHED FOR rather than whether it is on a
+// model list, those two stop being the same reading — an unrecognised runner is now found
+// — so what is left to report is which calls the INERT list dismissed. That list is the
+// remaining way to go blind, so it is printed rather than trusted silently, and a tree
+// with no spawn calls at all is distinguished from one where every call was waved through.
 if (!spawners.length) {
-  console.log('containment: no file invokes a model-shaped binary — nothing to contain')
-  console.log('  (if that is a surprise, the discovery pattern has gone blind, not the risk away)')
+  const total = [...dismissed.values()].reduce((a, b) => a + b, 0)
+  if (!total) {
+    console.log('containment: no spawn-family call anywhere in scripts/ or test/ — nothing to contain')
+  } else {
+    console.log(`containment: ${total} spawn call(s) found, every one dismissed as inert — nothing to contain`)
+    console.log(`  dismissed by the INERT list: ${[...dismissed.keys()].sort().join(', ')}`)
+    console.log('  (that list is now the only way this scan can go blind; a runner added to it stops being seen)')
+  }
 } else {
   // ── 1. NOTHING THE SUITE OR A SWEEP EXECUTES MAY NAME A SPAWNER ────────────────────
   {
@@ -102,7 +141,7 @@ if (!spawners.length) {
            `${r} names the model-spawner ${rel}. Anything the suite or a mutation sweep runs must not be able to reach one — that is how this repo reached depth 13. Assert on its refusal in SOURCE, as this file does, rather than by invoking it.`)
       }
     }
-    console.log(`containment: no file the suite or a sweep runs names any of the ${spawners.length} model-spawner(s) OK`)
+    console.log(`containment: no file the suite or a sweep runs names any of the ${spawners.length} spawner(s) — ${spawners.map(s => s.hits[0].binary).join(', ')} OK`)
   }
 
   // ── 2. THE REFUSAL IS REACHED BEFORE ANY SPAWN CAN BE ──────────────────────────────

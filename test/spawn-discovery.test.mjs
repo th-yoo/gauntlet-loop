@@ -5,20 +5,20 @@
 //
 // COMMITTED FAILING.
 //
-// `test/containment.test.mjs:35` declares
+// `test/containment.test.mjs` declared
 //
 //   const MODEL_SHAPED = /\b(claude|anthropic|openai|gpt|llm|ollama|gemini)\b/i
 //
-// byte-identical to `scripts/oracle-add.mjs:297` and `scripts/constructed-verify.mjs:55`.
-// Those two use it to REFUSE. Containment uses it to DISCOVER WHAT NEEDS A REFUSAL: it
-// matches the binary literal of every spawn-family call and calls a file a spawner when
-// the binary is model-shaped, then asserts each spawner carries a GAUNTLET_SUITE guard
+// byte-identical to `scripts/oracle-add.mjs` and `scripts/constructed-verify.mjs`. Those
+// two use it to REFUSE. Containment used it to DISCOVER WHAT NEEDS A REFUSAL: it matched
+// the binary literal of every spawn-family call and called a file a spawner when the
+// binary was model-shaped, then asserted each spawner carries a GAUNTLET_SUITE guard
 // reached before any spawn, a timeout, and an enforced ceiling.
 //
-// One regex, two roles. Add a spawner whose binary is `codex` and containment finds
-// nothing to contain, oracle-add fails to refuse the same binary, and one omission
-// disarms the guard and the thing it guards in the same edit. This is the fork-bomb guard
-// (docs/runs/2026-08-25-oracle-fork-bomb/: depth 13, 22 live agents).
+// One regex, two roles. Add a spawner whose binary is `codex` and containment found
+// nothing to contain, oracle-add failed to refuse the same binary, and one omission
+// disarmed the guard and the thing it guards in the same edit. This is the fork-bomb
+// guard (docs/runs/2026-08-25-oracle-fork-bomb/: depth 13, 22 live agents).
 //
 // HOW THIS TESTS IT WITHOUT PLANTING A SPAWNER IN THIS REPOSITORY. It writes a fixture
 // tree under tmpdir — `scripts/` holding one spawner, `test/` holding an UNMODIFIED COPY
@@ -36,11 +36,19 @@
 // pattern would turn THIS file into a spawner and demand a GAUNTLET_SUITE guard in it —
 // a trap set for whoever closes the issue.
 //
-// WHAT IS COMPUTED RATHER THAN ASSERTED. One fixture shape, thirteen binary names, and
+// WHAT IS COMPUTED RATHER THAN ASSERTED. One fixture shape, seventeen binary names, and
 // the only thing that varies is the name. An instrument that detects SPAWNING scores
-// 13/13. An instrument reading its own registry scores 7/13 — and 7/13 is what the set is
-// arranged to expose, rather than a single hand-picked miss that proves only that a miss
-// can be built.
+// 17/17. An instrument reading a registry scores however many names its registry holds —
+// and the set is arranged in three tiers so that number is diagnostic rather than a
+// single hand-picked miss that proves only that a miss can be built:
+//
+//   ON_THE_OLD_LIST     the seven the original pattern matched
+//   ADDED_LATER         names a widened pattern would now match
+//   ON_NO_LIST_AT_ALL   invented names no registry can ever hold
+//
+// The third tier is what keeps this test honest as the lists grow. Widening a regex makes
+// the second tier pass without fixing anything; nothing but detecting the SPAWN makes the
+// third tier pass. A score of 11/17 means someone reverted to a registry and widened it.
 
 import { mkdtempSync, mkdirSync, writeFileSync, copyFileSync, rmSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
@@ -55,9 +63,15 @@ let failures = 0
 const fail = m => { console.error(`  FAIL  ${m}`); failures++ }
 const ok = (cond, m) => { if (!cond) fail(m) }
 
-// Split so the literal never sits beside a spawn call in this file's source.
-const IN_PATTERN = ['clau' + 'de', 'anthro' + 'pic', 'open' + 'ai', 'g' + 'pt', 'l' + 'lm', 'olla' + 'ma', 'gemi' + 'ni']
-const NOT_IN_PATTERN = ['cod' + 'ex', 'gr' + 'ok', 'lla' + 'ma', 'mist' + 'ral', 'qw' + 'en', 'deep' + 'seek']
+// Split so the literal never sits beside a spawn call in this file's source. This matters
+// MORE under by-behaviour discovery, not less: containment now flags any spawn call whose
+// binary it cannot vouch for, so a bare literal here would make this file a spawner and
+// demand a GAUNTLET_SUITE guard in it.
+const ON_THE_OLD_LIST = ['clau' + 'de', 'anthro' + 'pic', 'open' + 'ai', 'g' + 'pt', 'l' + 'lm', 'olla' + 'ma', 'gemi' + 'ni']
+const ADDED_LATER = ['cod' + 'ex', 'gr' + 'ok', 'lla' + 'ma', 'mist' + 'ral', 'qw' + 'en', 'deep' + 'seek']
+// Names no registry holds and none ever will. A fix that only widens a list fails here.
+const ON_NO_LIST_AT_ALL = ['nimb' + 'usrun', 'aardv' + 'ark', 'zeph' + 'yrctl', 'quillo' + 'n']
+const EVERY_BINARY = [...ON_THE_OLD_LIST, ...ADDED_LATER, ...ON_NO_LIST_AT_ALL]
 
 // AN UNGUARDED SPAWNER, and unguarded in the way containment names first: no top-level
 // GAUNTLET_SUITE refusal at all. Every case in containment's rule 2 should fire on this.
@@ -98,7 +112,7 @@ function runContainmentOver(binary) {
 // --------------------------------------------------------------------------
 console.log('spawn-discovery: the deployed check fails on an unguarded spawner it recognises')
 {
-  const r = runContainmentOver(IN_PATTERN[0])
+  const r = runContainmentOver(ON_THE_OLD_LIST[0])
   ok(r.code !== 0,
      `containment passed on a fixture that spawns a recognised model binary with no GAUNTLET_SUITE refusal (exit ${r.code}). If it cannot catch that, nothing below is evidence of anything.`)
   ok(/GAUNTLET_SUITE/.test(r.out),
@@ -123,15 +137,15 @@ const EMPTY = runContainmentOver(null)
 console.log('spawn-discovery: an unguarded spawner is caught whatever its binary is called')
 {
   const caught = [], missed = []
-  for (const bin of [...IN_PATTERN, ...NOT_IN_PATTERN]) {
+  for (const bin of EVERY_BINARY) {
     const r = runContainmentOver(bin)
       ; (r.code !== 0 ? caught : missed).push(bin)
   }
-  const all = IN_PATTERN.length + NOT_IN_PATTERN.length
+  const all = EVERY_BINARY.length
   console.log(`          caught ${caught.length}/${all}: ${caught.join(', ') || '(none)'}`)
   console.log(`          missed ${missed.length}/${all}: ${missed.join(', ') || '(none)'}`)
   ok(missed.length === 0,
-     `containment caught ${caught.length} of ${all} unguarded spawners. The ${missed.length} it missed differ from the ones it caught in NOTHING but the binary's name (${missed.join(', ')}) — it is not detecting a spawn, it is matching the same registry that scripts/oracle-add.mjs and scripts/constructed-verify.mjs use to refuse one. A detector that shares its definition with the thing it audits cannot disagree with it, and one omission disarms both in the same edit.`)
+     `containment caught ${caught.length} of ${all} unguarded spawners. The ${missed.length} it missed differ from the ones it caught in NOTHING but the binary's name (${missed.join(', ')}) — it is not detecting a spawn, it is matching a registry of names. A detector bounded by a list is blind to the runner nobody has added to it, and when that list is shared with the refusals in scripts/oracle-add.mjs and scripts/constructed-verify.mjs, one omission disarms the guard and the thing it guards in the same edit.`)
 }
 
 // --------------------------------------------------------------------------
@@ -144,7 +158,7 @@ console.log('spawn-discovery: an unguarded spawner is caught whatever its binary
 // --------------------------------------------------------------------------
 console.log('spawn-discovery: a repository it cannot see into does not read as an empty one')
 {
-  const blind = runContainmentOver(NOT_IN_PATTERN[0])
+  const blind = runContainmentOver(ON_NO_LIST_AT_ALL[0])
   const sameVerdict = blind.code === EMPTY.code
   const sameWords = /nothing to contain/.test(blind.out) && /nothing to contain/.test(EMPTY.out)
   ok(!(sameVerdict && sameWords),
