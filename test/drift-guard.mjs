@@ -40,6 +40,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+import { RUNTIME_FORBIDDEN, CAP_NAMES, LOOP_PINNED, LOOP_DISCLOSURES, COMPARER_CONTRACT } from './drift-facts.mjs'
 const SKILLDIR = join(ROOT, 'skills', 'gauntlet-loop')
 const loop = readFileSync(join(SKILLDIR, 'loop.js'), 'utf8')
 
@@ -600,7 +601,7 @@ for (const rel of LIVE_SURFACES) {
 // Math.random() in prose (explaining why alternation replaces it), and that
 // mention must not itself trip the guard.
 
-const RUNTIME_FORBIDDEN = ['import ', 'require(', 'Date.now', 'Math.random', 'new Date()']
+// RUNTIME_FORBIDDEN moved to test/drift-facts.mjs so scripts/guard-sweep.mjs can enumerate it.
 
 console.log('drift-guard: loop.js runtime-safety scan (no import/require/Date.now/Math.random/new Date())')
 for (const forbidden of RUNTIME_FORBIDDEN) {
@@ -670,7 +671,7 @@ console.log('drift-guard: args loop.js reads and args SKILL.md documents are the
   }
 }
 
-const CAP_NAMES = ['maxRounds', 'MAX_ROUNDS', 'HARD_CAP', 'ROUND_CAP', 'maxIterations']
+// CAP_NAMES moved to test/drift-facts.mjs so scripts/guard-sweep.mjs can enumerate it.
 
 // Matched as an IDENTIFIER, not as a substring. loop.js now REFUSES a cap
 // argument by name — `for (const cap of ['maxRounds', ...])` — which is the
@@ -710,91 +711,11 @@ for (const name of CAP_NAMES) {
 // Needles are per-file because the two surfaces legitimately differ in case and
 // wording (a prompt shouts "BE A REALLY HARSH CRITIC"; a system prompt does not).
 // ---------------------------------------------------------------------------
-const LOOP_PINNED = [
-  { loop: 'BE A REALLY HARSH CRITIC', agent: 'gauntlet-ab-critic', needle: 'really harsh critic',
-    what: "the source's one requirement on the judge (\"That separate sub-agent should be a really harsh critic\")" },
-  { loop: 'a tie is a critic declining to look closely enough', agent: 'gauntlet-ab-critic', needle: 'critic declining to look closely enough',
-    what: 'the forced binary — no "they are comparable" exit' },
-  { loop: 'the single largest thing', agent: 'gauntlet-ab-critic', needle: 'the single largest thing',
-    what: 'ONE gap comes back, and it is the largest' },
-  { loop: 'matte plastic under the same light', agent: 'gauntlet-ab-critic', needle: 'matte plastic under the same light',
-    what: 'the concrete-enough-to-act-on example that defines what a gap must look like' },
-  { loop: 'the next verdict uninterpretable', agent: 'gauntlet-builder', needle: 'the next verdict uninterpretable',
-    what: 'the builder fixes exactly one gap, because a five-change round cannot be read' },
-  { loop: 'Do not assess your own work', agent: 'gauntlet-builder', needle: 'grade your own work',
-    what: 'the builder never judges what it just made — a fresh critic decides next round, and a builder that grades itself is the loop marking its own homework' },
-  { loop: 'what would be inspected to judge it alone', agent: 'gauntlet-lead', needle: 'inspected to judge it',
-    what: 'what makes a piece a piece — a named observable. Without it a "split" is topical, every piece can win, and the artifact as a whole is unjudged' },
-  { loop: 'SPLIT_UNSOUND', agent: 'gauntlet-lead', needle: 'SPLIT_UNSOUND',
-    what: "the one check standing behind the lead's judgement. The lead is told a bad split still gets through and that this catches only one shape of it — if the check goes and the prompt does not, the lead is being reassured about something that no longer runs" },
-  { loop: 'breaker that cannot be read', agent: 'gauntlet-breaker', needle: 'breaker that cannot be read',
-    what: 'the circuit breaker fails SAFE — an unreadable probe stops the run rather than continuing it' },
-]
+// LOOP_PINNED moved to test/drift-facts.mjs so scripts/guard-sweep.mjs can enumerate it.
 
 // Same rule as DISCLOSURES above, for loop.js: a residual that can be deleted
 // without failing a test is not a disclosure.
-const LOOP_DISCLOSURES = [
-  'Nothing verifies that a harsh INSTRUCTION produced a harsh CRITIC',
-  // THE FOUR WAYS A CONFIRMED EXIT CAN STILL BE WRONG (#18's second half).
-  // The exit got stricter — one win arms, a second from a fresh critic on the
-  // opposite side fires — and every one of these is a limit that strictness does
-  // NOT buy. A stricter mechanism is exactly the kind that gets quoted past its
-  // limits, so the limits are pinned rather than trusted to survive an edit.
-  'BOTH CRITICS SHARE A MODEL FAMILY',
-  'A NARROW WIN STILL EXITS',
-  'THE CONFIRMATION MEASURES JUDGE REPRODUCIBILITY, NOT ARTIFACT IMPROVEMENT',
-  'A RUN CANCELLED WHILE ARMED STOPPED WITH ONE UNCONFIRMED WIN, WHICH IS NOT A WIN',
-  // REPOINTED when the regression check landed, and again when it was renamed off
-  // "ratchet". The claim moved from "there is no ratchet" to "there is no ratchet AND
-  // regressions are measured", and a pin that does not move with a claim guards a
-  // sentence nobody ships.
-  'THERE IS NO RATCHET; REGRESSIONS ARE MEASURED AND NOT REVERTED',
-  // k>1 is ours, not the source's. Both primary texts say one critic per piece.
-  // If this line goes, the verdict starts implying a precedent that does not
-  // exist — which is the exact class this tracker files most.
-  'ADDITION, not source fidelity',
-  // Deleting the panel deleted the only calibration mechanism. If this line goes,
-  // the plugin stops telling anyone that nothing checks its critics.
-  'NO CALIBRATION ANYWHERE',
-  // A builder that answers every absence by appending grows the artifact while
-  // every round is locally correct. If this goes, nothing reports it. Pinned on
-  // the stable half: the message names WHICH piece grew once a run is split, so
-  // it can no longer say "THE ARTIFACT" — but the detector going away must still
-  // fail here.
-  'GREW EVERY ROUND',
-  // The lead chooses what gets judged. A split that WON is now checked once more
-  // against the whole artifact, and one that did not is still unverified — both
-  // branches must survive, so both phrases are pinned.
-  'THE SPLIT IS NOT CHECKED',
-  'THE SPLIT IS CHECKED ONE WAY ONLY',
-  // Content blindness: the run withholds its blindness claim when an artifact
-  // gives away its origin. If this goes, a leaking run silently claims blindness.
-  'NOT blind on content',
-  // The blindness probe's criterion is the whole check. If this goes, the probe
-  // silently reverts to pattern-matching for repo names and misses every other
-  // way one artifact can stand apart from the other.
-  'DIFFERENT relationship to this machine',
-  'FIND THOSE ORIGINALS AND DIFF BOTH',
-  // A goal fitted to the candidate cannot discriminate, and the first live run of
-  // this build was decided by exactly that. Both halves of the residual are
-  // pinned: the reference-side finding, and the candidate-side hole nothing checks.
-  // Both goal probes read TEXT. Neither can see when the goal was written or by
-  // whom, which is the failure that actually decided the first live run.
-  'can see when the goal was written or by whom',
-  'not independent judgments',
-  // The judge and the judged are the same model. This is the deepest limitation
-  // the method has — a critic cannot be counted on to catch the mistakes it would
-  // make itself — and it is disclosed nowhere else.
-  'Critic and builder share a model family',
-  // Cancellation is the operator's only control in a loop with no round cap, so
-  // what it does NOT do has to survive: removing the token stops the run at the
-  // next round boundary, it does not abort an agent already in flight.
-  'The breaker is checked at ROUND BOUNDARIES, not continuously',
-  // The blindness probe searches this disk; two agents can reach the network. If
-  // that disclosure goes while the tools remain, a `clean` probe result reads as
-  // broader than it is — see the tool-grant check below, which pins the pair.
-  'THE BLINDNESS PROBE MODELS THE FILESYSTEM ONLY',
-]
+// LOOP_DISCLOSURES moved to test/drift-facts.mjs so scripts/guard-sweep.mjs can enumerate it.
 
 console.log('drift-guard: loop.js round prompts pinned to the agent definitions they spawn')
 for (const pin of LOOP_PINNED) {
@@ -853,10 +774,7 @@ for (const needle of LOOP_DISCLOSURES) {
 // surviving only in a comment reaches no agent.
 const LANE_IS_COMPARER = /(winner|ours_side|side)\s*:\s*\{[^}]*enum:\s*\[\s*'[^']+'\s*,\s*'[^']+'\s*\]/
 
-const COMPARER_CONTRACT = [
-  { test: /provenance/i, what: 'tells its comparer not to reason about provenance — without it the blind A/B is blind in name only' },
-  { test: /\btie\b/i, what: 'forces the choice, with no tie available — a tie is the "seems fine" exit this comparison exists to refuse' },
-]
+// COMPARER_CONTRACT moved to test/drift-facts.mjs so scripts/guard-sweep.mjs can enumerate it.
 
 console.log('drift-guard: every blind-comparer lane carries the shared comparer contract')
 const laneFiles = readdirSync(SKILLDIR).filter(f => f.endsWith('.js')).sort()
@@ -893,8 +811,34 @@ if (!/await parallel\(/.test(loopCode)) {
   fail('loop.js no longer calls parallel() outside a comment — a line of k critics spawned sequentially costs k times the wall clock and nothing in the behavioural tests would notice')
 }
 
+// THE RESIDUAL, PRINTED ON EVERY BRANCH — including the green one, because a
+// limitation printed only when something is already wrong is printed exactly when
+// it does not matter.
+//
+// Issue 3. This file's FILE SURFACE is discovered: a new agent definition, a new
+// comparer lane, a new script under scripts/ are all found by reading the
+// directory, so none of them can arrive unguarded. Its FACTS are not. They are
+// five hand-written lists, and a list has no way to say what is not on it.
+//
+// scripts/guard-sweep.mjs closes half of that: it breaks each entry's subject and
+// requires this file to go red AND to name that entry, so an entry that has
+// quietly stopped biting is reported rather than assumed. It cannot close the
+// other half. A claim nobody wrote down produces no failure to notice, and no
+// instrument in this repository can enumerate the sentences that were never
+// pinned.
+const FACT_COUNT = RUNTIME_FORBIDDEN.length + CAP_NAMES.length + LOOP_PINNED.length +
+  LOOP_DISCLOSURES.length + COMPARER_CONTRACT.length
+function statResidual() {
+  console.log(`drift-guard: NOT ESTABLISHED — the ${FACT_COUNT} facts checked here are hand-written`)
+  console.log('             (test/drift-facts.mjs). scripts/guard-sweep.mjs shows each one still bites.')
+  console.log('             Neither shows the lists are COMPLETE: a property nobody enumerated produces')
+  console.log('             no failure to notice, and the file surface being discovered does not help.')
+}
+
 if (failures) {
+  statResidual()
   console.error(`\ndrift-guard: ${failures} failure(s) — the script and its prompt authority have diverged.`)
   process.exit(1)
 }
+statResidual()
 console.log(`\ndrift-guard: OK — ${LOOP_PINNED.length} prompt clauses pinned between loop.js and its agent definitions, ${comparerLanes} comparer lane(s) holding the cross-lane contract, ${ALLOWLIST.length} allowlists still denying, ${LOOP_DISCLOSURES.length} disclosure(s) present, loop.js clean of ${RUNTIME_FORBIDDEN.length} forbidden runtime APIs and ${CAP_NAMES.length} round-cap names.`)
