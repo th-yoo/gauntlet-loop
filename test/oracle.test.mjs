@@ -12,6 +12,8 @@ import { tmpdir } from 'node:os'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const EXTRACT = join(ROOT, 'scripts', 'oracle-extract.mjs')
+import { RUNNERS, ON_NO_LIST_AT_ALL } from './model-names.mjs'
+
 const ADD = join(ROOT, 'scripts', 'oracle-add.mjs')
 const RECORD = join(ROOT, 'scripts', 'oracle-record.mjs')
 
@@ -331,6 +333,36 @@ function run(script, args, extraEnv) {
   eq(r.code, 2, `an acceptance command that consults a model is refused — got ${r.code}`)
   ok(/cannot audit that decision/.test(r.out), 'on the ground that it cannot audit the decision under test')
   console.log('oracle: a model-backed acceptance command is refused OK')
+}
+
+// AND FOR EVERY RUNNER NAME, NOT ONLY THE ONE ABOVE. Issue #57: this case ran on
+// `claude` alone, so the REACH of the refusal was never exercised — dropping
+// `deepseek` from scripts/model-shaped.mjs passed the whole suite. The battery is
+// held in test/model-names.mjs, apart from the regex it audits, because a case
+// derived from that list would leave with the name it was meant to catch.
+//
+// The negative arm is what stops this passing by refusing everything: a command
+// naming no runner must be refused for some OTHER reason, or not at all.
+{
+  const cmd = bin => `/nonexistent/${bin}-ORACLE-CANARY-DO-NOT-EXECUTE`
+  const args = acceptance => ['--grounding', 'mechanical', '--artifact', join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'),
+                              '--goal', 'g', '--acceptance', acceptance, '--id', 'should-not-exist']
+  const missed = []
+  for (const bin of RUNNERS) {
+    const rr = run(ADD, args(cmd(bin)))
+    if (rr.code !== 2 || !/cannot audit that decision/.test(rr.out)) missed.push(`${bin} (code ${rr.code})`)
+  }
+  ok(missed.length === 0,
+     `oracle-add accepted an acceptance command naming ${missed.join(', ')}. A row whose ground truth is settled by a model is the one thing this refusal exists to stop, and the corpus records it as MECHANICAL.`)
+
+  const wrongly = []
+  for (const bin of ON_NO_LIST_AT_ALL) {
+    const rr = run(ADD, args(cmd(bin)))
+    if (/cannot audit that decision/.test(rr.out)) wrongly.push(bin)
+  }
+  ok(wrongly.length === 0,
+     `oracle-add refused ${wrongly.join(', ')} as model-backed, and those name no model runner. A refusal that fires on everything disarms the corpus rather than guarding it.`)
+  console.log(`oracle: all ${RUNNERS.length} runner name(s) refused, ${ON_NO_LIST_AT_ALL.length} non-runner(s) not OK`)
 }
 
 // AN ACCEPTANCE COMMAND THAT DOES NOT PASS IS NOT GROUND TRUTH.

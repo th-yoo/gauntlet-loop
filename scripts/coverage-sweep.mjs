@@ -34,6 +34,7 @@ const BP = 'scripts/builder-parse.mjs'
 const AJ = 'scripts/adjudications.mjs'
 const DF = 'scripts/disclosure-figures.mjs'
 const DS = 'scripts/disclosure-sources.mjs'
+const MS = 'scripts/model-shaped.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -257,6 +258,12 @@ export const PROPERTIES = [
   ['a paraphrase is not a quotation', DS, '  for (const m of String(text).matchAll(QUOTED)) {', '  for (const m of [...String(text).matchAll(QUOTED), [text, text]]) {'],
   ['a quotation below the floor grounds nothing', DS, '    if (c.length >= min) out.push(c)', '    out.push(c)'],
   ['a sentence naming the source is a source claim', DS, '  const claims = sentences(text).filter(refersToSource)', '  const claims = []'],
+  // --- the refusals' name list cannot be narrowed in silence (issue #57) ------
+  // Dropping `deepseek` from this regex passed the whole suite: three refusals
+  // run off it and no test fed any runner but `claude` to any of them. Both
+  // mutations were applied and watched.
+  ['a runner name cannot leave the refusal list in silence', MS, '|deepseek|copilot)', '|copilot)'],
+  ['a refusal that fires on everything is not a refusal', MS, 'export const MODEL_SHAPED = ', 'export const MODEL_SHAPED = /./i || '],
 ]
 
 // THE LIST IS EXPORTED AND THE SWEEP RUNS ONLY WHEN INVOKED, and that is not tidiness.

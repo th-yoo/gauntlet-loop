@@ -55,6 +55,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { ON_THE_OLD_LIST, ADDED_LATER, ON_NO_LIST_AT_ALL, EVERY_BINARY } from './model-names.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(HERE, '..')
@@ -63,15 +64,10 @@ let failures = 0
 const fail = m => { console.error(`  FAIL  ${m}`); failures++ }
 const ok = (cond, m) => { if (!cond) fail(m) }
 
-// Split so the literal never sits beside a spawn call in this file's source. This matters
-// MORE under by-behaviour discovery, not less: containment now flags any spawn call whose
-// binary it cannot vouch for, so a bare literal here would make this file a spawner and
-// demand a GAUNTLET_SUITE guard in it.
-const ON_THE_OLD_LIST = ['clau' + 'de', 'anthro' + 'pic', 'open' + 'ai', 'g' + 'pt', 'l' + 'lm', 'olla' + 'ma', 'gemi' + 'ni']
-const ADDED_LATER = ['cod' + 'ex', 'gr' + 'ok', 'lla' + 'ma', 'mist' + 'ral', 'qw' + 'en', 'deep' + 'seek']
-// Names no registry holds and none ever will. A fix that only widens a list fails here.
-const ON_NO_LIST_AT_ALL = ['nimb' + 'usrun', 'aardv' + 'ark', 'zeph' + 'yrctl', 'quillo' + 'n']
-const EVERY_BINARY = [...ON_THE_OLD_LIST, ...ADDED_LATER, ...ON_NO_LIST_AT_ALL]
+// The battery moved to test/model-names.mjs when issue #57 needed the same names for
+// the opposite question — whether the REFUSALS still reach every one of them. It is
+// held apart from `MODEL_SHAPED` on purpose: a crossing derived from the list it
+// audits cannot notice a name leaving, because the case leaves with it.
 
 // AN UNGUARDED SPAWNER, and unguarded in the way containment names first: no top-level
 // GAUNTLET_SUITE refusal at all. Every case in containment's rule 2 should fire on this.
