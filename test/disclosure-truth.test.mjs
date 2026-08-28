@@ -38,7 +38,11 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { existsSync } from 'node:fs'
 import { runLoop } from './harness.mjs'
+import { auditFigures, describeProblem, figureTokens } from '../scripts/disclosure-figures.mjs'
+import { disclosureKey } from '../scripts/disclosure-audit.mjs'
+import { adjudicationLedger } from '../scripts/adjudications.mjs'
 import { LOOP_DISCLOSURES } from './drift-facts.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -95,6 +99,109 @@ console.log('disclosure-truth: nothing shipped denies a capability the run just 
   }
   if (!failures) console.log(`          ${surfaces.length} surface(s) checked, none denies it`)
 }
+
+// --------------------------------------------------------------------------
+// A DISCLOSURE THAT STATES A FIGURE SAYS WHERE THE FIGURE COMES FROM. Issue #56.
+//
+// COMMITTED FAILING. loop.js emitted "an evaluator whose detection rate is n=1
+// (#29)" into every run's own not_enforced list for a day after the rate was
+// measured at 12/15, and every check in this repository passed on it: changing
+// n=1 to n=99, or to "80% and amply proven", or replacing the whole tail of the
+// sentence with "Bananas are a berry and the moon is cheese", was NOT CAUGHT by
+// run-all, drift-guard or disclosure-audit. The pin reaches 62 characters of a
+// 1205-character sentence.
+//
+// THE SUBJECT IS WHAT THE LOOP EMITS, not what its source says. The disclosures
+// are read off a run's `not_enforced`, so a sentence assembled at runtime is
+// checked the same as a literal, and the source-parsing this would otherwise need
+// does not exist to get wrong.
+// --------------------------------------------------------------------------
+console.log('disclosure-truth: a disclosure that states a figure says where the figure comes from')
+{
+  const ADJ = process.env.DISCLOSURE_ADJUDICATIONS || join(ROOT, 'docs', 'disclosure-adjudications.jsonl')
+  const adj = adjudicationLedger(existsSync(ADJ) ? readFileSync(ADJ, 'utf8') : '', a => a.key ?? null)
+  const exists = p => existsSync(join(ROOT, p))
+  const read = p => readFileSync(join(ROOT, p), 'utf8')
+
+  const r = await runLoop({
+    args: { goal: 'g', candidate: '/x/a.md', reference: '/x/b.md', token: '/t' },
+    rounds: [{ candidateWins: true, gap: 'g', margin: 'clear' }, { candidateWins: true, gap: 'g', margin: 'clear' }],
+  }).catch(e => { fail(`the stubbed loop threw: ${e.message}`); return null })
+  const emitted = (r && r.result && r.result.not_enforced) || []
+  ok(emitted.length > 0, 'the run emitted no disclosures at all, so this check examined nothing')
+
+  let withFigures = 0, sourced = 0, adjudicatedAway = 0
+  for (const d of emitted) {
+    if (!figureTokens(d).length) continue
+    withFigures++
+    const problems = auditFigures(d, { exists, read })
+    if (!problems.length) { sourced++; continue }
+    // THE KEY COMES FROM THE PIN, not from the emitted string. `disclosureKey`
+    // takes the first 40 characters, and a pinned prefix shorter than that keys
+    // to itself while the emitted sentence keys to 40 — two keys for one
+    // disclosure, which is the coordinate-system collision this repository has
+    // now paid for three times. disclosure-audit looks the row up by the pin, so
+    // this must too, or every row here reads as unspent over there.
+    const pinned = LOOP_DISCLOSURES.find(x => d.startsWith(x))
+    const key = disclosureKey(pinned || d)
+    // ONLY "unsourced" IS ADJUDICABLE. A citation that does not resolve, or a
+    // figure absent from the file it names, is a broken claim rather than an
+    // unrecorded one, and recording a reason for it would be the rubber stamp
+    // this repository keeps finding.
+    const a = adj.get(key)
+    if (problems.every(p => p.kind === 'unsourced') && a && String(a.why || '').length >= 120) {
+      adjudicatedAway++
+      continue
+    }
+    for (const p of problems) fail(describeProblem(p, `an emitted disclosure ("${key}…")`))
+  }
+  ok(withFigures > 0,
+     `not one of the ${emitted.length} emitted disclosure(s) states a figure, so this check confirmed nothing. Either the rule stopped matching or the disclosures stopped making claims.`)
+  console.log(`          ${emitted.length} disclosure(s) emitted · ${withFigures} state a figure · ${sourced} cite a file that contains it · ${adjudicatedAway} adjudicated as unrecorded`)
+}
+
+console.log('disclosure-truth: and that rule can fail — one constructed disclosure per branch')
+{
+  const files = { 'docs/evidence.md': 'the rate came out 12 / 15 across the batch, and the judges split 3 \u2013 2' }
+  const exists = p => Object.prototype.hasOwnProperty.call(files, p)
+  const read = p => files[p]
+
+  const clean = 'THE RATE IS 12/15 and it is written down in docs/evidence.md.'
+  ok(auditFigures(clean, { exists, read }).length === 0,
+     'a figure cited to a file that contains it was reported — spacing differs between "12/15" and "12 / 15" and the rule must not be satisfied by reformatting either way')
+
+  // AN EN-DASH AND A HYPHEN ARE ONE NUMBER WRITTEN TWICE. Without this case the
+  // dash normalisation is code nothing needs, and the sweep says so: it swept
+  // NOT CAUGHT until this line existed.
+  const dashed = 'THE JUDGES SPLIT 3-2, recorded in docs/evidence.md.'
+  ok(auditFigures(dashed, { exists, read }).length === 0,
+     `a figure written with a hyphen was not found in a file that writes it with an en-dash: ${JSON.stringify(auditFigures(dashed, { exists, read }))}`)
+
+  const unsourced = 'THE RATE IS 12/15, and this sentence names no file at all.'
+  const u = auditFigures(unsourced, { exists, read })
+  ok(u.length === 1 && u[0].kind === 'unsourced',
+     `a figure with nowhere to point was accepted: ${JSON.stringify(u)} — that is issue #56 exactly`)
+
+  const wrongFile = 'THE RATE IS 9/11 and it is in docs/evidence.md.'
+  const w = auditFigures(wrongFile, { exists, read })
+  ok(w.length === 1 && w[0].kind === 'not-in-source',
+     `a figure absent from the file it cites was accepted: ${JSON.stringify(w)} — a citation is only sourcing if the number is in it`)
+
+  const gone = 'THE RATE IS 12/15 and it is in docs/deleted.md.'
+  const g = auditFigures(gone, { exists, read })
+  ok(g.some(p => p.kind === 'missing-path'),
+     `a citation to a file that does not exist was accepted: ${JSON.stringify(g)}`)
+
+  ok(auditFigures('NO FIGURE HERE, only prose about behaviour.', { exists, read }).length === 0,
+     'a disclosure stating no figure was reported — then every sentence is a finding')
+  ok(figureTokens('at the default k=1 that phrase quantifies over a set of one').length === 0,
+     'k=1 was read as a measurement. It describes the run that is speaking, and a rule that fires on it would make the loop unable to describe its own configuration')
+  ok(figureTokens('across five spawns on one unchanged pair').length === 0,
+     'a number written as a word was read as a figure')
+  ok(figureTokens('a 3-2 split').length === 1 && figureTokens('detection rate is n=1').length === 1 && figureTokens('55-93%').length >= 1,
+     'a ratio, an n= and a percentage must all count as figures, or the rule reaches only the shape that motivated it')
+}
+
 
 console.log('disclosure-truth: stating what this cannot establish')
 console.log('          NOT CHECKED: the other 18 disclosures. Each is pinned for presence and nothing')

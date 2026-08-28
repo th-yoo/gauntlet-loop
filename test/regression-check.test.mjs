@@ -38,11 +38,12 @@
 //
 // SCOPE, AND IT IS A DECISION RATHER THAN AN OVERSIGHT: this asserts the MEASURING
 // half. A regression must be visible and recoverable; it is not rolled back.
-// Automatic revert hands rollback authority to an evaluator whose detection rate is
-// n=1 (#29), and a wrong revert is worse than a wrong refusal — a refusal is loud and
-// stops the run, a revert silently discards work and the next round's critic never
-// sees what went. What is missing before that trade can be made is the rate at which
-// rounds actually regress, which is exactly what this half produces.
+// Automatic revert hands rollback authority to the critic, and a wrong revert is quieter
+// than a wrong refusal — a refusal is loud and stops the run, a revert silently discards
+// work and the next round's critic never sees what went. That used to rest on the
+// detection rate being one observation; it is 12/15 now, 95% CI 55-93%, measured on
+// pairs differing by one mechanical transform. What is still missing before the trade
+// can be made is the rate at which rounds actually regress, which this half produces.
 //
 // The no-revert assertion below is therefore an ASSERTION, not an absence: turning
 // revert on has to change this line deliberately rather than quietly satisfy it.
@@ -110,7 +111,7 @@ ok(r2 && r2.regression && r2.regression.snapshot,
 ok((reverting.result.history || []).filter(h => h.regressed).length === 1,
    'and only the declined round is marked — a flag that appears on every round names nothing')
 ok(r2 && r2.reverted !== true,
-   'and the round is NOT rolled back. Deliberate, and asserted so it cannot change quietly: revert hands rollback authority to an evaluator whose detection rate is n=1 (#29), and the rate at which rounds regress — the number that would justify it — is what this half exists to produce')
+   'and the round is NOT rolled back. Deliberate, and asserted so it cannot change quietly: revert hands rollback authority to a critic measured at 12/15 on planted defects, on an interval 38 points wide and on pairs nothing like a real regression, and the rate at which rounds regress — the number that would justify it — is what this half exists to produce')
 
 console.log('regression-check: the new version does not always land on the same side')
 {
@@ -142,8 +143,9 @@ console.log('          NOT ASSERTED: the exit condition. #18 also says "won one 
 console.log('          for "utterly wowed". That is a policy choice with a cost, not a defect, and')
 console.log('          bundling it here would hide a decision inside a fix.')
 console.log('          NOT MEASURED: whether the regression check is right. It is one judge, once, on')
-console.log('          two versions of one artifact — the same instrument whose n=1 detection rate is')
-console.log('          #29, now asked a second question per round.')
+console.log('          two versions of one artifact — the same instrument measured at 12/15 on planted')
+console.log('          single-transform defects, now asked a different question, on a pair of versions')
+console.log('          that differ by whatever a builder did in one round.')
 
 if (failures) {
   console.error(`\nregression-check: ${failures} failure(s) — a round that made the artifact worse is permanent and can be exited on.`)

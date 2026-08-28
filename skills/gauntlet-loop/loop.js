@@ -547,12 +547,14 @@ const BUILD_SCHEMA = {
 // method's own run regressing 4.14 -> 4.05, and this loop could not have seen it.
 //
 // WHAT THIS DOES AND DOES NOT DO. It measures and records. It does NOT revert.
-// Reverting hands rollback authority to an evaluator whose detection rate is n=1
-// (#29), and a wrong revert is worse than a wrong refusal: a refusal is loud and stops
-// the run, while a revert silently discards work and the next round's critic never
-// sees what went. The rate at which rounds actually regress is the number nobody has;
-// this produces it. Turn automatic revert on when that rate and #29 say the critic can
-// be trusted with the decision — which is the discipline #28 arrived at the hard way.
+// Reverting hands rollback authority to the critic, and a wrong revert is quieter than a
+// wrong refusal: a refusal is loud and stops the run, while a revert silently discards
+// work and the next round's critic never sees what went. That argument used to rest on
+// the detection rate being a single observation. It is now 12/15, 95% CI 55-93%
+// (docs/runs/2026-08-27-detection-rate/verdict.md), so the old reason is gone and the
+// decision is open rather than settled — on an interval 38 points wide, measured on
+// pairs differing by one mechanical transform, where every miss was 3 bytes or fewer.
+// The rate at which rounds actually regress is the number nobody has; this produces it.
 const REGRESSION_SCHEMA = {
   type: 'object',
   required: ['winner', 'why'],
@@ -2138,7 +2140,7 @@ return {
       ? null
       : `this run's args.reference/args.candidate pair was not a comparable filesystem path pair (reference read as ${shapeOf(REFERENCE)}, candidate as ${shapeOf(CANDIDATE)}). The two ARTIFACT lines rendered in visibly different shapes, so this run's A/B was NOT blind — the loop's own formatting gave away which side was the candidate before the critic looked at either one.`,
     'The critic is instructed to be a really harsh critic — the source\'s one requirement on the judge — in both its standing agent definition and the round prompt. Nothing verifies that a harsh INSTRUCTION produced a harsh CRITIC. A lenient verdict and an exacting one are indistinguishable from here: no calibration trial ran, and the loop reads only the letter that came back.',
-    'THERE IS NO RATCHET; REGRESSIONS ARE MEASURED AND NOT REVERTED (issue #18). A ratchet keeps the best version and restores it — nothing here does that, and the field is called `regression` rather than `ratchet` so a record cannot imply otherwise. Each built round asks one fresh critic which is closer to the goal — the version this round produced, or the copy taken before it — and the answer is recorded per round as `regression`, with `regressed: true` on any round the critic judged worse than what it replaced. Nothing is rolled back: revert would hand rollback authority to an evaluator whose detection rate is n=1 (#29), and a wrong revert is worse than a wrong refusal, which at least stops the run loudly. The previous version is named in the record, so a regression is recoverable by hand. What this still cannot do: VERIFY the snapshot — a Workflow script has no filesystem, so the copy is the builder\'s word, exactly as sizes are the breaker\'s — and tell an improvement from a lateral move, since one judge on one day is the whole of the comparison. A round whose builder reported no snapshot says so in `regression_why_not` rather than reading as a round that was checked and found fine.',
+    'THERE IS NO RATCHET; REGRESSIONS ARE MEASURED AND NOT REVERTED (issue #18). A ratchet keeps the best version and restores it — nothing here does that, and the field is called `regression` rather than `ratchet` so a record cannot imply otherwise. Each built round asks one fresh critic which is closer to the goal — the version this round produced, or the copy taken before it — and the answer is recorded per round as `regression`, with `regressed: true` on any round the critic judged worse than what it replaced. Nothing is rolled back, and the reason has changed since this sentence was first written: the detection rate behind it was one observation, and is now 12/15 with a 95% interval of 55%-93% (docs/runs/2026-08-27-detection-rate/verdict.md). What remains is that the interval is wide, the trials differ by one mechanical transform, and every miss was a defect of 3 bytes or fewer - so an automatic revert would act on a judgement measured on nothing like the case it would decide. A wrong revert is also quieter than a wrong refusal, which at least stops the run loudly. The previous version is named in the record, so a regression is recoverable by hand. What this still cannot do: VERIFY the snapshot — a Workflow script has no filesystem, so the copy is the builder\'s word, exactly as sizes are the breaker\'s — and tell an improvement from a lateral move, since one judge on one day is the whole of the comparison. A round whose builder reported no snapshot says so in `regression_why_not` rather than reading as a round that was checked and found fine.',
     CRITICS === 1
       ? 'Position bias is averaged across rounds by alternation, not eliminated within a round.'
       : 'Position bias is split across the line within each round, which measures it rather than eliminating it. It is not removed.',

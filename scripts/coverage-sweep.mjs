@@ -32,6 +32,7 @@ const DP = 'scripts/detection-parse.mjs'
 const DT = 'scripts/defect-transforms.mjs'
 const BP = 'scripts/builder-parse.mjs'
 const AJ = 'scripts/adjudications.mjs'
+const DF = 'scripts/disclosure-figures.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -236,6 +237,16 @@ export const PROPERTIES = [
   ['a row with no readable key is reported, not dropped', AJ, "    if (k === null || k === undefined || k === '') { malformed.push(JSON.stringify(a).slice(0, 80)); continue }", "    if (k === null || k === undefined || k === '') { continue }"],
   ['an unreadable line is reported, not swallowed', AJ, '    try { a = JSON.parse(line) } catch { malformed.push(line.trim().slice(0, 80)); continue }', '    try { a = JSON.parse(line) } catch { continue }'],
   ['an unspent adjudication names its remedy', AJ, 'Delete the row or fix its key; a row that matches nothing counts as accounting that did not happen.`)', '`)'],
+  // --- a disclosure that states a figure says where the figure comes from -----
+  // Issue #56. loop.js emitted "detection rate is n=1" for a day after the rate
+  // was measured at 12/15, and changing that number to 99, or replacing the tail
+  // of the sentence with fruit taxonomy, was caught by nothing: the pin reaches
+  // 62 characters of 1205.
+  ['a figure with nowhere to point is a finding', DF, "    problems.push({ kind: 'unsourced', figures })", '    return problems'],
+  ['a figure absent from the file it cites is a finding', DF, "    if (!found) problems.push({ kind: 'not-in-source', figure: f, paths: live })", '    if (!found) { /* nothing */ }'],
+  ['a citation that does not resolve is a finding', DF, "    else problems.push({ kind: 'missing-path', path: p })", '    else live.push(p)'],
+  ['spacing and dash shape are not part of a figure', DF, "  .replace(/[–—]/g, '-')                      // an en-dash and a hyphen are one number written twice", '  '],
+  ['a run configuration is not a measurement', DF, '/\\bn\\s*=\\s*\\d+\\b|', '/\\b\\w\\s*=\\s*\\d+\\b|'],
 ]
 
 // THE LIST IS EXPORTED AND THE SWEEP RUNS ONLY WHEN INVOKED, and that is not tidiness.

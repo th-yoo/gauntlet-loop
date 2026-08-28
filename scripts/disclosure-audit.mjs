@@ -40,7 +40,7 @@
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
 import { LOOP_DISCLOSURES } from '../test/drift-facts.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
@@ -79,49 +79,60 @@ export function auditDisclosures(disclosures, tests) {
   })
 }
 
-const testFiles = readdirSync(join(ROOT, 'test'))
-  .filter(f => f.endsWith('.mjs') && !NOT_EVIDENCE.has(f))
-  .map(f => {
-    const raw = readFileSync(join(ROOT, 'test', f), 'utf8')
-    const live = norm(stripLineComments(raw))
-    // A test that never drives the loop cannot exercise a claim about the loop.
-    return { name: `test/${f}`, raw: norm(raw), live, behavioural: /from '\.\/harness\.mjs'/.test(raw) }
-  })
+// THE AUDIT RUNS ONLY WHEN INVOKED, and that is not tidiness — it is the same
+// reason coverage-sweep is guarded. `disclosureKey` is the 40-character rule that
+// decides which adjudication row belongs to which sentence, and issue #56 needs a
+// SECOND consumer of it: the figure check drives the loop and must ask the same
+// question of the same key. A second copy of that rule is the defect this
+// repository has paid for three times, so the rule is imported and the script
+// around it does not run on import.
+const INVOKED = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+if (INVOKED) {
+  const testFiles = readdirSync(join(ROOT, 'test'))
+    .filter(f => f.endsWith('.mjs') && !NOT_EVIDENCE.has(f))
+    .map(f => {
+      const raw = readFileSync(join(ROOT, 'test', f), 'utf8')
+      const live = norm(stripLineComments(raw))
+      // A test that never drives the loop cannot exercise a claim about the loop.
+      return { name: `test/${f}`, raw: norm(raw), live, behavioural: /from '\.\/harness\.mjs'/.test(raw) }
+    })
 
-// Tracked lookups, so a row naming a disclosure key that is no longer pinned is
-// reported rather than counted. See scripts/adjudications.mjs.
-const adjudicated = adjudicationLedger(existsSync(ADJ) ? readFileSync(ADJ, 'utf8') : '', a => a.key ?? null)
+  // Tracked lookups, so a row naming a disclosure key that is no longer pinned is
+  // reported rather than counted. See scripts/adjudications.mjs.
+  const adjudicated = adjudicationLedger(existsSync(ADJ) ? readFileSync(ADJ, 'utf8') : '', a => a.key ?? null)
 
-const rows = auditDisclosures(LOOP_DISCLOSURES, testFiles)
-let unaccounted = 0
-console.log(`disclosure-audit: ${LOOP_DISCLOSURES.length} pinned disclosure(s), ${testFiles.filter(t => t.behavioural).length} behavioural test file(s)`)
-for (const r of rows) {
-  const a = adjudicated.get(r.key)
-  if (r.exercised_by.length) {
-    console.log(`  EXERCISED    ${r.key}…  by ${r.exercised_by.join(', ')}`)
-  } else if (a) {
-    console.log(`  ADJUDICATED  ${r.key}…  ${a.verdict}`)
-  } else {
-    unaccounted++
-    const extra = r.mentioned_only_by.length
-      ? `  (mentioned in ${r.mentioned_only_by.join(', ')}, but only in comments or by a test that never drives the loop)`
-      : ''
-    console.log(`  UNCHECKED    ${r.key}…${extra}`)
+  const rows = auditDisclosures(LOOP_DISCLOSURES, testFiles)
+  let unaccounted = 0
+  console.log(`disclosure-audit: ${LOOP_DISCLOSURES.length} pinned disclosure(s), ${testFiles.filter(t => t.behavioural).length} behavioural test file(s)`)
+  for (const r of rows) {
+    const a = adjudicated.get(r.key)
+    if (r.exercised_by.length) {
+      console.log(`  EXERCISED    ${r.key}…  by ${r.exercised_by.join(', ')}`)
+    } else if (a) {
+      console.log(`  ADJUDICATED  ${r.key}…  ${a.verdict}`)
+    } else {
+      unaccounted++
+      const extra = r.mentioned_only_by.length
+        ? `  (mentioned in ${r.mentioned_only_by.join(', ')}, but only in comments or by a test that never drives the loop)`
+        : ''
+      console.log(`  UNCHECKED    ${r.key}…${extra}`)
+    }
   }
+
+  console.log()
+  const ex = rows.filter(r => r.exercised_by.length).length
+  const stale = unspentMessage('disclosure', adjudicated.unspent(), adjudicated.malformed)
+  for (const l of stale) console.log(l)
+  console.log(`disclosure-audit: ${ex} exercised, ${rows.length - ex - unaccounted} adjudicated, ${unaccounted} neither, ${stale.length} adjudication(s) that excuse nothing`)
+  // THE RESIDUAL, ON EVERY BRANCH.
+  console.log('disclosure-audit: NOT ESTABLISHED — that an EXERCISED disclosure is true. This checks that a')
+  console.log('                  behavioural test names it in live code, which is evidence a human wired the')
+  console.log('                  sentence to a run; it is not evidence the assertion checks the claim. It is a')
+  console.log('                  floor. The defect that produced this file was a false sentence that every')
+  console.log('                  automated check around it was satisfied by, and this check is one level down')
+  console.log('                  from that — it can be satisfied by a test that quotes without asserting.')
+
+  if (argv.includes('--json')) console.log(JSON.stringify(rows, null, 2))
+  if (unaccounted || stale.length) process.exit(1)
+
 }
-
-console.log()
-const ex = rows.filter(r => r.exercised_by.length).length
-const stale = unspentMessage('disclosure', adjudicated.unspent(), adjudicated.malformed)
-for (const l of stale) console.log(l)
-console.log(`disclosure-audit: ${ex} exercised, ${rows.length - ex - unaccounted} adjudicated, ${unaccounted} neither, ${stale.length} adjudication(s) that excuse nothing`)
-// THE RESIDUAL, ON EVERY BRANCH.
-console.log('disclosure-audit: NOT ESTABLISHED — that an EXERCISED disclosure is true. This checks that a')
-console.log('                  behavioural test names it in live code, which is evidence a human wired the')
-console.log('                  sentence to a run; it is not evidence the assertion checks the claim. It is a')
-console.log('                  floor. The defect that produced this file was a false sentence that every')
-console.log('                  automated check around it was satisfied by, and this check is one level down')
-console.log('                  from that — it can be satisfied by a test that quotes without asserting.')
-
-if (argv.includes('--json')) console.log(JSON.stringify(rows, null, 2))
-if (unaccounted || stale.length) process.exit(1)
