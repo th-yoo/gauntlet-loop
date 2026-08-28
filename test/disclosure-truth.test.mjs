@@ -41,6 +41,7 @@ import { dirname, join } from 'node:path'
 import { existsSync } from 'node:fs'
 import { runLoop } from './harness.mjs'
 import { auditFigures, describeProblem, figureTokens } from '../scripts/disclosure-figures.mjs'
+import { auditSourceClaims, describeSourceProblem, sentences, refersToSource, quotedFragments, canonQuote, MIN_QUOTE } from '../scripts/disclosure-sources.mjs'
 import { disclosureKey } from '../scripts/disclosure-audit.mjs'
 import { adjudicationLedger } from '../scripts/adjudications.mjs'
 import { LOOP_DISCLOSURES } from './drift-facts.mjs'
@@ -203,11 +204,91 @@ console.log('disclosure-truth: and that rule can fail — one constructed disclo
 }
 
 
+// --------------------------------------------------------------------------
+// A DISCLOSURE THAT SAYS WHAT THE SOURCE SAYS QUOTES THE SOURCE. Issue #59.
+//
+// COMMITTED FAILING. Adding "The source demands an automatic ratchet" to a
+// shipped disclosure passed run-all and drift-guard: a claim about two documents
+// this repository ships verbatim was checkable by nothing. #56 built the rule for
+// a FIGURE and left this as its stated residual — a factual claim with no digits
+// in it is invisible to a rule that looks for numbers.
+//
+// Four of the emitted disclosures assert what the source says, and references.md
+// exists to be the anchor: both prompts in full, plus a provenance table whose
+// columns are "claim made here" and "the sentence".
+// --------------------------------------------------------------------------
+console.log('disclosure-truth: a disclosure that says what the source says quotes the source')
+{
+  const refs = readFileSync(join(ROOT, 'skills', 'gauntlet-loop', 'references.md'), 'utf8')
+  const r = await runLoop({
+    args: { goal: 'g', candidate: '/x/a.md', reference: '/x/b.md', token: '/t' },
+    rounds: [{ candidateWins: true, gap: 'g', margin: 'clear' }, { candidateWins: true, gap: 'g', margin: 'clear' }],
+  }).catch(e => { fail(`the stubbed loop threw: ${e.message}`); return null })
+  const emitted = (r && r.result && r.result.not_enforced) || []
+
+  let claiming = 0, grounded = 0
+  for (const d of emitted) {
+    if (!sentences(d).some(refersToSource)) continue
+    claiming++
+    const problems = auditSourceClaims(d, refs)
+    if (!problems.length) { grounded++; continue }
+    for (const p of problems) fail(describeSourceProblem(p, `an emitted disclosure ("${String(d).slice(0, 40)}…")`))
+  }
+  ok(claiming > 0,
+     `not one of the ${emitted.length} emitted disclosure(s) refers to the source, so this check confirmed nothing — either the rule stopped matching or the loop stopped making claims about what it implements`)
+  console.log(`          ${claiming} disclosure(s) claim what the source says · ${grounded} quote a sentence that is in references.md`)
+
+  // THE FLOOR, RE-CROSSED. MIN_QUOTE decides whether a quotation proves anything,
+  // and it was set by this crossing rather than chosen: the placebo is spans of
+  // the loop's OWN prose with quotations stripped, which cite nothing. If those
+  // start appearing in references.md, a quotation of that length is an accident.
+  const prose = canonQuote(emitted.map(d => String(d).replace(/"[^"]*"|`[^`]*`/g, '')).join(' '))
+  const hay = canonQuote(refs)
+  let hits = 0, windows = 0
+  for (let i = 0; i + MIN_QUOTE <= prose.length; i += 7) {
+    const w = prose.slice(i, i + MIN_QUOTE).trim()
+    if (w.length < MIN_QUOTE) continue
+    windows++
+    if (hay.includes(w)) hits++
+  }
+  const rate = windows ? hits / windows : 1
+  console.log(`          placebo at ${MIN_QUOTE} chars: ${hits}/${windows} = ${(rate * 100).toFixed(1)}% of our own uncited prose appears in references.md`)
+  ok(windows > 0, 'the placebo crossing ran on no windows, so the floor is unmeasured on this set')
+  ok(rate <= 0.02,
+     `${(rate * 100).toFixed(1)}% of the loop's own uncited prose turns up in references.md at a ${MIN_QUOTE}-character window. At that rate a "quotation" of that length is an accident and the rule is satisfied by anything — raise MIN_QUOTE until it separates.`)
+}
+
+console.log('disclosure-truth: and the source rule can fail — one constructed disclosure per branch')
+{
+  const refs = 'The critic should be a really harsh critic, and it should never grade a summary written by the builder.'
+
+  ok(auditSourceClaims('THE CRITIC IS HARSH because the source says it "should be a really harsh critic".', refs).length === 0,
+     'a claim quoting the source verbatim was reported')
+  const bare = auditSourceClaims('THE SOURCE demands an automatic ratchet on every round.', refs)
+  ok(bare.length === 1 && bare[0].kind === 'unquoted-source-claim',
+     `a source claim with no quotation at all was accepted: ${JSON.stringify(bare)} — that is the reproducible for issue #59`)
+  const wrong = auditSourceClaims('THE SOURCE demands "an automatic ratchet on every round" without exception.', refs)
+  ok(wrong.length === 1 && wrong[0].kind === 'quotes-not-in-source',
+     `a quotation that is not in the source was accepted: ${JSON.stringify(wrong)} — a quotation nobody can find is a paraphrase in quotes`)
+  ok(auditSourceClaims('NOTHING HERE mentions where the method came from.', refs).length === 0,
+     'a disclosure making no source claim was reported — then every sentence is a finding')
+  ok(auditSourceClaims('THE SOURCE says it "harsh" and nothing else.', refs).length === 1,
+     'a quotation below the floor was counted as grounding — short fragments turn up by accident, which is what the crossing above measures')
+  ok(quotedFragments('it says "should be a really harsh critic" here').length === 1,
+     'a marked quotation of sufficient length was not extracted')
+  ok(quotedFragments('the source says one critic per piece, singular').length === 0,
+     'an UNMARKED phrase was treated as a quotation. Paraphrase reading as citation is the whole defect: "one critic per piece" is our wording, and the source says "Each piece gets its own builder and a separate critic with fresh context."')
+}
+
+
 console.log('disclosure-truth: stating what this cannot establish')
-console.log('          NOT CHECKED: the other 18 disclosures. Each is pinned for presence and nothing')
-console.log('          verifies any of them is TRUE. Decomposition is checkable because the harness can')
-console.log('          exercise it; "nothing verifies that a harsh instruction produced a harsh critic"')
-console.log('          cannot be run, and its truth rests on reading alone — same as this one did.')
+console.log('          WHAT IS NOW CHECKED, and this line was itself stale until the rules below shipped:')
+console.log('          decomposition, by running it; every FIGURE, against a file that must contain it')
+console.log('          (#56); every claim about the SOURCE, against a quotation that must be in')
+console.log('          references.md (#59).')
+console.log('          NOT CHECKED: a factual claim that is neither a figure nor about the source. It')
+console.log('          rests on reading alone, as this one did. And neither rule reaches the INFERENCE:')
+console.log('          a disclosure can quote the source correctly and be wrong about what follows.')
 
 if (failures) {
   console.error(`\ndisclosure-truth: ${failures} failure(s) — a pinned false statement is worse than an unpinned one, because the pin reads as verification.`)

@@ -33,6 +33,7 @@ const DT = 'scripts/defect-transforms.mjs'
 const BP = 'scripts/builder-parse.mjs'
 const AJ = 'scripts/adjudications.mjs'
 const DF = 'scripts/disclosure-figures.mjs'
+const DS = 'scripts/disclosure-sources.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -247,6 +248,15 @@ export const PROPERTIES = [
   ['a citation that does not resolve is a finding', DF, "    else problems.push({ kind: 'missing-path', path: p })", '    else live.push(p)'],
   ['spacing and dash shape are not part of a figure', DF, "  .replace(/[–—]/g, '-')                      // an en-dash and a hyphen are one number written twice", '  '],
   ['a run configuration is not a measurement', DF, '/\\bn\\s*=\\s*\\d+\\b|', '/\\b\\w\\s*=\\s*\\d+\\b|'],
+  // --- a disclosure that says what the source says quotes the source ---------
+  // Issue #59. "The source demands an automatic ratchet" passed run-all and
+  // drift-guard: a claim about two documents this repository ships verbatim was
+  // checkable by nothing.
+  ['a source claim with no quotation is a finding', DS, "    kind: quotes.length ? 'quotes-not-in-source' : 'unquoted-source-claim',", "    kind: 'ignored',\n    ok: (() => { throw new Error('unreachable') })(),"],
+  ['a quotation absent from references.md is a finding', DS, '  const grounded = quotes.filter(q => refs.includes(q))', '  const grounded = quotes'],
+  ['a paraphrase is not a quotation', DS, '  for (const m of String(text).matchAll(QUOTED)) {', '  for (const m of [...String(text).matchAll(QUOTED), [text, text]]) {'],
+  ['a quotation below the floor grounds nothing', DS, '    if (c.length >= min) out.push(c)', '    out.push(c)'],
+  ['a sentence naming the source is a source claim', DS, '  const claims = sentences(text).filter(refersToSource)', '  const claims = []'],
 ]
 
 // THE LIST IS EXPORTED AND THE SWEEP RUNS ONLY WHEN INVOKED, and that is not tidiness.
