@@ -89,6 +89,10 @@ function runContainmentWithSource(src) {
     mkdirSync(join(dir, 'scripts'), { recursive: true })
     mkdirSync(join(dir, 'test'), { recursive: true })
     copyFileSync(join(HERE, 'containment.test.mjs'), join(dir, 'test', 'containment.test.mjs'))
+    // Issue #61 moved the INERT set to its own module so ci-workflow could ask the
+    // same question. The fixture tree has to carry it, or containment fails on a
+    // missing import and this file reads that as a verdict about spawners.
+    copyFileSync(join(HERE, 'inert-binaries.mjs'), join(dir, 'test', 'inert-binaries.mjs'))
     if (src) writeFileSync(join(dir, 'scripts', 'fixture-runner.mjs'), src)
     const r = spawnSync(process.execPath, [join(dir, 'test', 'containment.test.mjs')], {
       encoding: 'utf8', timeout: 30_000, env: { ...process.env, GAUNTLET_SUITE: '1' },
@@ -106,6 +110,10 @@ function runContainmentOver(binary) {
     mkdirSync(join(dir, 'scripts'), { recursive: true })
     mkdirSync(join(dir, 'test'), { recursive: true })
     copyFileSync(join(HERE, 'containment.test.mjs'), join(dir, 'test', 'containment.test.mjs'))
+    // Issue #61 moved the INERT set to its own module so ci-workflow could ask the
+    // same question. The fixture tree has to carry it, or containment fails on a
+    // missing import and this file reads that as a verdict about spawners.
+    copyFileSync(join(HERE, 'inert-binaries.mjs'), join(dir, 'test', 'inert-binaries.mjs'))
     if (binary) writeFileSync(join(dir, 'scripts', 'fixture-runner.mjs'), spawnerSource(binary))
     const r = spawnSync(process.execPath, [join(dir, 'test', 'containment.test.mjs')], {
       encoding: 'utf8', timeout: 30_000, env: { ...process.env, GAUNTLET_SUITE: '1' },

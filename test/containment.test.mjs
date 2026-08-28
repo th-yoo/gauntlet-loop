@@ -53,8 +53,10 @@ function ok(cond, msg) { if (!cond) throw new Error(`ASSERT FAILED: ${msg}`) }
 // command it is handed, and `sh -c "<model runner> -p ..."` is invisible to a scan that
 // reads the binary. That hole is not new and is not closed here; oracle-add's own
 // MODEL_SHAPED refusal is what stands in front of the acceptance-command case.
-const INERT = new Set(['git', 'gh', 'grep', 'ls', 'sh', 'bash', 'node', 'npm', 'cat', 'sed', 'awk', 'find', 'which', 'env', 'true', 'echo', 'printf', 'tar', 'xargs', 'cp', 'mkdir', 'rm', 'test', 'diff', 'sort', 'head', 'tail', 'wc'])
-const isInert = bin => INERT.has(String(bin).trim().split(/[\s/]+/).pop())
+// Moved to test/inert-binaries.mjs for issue #61: ci-workflow.test.mjs discovers
+// spawners too, and was doing it with a private one-name regex. One rule, two
+// askers — a second copy is what #55 was about.
+import { isInert } from './inert-binaries.mjs'
 // THE LOOKBEHIND IS LOAD-BEARING. `\b` happily matches the `exec` in `/re/.exec(str)`, so
 // every regex test in the tree read as a spawn whose binary was the haystack. The old rule
 // never noticed because MODEL_SHAPED filtered the nonsense out; under a rule that treats an

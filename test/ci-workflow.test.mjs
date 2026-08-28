@@ -46,6 +46,8 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+import { isInert } from './inert-binaries.mjs'
+import { namesAModel } from '../scripts/model-shaped.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const WF_DIR = join(ROOT, '.github', 'workflows')
@@ -154,25 +156,49 @@ if (wf) {
 
   console.log('ci-workflow: it does not weaken the model-spawn containment')
   ok(!/GAUNTLET_SUITE\s*:\s*['"]?0/.test(text), `${wf.f} sets GAUNTLET_SUITE=0 — that is the flag test/containment.test.mjs relies on to keep a live model from being spawned on a runner`)
-  // The stems are read off disk, so this file never contains one. Same discovery
-  // rule as containment: a spawn-family call whose binary literal is model-shaped.
+  // The stems are read off disk, so this file never contains one.
+  //
+  // ISSUE #61: this asked "is the binary model-shaped" against a private regex
+  // that knew ONE name, under a comment claiming parity with containment — parity
+  // that ended at #55, when containment inverted to "is this binary known INERT".
+  // Measured before changing it: a spawner whose binary was `codex` left the count
+  // here unchanged, and so did one called `nimbusrun`, while containment caught
+  // both. The other route — reusing the shared name list — cannot catch
+  // `nimbusrun` either, and must not: that name is in the negative arm #57 asserts
+  // never matches, so widening the list would destroy the crossing that proves it
+  // discriminates.
+  //
+  // So the rule is containment's, from the module they now share: a binary nobody
+  // has vouched for is a candidate spawner. An unknown runner fails CLOSED here.
   const SPAWN_CALL = /\b(spawnSync|spawn|execFileSync|execFile|execSync|exec)\s*\(\s*['"`]([^'"`\n]+)['"`]/g
-  const MODEL_SHAPED = /(^|[^a-z])claude([^a-z]|$)/i
   const spawnerStems = readdirSync(join(ROOT, 'scripts'))
     .filter(f => f.endsWith('.mjs'))
     .filter(f => [...readFileSync(join(ROOT, 'scripts', f), 'utf8').matchAll(SPAWN_CALL)]
-                   .some(m => MODEL_SHAPED.test(m[2])))
+                   .some(m => !isInert(m[2])))
     .map(f => f.replace(/\.mjs$/, ''))
   console.log(`          model-spawners discovered in scripts/: ${spawnerStems.length}`)
   if (!spawnerStems.length) {
     // A scan matching nothing cannot fail informatively — containment's own lesson.
     console.log('          (none found: either there are none, or the discovery pattern has gone blind)')
   }
+  // A SCAN THAT FINDS NOTHING CANNOT FAIL INFORMATIVELY, and this one used to say
+  // so in a console.log and pass anyway — so disabling the discovery entirely left
+  // the workflow assertion below iterating an empty list, green, checking nothing.
+  // That is the zero-result branch #55 named in containment, live here. There are
+  // model-spawners in scripts/; if that ever stops being true, this line is what
+  // tells you to delete the check rather than keep trusting it.
+  ok(spawnerStems.length > 0,
+     'no model-spawner was discovered in scripts/, so the workflow assertion below iterates an empty list and establishes nothing. Either the discovery has gone blind, or the spawners are gone and this check should be removed rather than left reporting success.')
   for (const stem of spawnerStems) {
     ok(!new RegExp(`(^|[^A-Za-z0-9_-])${stem}([^A-Za-z0-9_-]|$)`).test(text),
        `${wf.f} references the model-spawner "${stem}" — it must never run on a runner`)
   }
-  ok(!MODEL_SHAPED.test(text), `${wf.f} names a model binary — no workflow here should invoke one`)
+  // A DIFFERENT QUESTION FROM THE ONE ABOVE, and it takes the other rule. That
+  // scan asks which SCRIPTS are candidate spawners, where an unknown binary must
+  // fail closed. This asks whether the workflow TEXT names a model runner, which
+  // is what scripts/model-shaped.mjs is for and what #57 crossed against a
+  // 13-name battery with a negative arm. Neither is a private copy now.
+  ok(!namesAModel(text), `${wf.f} names a model binary — no workflow here should invoke one`)
 }
 
 // ---------------------------------------------------------------------------
