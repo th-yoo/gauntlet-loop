@@ -159,7 +159,7 @@ export const PROPERTIES = [
   ['a silent split check says which it was', L, "read this run as if this check did not exist' + silenceNote('gauntlet-loop:gauntlet-ab-critic') }", "read this run as if this check did not exist' }"],
 
   // --- oracle ground truth for the pairing check (#33) ----------------------
-  ['a model-backed acceptance command is refused', OA, "if (grounding === 'mechanical' && MODEL_SHAPED.test(acceptance)) {", "if (false) {"],
+  ['a model-backed acceptance command is refused', OA, "if (grounding === 'mechanical' && namesAModel(acceptance)) {", "if (false) {"],
   ['an acceptance command that fails is not ground truth', OA, 'if (res.error || res.status !== 0) {', 'if (false) {'],
   ['an observation from a stale instrument is refused', OR, 'if (live.prompt_hash !== promptHash || live.schema_fingerprint !== schemaFp) {', 'if (false) {'],
   ['an observation against a changed artifact is refused', OR, 'if (nowHash !== row.artifact_hash) {', 'if (false) {'],
@@ -269,7 +269,7 @@ export const PROPERTIES = [
   // command through a shell, and it shipped with no case: disabling it entirely
   // passed the whole suite. The second property is the one that makes it a
   // refusal rather than a log line.
-  ['a stored acceptance command naming a model is refused at read time', OP, '    if (MODEL_SHAPED.test(cmd)) {', '    if (false) {'],
+  ['a stored acceptance command naming a model is refused at read time', OP, '    if (namesAModel(cmd)) {', '    if (false) {'],
   ['and it is refused BEFORE the shell runs it', OP, '      ungrounded.push(`row ${JSON.stringify(row.id)}: its acceptance command names a model', "      spawnSync(cmd, { shell: true, cwd: ROOT, stdio: 'ignore', timeout: 60_000 }); ungrounded.push(`row ${JSON.stringify(row.id)}: its acceptance command names a model"],
 ]
 

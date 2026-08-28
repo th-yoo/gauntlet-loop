@@ -28,7 +28,7 @@ import { existsSync, readFileSync, appendFileSync, mkdirSync, statSync } from 'n
 import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path'
-import { MODEL_SHAPED } from './model-shaped.mjs'
+import { namesAModel } from './model-shaped.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // ORACLE_CORPUS lets a test point this at a throwaway file. It exists because a
@@ -295,7 +295,7 @@ if (grounding !== 'absence' && statSync(abs).isDirectory()) {
 // and it is therefore evadable — a model call disguised behind a local HTTP endpoint
 // passes it. Stated rather than papered over: it stops the careless case, not the
 // determined one, and the corpus's own note field is where a reader should look.
-if (grounding === 'mechanical' && MODEL_SHAPED.test(acceptance)) {
+if (grounding === 'mechanical' && namesAModel(acceptance)) {
   console.error(`add: the acceptance command mentions a model ("${acceptance}").`)
   console.error('A mechanical grounding has to be established WITHOUT the kind of judgement being tested — a')
   console.error('quantity derived downstream of the decision under test cannot audit that decision. Use a command')
@@ -307,7 +307,7 @@ if (grounding === 'mechanical' && MODEL_SHAPED.test(acceptance)) {
 // whose acceptance command was never executed is an assertion, which is what this
 // corpus exists to stop accepting.
 // Hard wall-clock limit. A command that cannot settle cannot ground a row, and an
-// unbounded spawn here is arbitrary command execution with no exit: the MODEL_SHAPED
+// unbounded spawn here is arbitrary command execution with no exit: the namesAModel
 // guard above is the only thing in front of it, and a mutation test's whole purpose is
 // to remove that guard and see what happens. It once did, and the canary it reached was
 // a live agent that re-entered this repo. Note what the timeout does NOT do: killing the

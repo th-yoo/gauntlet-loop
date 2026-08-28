@@ -40,7 +40,7 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { MODEL_SHAPED } from './model-shaped.mjs'
+import { namesAModel } from './model-shaped.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const MANIFEST = process.env.CONSTRUCTED_MANIFEST || join(ROOT, 'oracle', 'constructed.jsonl')
@@ -57,7 +57,7 @@ const ok = cmd => sh(cmd).status === 0
 export function deriveRole(probe, runner = { ok, sh }) {
   if (!probe) return { role: null, why: 'no probe declared' }
   for (const [k, cmd] of Object.entries(probe)) {
-    if (typeof cmd === 'string' && MODEL_SHAPED.test(cmd)) {
+    if (namesAModel(cmd)) {
       return { role: null, why: `probe.${k} names a model — a role settled by a model cannot audit a model` }
     }
   }

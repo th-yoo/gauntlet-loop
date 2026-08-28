@@ -28,7 +28,7 @@
 
 import { existsSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
-import { MODEL_SHAPED } from './model-shaped.mjs'
+import { namesAModel } from './model-shaped.mjs'
 import { createHash } from 'node:crypto'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
@@ -125,7 +125,7 @@ if (corpus.length) {
     // Ungrounded rather than fatal: a row this cannot verify mechanically is a row without
     // grounding, which is what the list already means, and killing the whole report over
     // one row would hide the rest.
-    if (MODEL_SHAPED.test(cmd)) {
+    if (namesAModel(cmd)) {
       ungrounded.push(`row ${JSON.stringify(row.id)}: its acceptance command names a model, so re-running it here would settle grounding with the judgement under test — \`${cmd.length > 90 ? cmd.slice(0, 90) + '…' : cmd}\``)
       continue
     }
