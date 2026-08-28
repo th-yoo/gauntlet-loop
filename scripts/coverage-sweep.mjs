@@ -264,6 +264,13 @@ export const PROPERTIES = [
   // mutations were applied and watched.
   ['a runner name cannot leave the refusal list in silence', MS, '|deepseek|copilot)', '|copilot)'],
   ['a refusal that fires on everything is not a refusal', MS, 'export const MODEL_SHAPED = ', 'export const MODEL_SHAPED = /./i || '],
+  // --- the read-time model refusal, and that it refuses BEFORE it runs (#60) --
+  // 8ee787b added this refusal on the path that executes a stored acceptance
+  // command through a shell, and it shipped with no case: disabling it entirely
+  // passed the whole suite. The second property is the one that makes it a
+  // refusal rather than a log line.
+  ['a stored acceptance command naming a model is refused at read time', OP, '    if (MODEL_SHAPED.test(cmd)) {', '    if (false) {'],
+  ['and it is refused BEFORE the shell runs it', OP, '      ungrounded.push(`row ${JSON.stringify(row.id)}: its acceptance command names a model', "      spawnSync(cmd, { shell: true, cwd: ROOT, stdio: 'ignore', timeout: 60_000 }); ungrounded.push(`row ${JSON.stringify(row.id)}: its acceptance command names a model"],
 ]
 
 // THE LIST IS EXPORTED AND THE SWEEP RUNS ONLY WHEN INVOKED, and that is not tidiness.

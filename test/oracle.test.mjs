@@ -9,6 +9,7 @@ import { readFileSync, writeFileSync, mkdtempSync, mkdirSync, rmSync, existsSync
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
+import { createHash } from 'node:crypto'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const EXTRACT = join(ROOT, 'scripts', 'oracle-extract.mjs')
@@ -139,6 +140,53 @@ function run(script, args, extraEnv) {
   ok(/misclassified     1/.test(out), 'and the different-template observation is kept separate rather than diluting the other cohort')
   rmSync(dir, { recursive: true, force: true })
   console.log('oracle: the report groups observations by template, so a wording change splits a cohort instead of averaging into it OK')
+}
+
+// THE READ-TIME MODEL REFUSAL, AND THAT IT REFUSES BEFORE IT RUNS. Issue #60.
+//
+// oracle-report re-runs every mechanical row's acceptance command through a shell each
+// time the report is built. `8ee787b` added a MODEL_SHAPED refusal on that path — a row
+// written before the refusal existed, or edited in the ledger by hand, would otherwise be
+// executed unchecked — and the refusal shipped with no case. Disabling it entirely
+// (`if (false)`) passed the whole suite.
+//
+// TWO ASSERTIONS, AND THE SECOND IS THE ONE THAT MAKES IT A REFUSAL. Reporting the row is
+// not enough: a version that runs the command and then reports it would satisfy the first
+// on its own. So the command carries a side effect, and the check is that the side effect
+// never happened.
+//
+// The runner name comes from test/model-names.mjs, where the literals are split so they
+// never sit beside a spawn call in a file the suite runs.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'oracle-report-model-'))
+  const marker = join(dir, 'IT-RAN')
+  const runner = RUNNERS[0]
+  // If this is executed, the first half fails and the second half leaves the marker.
+  const cmd = `/nonexistent/${runner}-ORACLE-CANARY-DO-NOT-EXECUTE || touch ${JSON.stringify(marker)}`
+  const corpus = join(dir, 'corpus.jsonl')
+  writeFileSync(corpus, JSON.stringify({
+    id: 'model-backed-row',
+    artifact: 'oracle/fixtures/make-hello/Makefile',
+    artifact_hash: 'sha256:' + createHash('sha256').update(readFileSync(join(ROOT, 'oracle', 'fixtures', 'make-hello', 'Makefile'))).digest('hex'),
+    goal: 'g', inspect: null, expected_role: 'does-the-work',
+    evidence: { method: 'mechanical-execution', acceptance_command: cmd, exit_code: 0, stdout_head: null },
+    selection_note: 'constructed for issue 60: a stored acceptance command that names a model runner',
+    grounding: 'mechanical',
+  }) + '\n')
+  const results = join(dir, 'results.jsonl')
+  writeFileSync(results, '')
+
+  const env = { ...process.env, ORACLE_CORPUS: corpus, ORACLE_RESULTS: results }
+  let out = ''
+  try { out = execFileSync(process.execPath, [join(ROOT, 'scripts', 'oracle-report.mjs')], { encoding: 'utf8', cwd: ROOT, env }) }
+  catch (e) { out = String(e.stdout || '') + String(e.stderr || '') }
+
+  ok(/acceptance command names a model/.test(out),
+     `oracle-report did not refuse a stored acceptance command that names a runner. It re-runs these through a shell on every report, so the refusal at write time covers only the rows this repository wrote.\n${out.slice(0, 400)}`)
+  ok(!existsSync(marker),
+     'oracle-report REPORTED the model-backed command and executed it anyway — the marker its command leaves behind is on disk. A refusal that fires after the spawn is a log line, not a refusal.')
+  rmSync(dir, { recursive: true, force: true })
+  console.log('oracle: a stored acceptance command that names a model is refused at read time, before it runs OK')
 }
 
 // A DISPUTED ROW IS EXCLUDED FROM THE RATE, AND SAID OUT LOUD.
