@@ -57,6 +57,12 @@ export const LOOP_DISCLOSURES = [
   // regressions are measured", and a pin that does not move with a claim guards a
   // sentence nobody ships.
   'THERE IS NO RATCHET; REGRESSIONS ARE MEASURED AND NOT REVERTED',
+  // Issue #41: three branches, one per state of the attestation. Pinned
+  // separately because "not asked" and "answered no" are different facts, and a
+  // pin covering one would let the other be deleted.
+  'NOBODY WAS ASKED WHETHER THE GOAL WAS WRITTEN BEFORE THE CANDIDATE WAS OPENED',
+  'THE GOAL IS ATTESTED AS WRITTEN BEFORE THE CANDIDATE WAS OPENED',
+  'THE GOAL WAS WRITTEN AFTER THE CANDIDATE WAS READ',
   // k>1 is ours, not the source's. Both primary texts say one critic per piece.
   // If this line goes, the verdict starts implying a precedent that does not
   // exist — which is the exact class this tracker files most.

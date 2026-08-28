@@ -271,6 +271,12 @@ export const PROPERTIES = [
   // refusal rather than a log line.
   ['a stored acceptance command naming a model is refused at read time', OP, '    if (namesAModel(cmd)) {', '    if (false) {'],
   ['and it is refused BEFORE the shell runs it', OP, '      ungrounded.push(`row ${JSON.stringify(row.id)}: its acceptance command names a model', "      spawnSync(cmd, { shell: true, cwd: ROOT, stdio: 'ignore', timeout: 60_000 }); ungrounded.push(`row ${JSON.stringify(row.id)}: its acceptance command names a model"],
+  // --- who wrote the goal first is asked, recorded, and disclosed (issue #41) --
+  // The ordering is a temporal fact the loop cannot reach — #27's direction trial
+  // ran at chance for that reason — so the operator is asked and the answer is
+  // recorded as an attestation. Both mutations were applied and watched.
+  ['an attestation the loop cannot read is refused, not dropped', L, 'if (GOAL_AUTHORED !== null && !GOAL_AUTHORED_VALUES.includes(GOAL_AUTHORED)) throw new Error(', 'if (false) throw new Error('],
+  ['not asked and answered-no are different disclosures', L, "    GOAL_AUTHORED === null\n      ? 'NOBODY WAS ASKED", "    true\n      ? 'NOBODY WAS ASKED"],
 ]
 
 // THE LIST IS EXPORTED AND THE SWEEP RUNS ONLY WHEN INVOKED, and that is not tidiness.

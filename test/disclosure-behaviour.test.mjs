@@ -158,8 +158,68 @@ console.log('          check it. These cases were written to test the claim, and
 console.log('          one should read it rather than trust the wiring — the audit that counts them is')
 console.log('          a floor, one level down from the defect that produced it.')
 
+// --------------------------------------------------------------------------
+// WHO WROTE THE GOAL FIRST — asked, recorded, and disclosed on every branch.
+// Issue #41. The loop cannot infer the ordering: it is a temporal fact whose
+// operands include a string that arrives with no time on it, which is why #27's
+// direction trial ran at chance. So the operator is asked, the answer is recorded
+// as an ATTESTATION, and the three states are three different disclosures —
+// "not asked" and "answered no" being different facts.
+//
+// Each branch asserts its own disclosure is present AND the other two are absent.
+// A single always-emitted sentence would satisfy a presence check on any one of
+// them, which is the shape this file exists to refuse.
+// --------------------------------------------------------------------------
+const AUTHORED = {
+  unasked: 'NOBODY WAS ASKED WHETHER THE GOAL WAS WRITTEN BEFORE THE CANDIDATE WAS OPENED',
+  independent: 'THE GOAL IS ATTESTED AS WRITTEN BEFORE THE CANDIDATE WAS OPENED',
+  after: 'THE GOAL WAS WRITTEN AFTER THE CANDIDATE WAS READ',
+}
+
+console.log('disclosure-behaviour: NOBODY WAS ASKED WHETHER THE GOAL WAS WRITTEN BEFORE THE CANDIDATE WAS OPENED')
+{
+  const r = (await runLoop({ args: ARGS, rounds: [win(), win()] })).result
+  const ne = (r.not_enforced || []).join('\n')
+  ok(r.goal_authored && r.goal_authored.attested === null,
+     `with no goal_authored argument the verdict records ${JSON.stringify(r.goal_authored)} — null is the only honest value, because unasked is not the same as independent`)
+  ok(r.goal_authored && r.goal_authored.verified === false, 'and it never claims to have verified an attestation it cannot check')
+  ok(ne.includes(AUTHORED.unasked), 'and the run says nobody was asked')
+  ok(!ne.includes(AUTHORED.independent) && !ne.includes(AUTHORED.after),
+     'and it does not also emit an answer nobody gave')
+  console.log('          attested null, verified false, and the unasked disclosure alone')
+}
+
+console.log('disclosure-behaviour: THE GOAL IS ATTESTED AS WRITTEN BEFORE THE CANDIDATE WAS OPENED')
+{
+  const r = (await runLoop({ args: { ...ARGS, goal_authored: 'independently' }, rounds: [win(), win()] })).result
+  const ne = (r.not_enforced || []).join('\n')
+  ok(r.goal_authored && r.goal_authored.attested === 'independently', `the attestation is recorded — got ${JSON.stringify(r.goal_authored)}`)
+  ok(r.goal_authored && r.goal_authored.verified === false, 'and it is still marked unverified, because nothing here can check it')
+  ok(ne.includes(AUTHORED.independent) && !ne.includes(AUTHORED.unasked),
+     'and the run stops saying nobody was asked once somebody has been')
+}
+
+console.log('disclosure-behaviour: THE GOAL WAS WRITTEN AFTER THE CANDIDATE WAS READ')
+{
+  const r = (await runLoop({ args: { ...ARGS, goal_authored: 'after-reading-candidate' }, rounds: [win(), win()] })).result
+  const ne = (r.not_enforced || []).join('\n')
+  ok(r.goal_authored && r.goal_authored.attested === 'after-reading-candidate', `the answer is recorded as given — got ${JSON.stringify(r.goal_authored)}`)
+  ok(ne.includes(AUTHORED.after) && !ne.includes(AUTHORED.independent),
+     'and a win under a goal written against the candidate is disclosed as measuring the goal as much as the work')
+}
+
+console.log('disclosure-behaviour: an attestation the loop cannot read is refused, not dropped')
+{
+  let threw = null
+  await runLoop({ args: { ...ARGS, goal_authored: 'yes' }, rounds: [win(), win()] }).catch(e => { threw = e })
+  ok(threw !== null, 'goal_authored: "yes" ran anyway — an attestation this loop cannot read is one nobody made, and the verdict would report it as unasked while the operator believed they had answered')
+  ok(threw && /goal_authored must be one of/.test(String(threw.message)),
+     `and it must say what the accepted values are — got ${threw && String(threw.message).slice(0, 90)}`)
+}
+
+
 if (failures) {
   console.error(`\ndisclosure-behaviour: ${failures} failure(s) — a pinned disclosure that the loop contradicts is a false claim with a guard in front of it.`)
   process.exit(1)
 }
-console.log('\ndisclosure-behaviour: OK — six disclosures driven against the loop and confirmed.')
+console.log('\ndisclosure-behaviour: OK — nine disclosures driven against the loop and confirmed.')

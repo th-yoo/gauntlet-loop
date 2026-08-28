@@ -153,6 +153,40 @@ if (!ON_REFUSAL_VALUES.includes(ON_REFUSAL)) throw new Error(
   'meant to disarm it. Neither belief is one this loop should let you hold.'
 )
 
+// WHO WROTE THE GOAL, AND WHEN — asked, because it cannot be inferred. Issue #41.
+//
+// Whether a goal was written before or after looking at the candidate is known
+// with certainty by exactly one party at exactly one instant: the operator, as
+// they write it. `args.goal` arrives as a bare string with no provenance, and
+// from that point the question is unanswerable — which is what #27 measured:
+// eight draws, direction predicted at chance, because direction is a temporal
+// ordering and one of its operands no longer has a time.
+//
+// So the loop spends an agent call trying to reconstruct from word choice a fact
+// that was free thirty seconds earlier. `goal_coupling` still runs and still
+// reports what it sees; this is the fact it cannot reach.
+//
+// AN ATTESTATION IS NOT A PROOF and is recorded as one thing only: what the
+// operator said. This repository already knows the shape is weak — the oracle's
+// `observer` field has the same hole. An unverifiable declaration from the party
+// who knows still beats an unrecoverable inference by a party who cannot, and it
+// puts the operator on record instead of under suspicion.
+//
+// ABSENCE IS A VALID ANSWER AND IS SAID OUT LOUD. Not asking is the status quo,
+// and a run that was not asked must report that nobody was asked rather than
+// leave a reader to assume the question was settled. An unrecognised VALUE is
+// refused, for the reason on_refusal is: an argument that is silently dropped
+// leaves you believing you configured something you did not.
+const GOAL_AUTHORED_VALUES = ['independently', 'after-reading-candidate']
+const GOAL_AUTHORED = (args && args.goal_authored !== undefined && args.goal_authored !== null)
+  ? args.goal_authored
+  : null
+if (GOAL_AUTHORED !== null && !GOAL_AUTHORED_VALUES.includes(GOAL_AUTHORED)) throw new Error(
+  `args.goal_authored must be one of ${GOAL_AUTHORED_VALUES.map(v => JSON.stringify(v)).join(' or ')}, or absent, and was ` +
+  `${JSON.stringify(GOAL_AUTHORED)}. Refused rather than ignored: an attestation this loop cannot read is an ` +
+  'attestation nobody made, and the verdict would report it as unasked while you believed you had answered.'
+)
+
 // A file cannot beat itself, and the loop would happily spend a builder and k
 // critics finding that out: both ARTIFACT lines render the same path, the critic
 // picks a side arbitrarily, and the run reports "the candidate beat the reference
@@ -2049,6 +2083,15 @@ return {
     ? { verdict: fitted.verdict, reasoning: fitted.reasoning }
     : { verdict: 'unchecked', reasoning: null },
 
+  // WHAT THE OPERATOR SAID, never what the loop inferred. `attested` is null when
+  // the question was not asked, and null here means UNASKED rather than
+  // independent — the distinction the probe could not make.
+  goal_authored: {
+    attested: GOAL_AUTHORED,
+    source: GOAL_AUTHORED ? 'the operator, at launch' : null,
+    verified: false,
+  },
+
   goal_fairness: fairness
     ? { verdict: fairness.verdict, reference_is_for: fairness.what_it_is_for, parts_not_attempted: fairness.parts_not_attempted || null }
     : { verdict: 'unchecked', reference_is_for: null, parts_not_attempted: null },
@@ -2100,6 +2143,14 @@ return {
   ],
 
   not_enforced: [
+    // WHO WROTE THE GOAL FIRST, from the record or not at all (issue #41). Three
+    // branches, one per state, because "not asked" and "asked and answered no"
+    // are different facts and a single sentence covering both says neither.
+    GOAL_AUTHORED === null
+      ? 'NOBODY WAS ASKED WHETHER THE GOAL WAS WRITTEN BEFORE THE CANDIDATE WAS OPENED. Pass `goal_authored` to put it on the record. Without it this verdict cannot say the goal is independent of the work it judges, and it is not saying so: the question was not asked, which is a different thing from an answer of yes. `goal_coupling` reports what a probe can see in the wording, and wording is not provenance.'
+      : GOAL_AUTHORED === 'independently'
+        ? 'THE GOAL IS ATTESTED AS WRITTEN BEFORE THE CANDIDATE WAS OPENED, AND AN ATTESTATION IS NOT A PROOF. Nothing here verifies it, and nothing can: the ordering left no trace the loop can reach. What this buys is that the operator is on the record rather than under suspicion, and that a reader knows which of the two it is.'
+        : 'THE GOAL WAS WRITTEN AFTER THE CANDIDATE WAS READ, AND THE OPERATOR SAID SO. A goal authored against an artifact tends to name what that artifact already does, so this run measures the goal as much as the work, and a win says less than the same win would under a goal written blind.',
     // The four ways a CONFIRMED exit can still be wrong. #18's decided design
     // named each, and a mechanism whose limits are unwritten gets quoted past
     // them.

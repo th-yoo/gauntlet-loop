@@ -62,6 +62,7 @@ Arguments the script takes:
 | `token` | the run token; its existence means "keep going" |
 | `inspect` | optional — how to look at them: a command to run, a thing to open |
 | `on_refusal` | optional — `refuse` (default) or `warn`. `warn` proceeds past the GENERATOR verdict and records that it did. Never downgrades an unopenable artifact |
+| `goal_authored` | optional — `independently` if you wrote the goal before opening the candidate, `after-reading-candidate` if not. An attestation, never verified: the ordering leaves no trace the loop can reach, and `goal_coupling` reads wording rather than provenance. Omit it and the verdict says nobody was asked, which is not the same as an answer of yes |
 
 ## It splits the goal first
 
@@ -195,6 +196,7 @@ Beyond `outcome` and `history`, the fields worth knowing before you read one:
 | `enforced` | properties this run could not lose — each one a tool restriction or a structural fact, not a promise someone remembered to keep |
 | `not_enforced` | what it did **not** check, and what a clean result there does and does not mean. The most important field in the verdict |
 | `goal_fairness` | whether the reference even attempts the goal. `partly` names the clauses it does not — verdicts on those measure your goal, not the work |
+| `goal_authored` | what the OPERATOR said about when the goal was written, or `attested: null` when nobody was asked. `verified: false` always — the loop cannot check it, and null means unasked rather than independent. This is the fact `goal_coupling` cannot reach |
 | `goal_coupling` | how much of the goal shares wording distinctive to the candidate. `coupled` means the candidate answers it by construction, so verdicts on the overlapping clauses measure the overlap and not the work. It does NOT say who wrote which first — that is not recoverable from two texts, and a trial of the old `fitted` verdict got the direction right 4 times in 8 while tracking overlap 8 times in 8 |
 | `split_check` | the whole-artifact comparison after a split won, or why it did not run |
 | `dependency_graph` | the edges the lead named, edges dropped as unknown, whether a cycle was broken, and every piece skipped with its reason |

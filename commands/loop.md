@@ -180,6 +180,7 @@ Call the `Workflow` tool:
     "reference": "<absolute path to the exemplar>",
     "inspect":   "<optional: how to look at them — a command to run, a thing to open>",
     "on_refusal": "<optional: 'refuse' (default) or 'warn' — 'warn' proceeds past the GENERATOR verdict and records it; an unopenable artifact still stops the run>",
+    "goal_authored": "<optional: 'independently' if you wrote the goal before opening the candidate, else 'after-reading-candidate'. An attestation, not verified. Omitted means the verdict reports that nobody was asked>",
     "token":     "<the token path from step 3>",
     "critics":   1
   }
