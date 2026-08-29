@@ -1276,6 +1276,28 @@ console.log('loop: required args throw, and the reference error explains why a b
   ok(threw && threw.includes(REFERENCE), 'an artifact that could not be opened stops the run and names the path')
   ok(!/GENERATOR/.test(threw), 'and is not diagnosed as a category error — the operator would chase the wrong problem')
 
+  // WHICH side could not be opened changes what the operator should do, and until
+  // issue 62 both sides got the same sentence: "Check the path — a typo here costs a
+  // whole run." That is right for a mistyped REFERENCE and wrong for the candidate,
+  // because four live files (SKILL.md, loop.js twice, commands/loop.md) told the
+  // operator the candidate would be "built from nothing if absent". Someone who
+  // followed the documentation was sent to check the one thing that was not wrong.
+  // loop.js holds no filesystem, so it cannot ever create it; the remedy is a first
+  // version, not a corrected path.
+  threw = null
+  try { await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: [SHUT, WORKER] }) }
+  catch (e) { threw = e.message }
+  ok(threw && threw.includes(CANDIDATE), 'an unopenable CANDIDATE stops the run and names it')
+  ok(/cannot create it|must already exist/i.test(threw),
+     `the refusal must say the loop cannot create the candidate — an operator who was promised it would be built reads "check the path" and checks a path that is correct. Got: ${String(threw).slice(0, 200)}`)
+  // And the reference branch must NOT acquire that sentence: a missing reference is
+  // a path problem, and telling its operator to go and write one is the wrong remedy.
+  threw = null
+  try { await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: [WORKER, SHUT] }) }
+  catch (e) { threw = e.message }
+  ok(threw && !/cannot create it/i.test(threw),
+     'a missing REFERENCE must not be told the loop cannot create the candidate — the two errors have different remedies')
+
   // An unopenable side wins even when the other side is an instruction-writer.
   threw = null
   try { await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: [WRITER, SHUT] }) }

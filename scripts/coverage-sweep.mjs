@@ -54,6 +54,7 @@ export const PROPERTIES = [
   ['a piece whose run dies is not counted as a win', L, '  if (!o && !outcome) {', '  if (false) {'],
   ['a skipped piece is not blamed for crashing', L, '    if (!skippedNames.has(name)) {', '    if (true) {'],
   ['pieces must have distinct names', L, '    if (seenNames.has(key)) return false', '    if (false) return false'],
+  ['the unreadable refusal names a remedy specific to the missing side', L, '  const remedy = missing.includes(CANDIDATE)', '  const remedy = false && missing.includes(CANDIDATE)'],
   // --- the constructed oracle's role derivation ---------------------------------
   // Added with issue 33's second goal. Both mutations were APPLIED and the suite
   // watched to go red before being pinned here. Note the rest of
@@ -146,7 +147,7 @@ export const PROPERTIES = [
   ['a truncated gap says it was truncated', L, "gapLive.slice(0, 180) + '… (full text in the verdict)'", "gapLive.slice(0, 180)"],
 
   ['a generator refusal keeps the findings already paid for', L, "'against a design document.' + probeFindings())", "'against a design document.')"],
-  ['an unreadable refusal keeps them too', L, "'against nothing. Check the path — a typo here costs a whole run.' + probeFindings())", "'against nothing. Check the path — a typo here costs a whole run.')"],
+  ['an unreadable refusal keeps them too', L, "'against nothing. ' + remedy + probeFindings())", "'against nothing. ' + remedy)"],
   ['a probe that died is reported as unmeasured, not omitted', L, "    : 'goal_fairness: NOT MEASURED — the probe returned nothing, so whether the reference even attempts this goal is unknown')", "    : '')"],
 
   // --- an empty result vs a missing agent type (#14) ------------------------

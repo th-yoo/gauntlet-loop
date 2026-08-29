@@ -27,7 +27,7 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync, existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { RUNTIME_FORBIDDEN, CAP_NAMES, LOOP_PINNED, LOOP_DISCLOSURES, COMPARER_CONTRACT } from './drift-facts.mjs'
+import { RUNTIME_FORBIDDEN, CAP_NAMES, LOOP_PINNED, LOOP_DISCLOSURES, COMPARER_CONTRACT, CONTRACT_STATED } from './drift-facts.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 let failures = 0
@@ -53,7 +53,7 @@ console.log('guard-sweep: the facts live where an instrument can enumerate them'
 console.log('guard-sweep: drift-guard states what it does not cover, with a live count')
 {
   const expected = RUNTIME_FORBIDDEN.length + CAP_NAMES.length + LOOP_PINNED.length +
-    LOOP_DISCLOSURES.length + COMPARER_CONTRACT.length
+    LOOP_DISCLOSURES.length + COMPARER_CONTRACT.length + CONTRACT_STATED.length
   const r = spawnSync(process.execPath, ['test/drift-guard.mjs'], { cwd: ROOT, encoding: 'utf8', timeout: 60_000 })
   const out = String(r.stdout || '') + String(r.stderr || '')
   ok(r.status === 0, 'drift-guard passes on the tree as it stands (otherwise the assertions below read a failing run)')

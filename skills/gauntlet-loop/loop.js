@@ -51,7 +51,9 @@ export const meta = {
 
 // INPUT
 //   args.goal      (required) what you are trying to produce, in your words
-//   args.candidate (required) absolute path to the artifact. Built if absent.
+//   args.candidate (required) absolute path to the artifact. It must ALREADY EXIST:
+//                  this script has no filesystem and cannot create it, and an absent path is
+//                  refused as `unreadable` before anything spawns (#62).
 //   args.reference (required) the bar: a path, a URL, or a precise description
 //                  of a real thing that is currently better. "The bar is the
 //                  most important part" — a vague bar makes the critic invent a
@@ -114,7 +116,7 @@ const INSPECT = (args && args.inspect) || null
 const TOKEN = args && args.token
 
 if (!GOAL) throw new Error('args.goal is required')
-if (!CANDIDATE) throw new Error('args.candidate is required — an absolute path, built if absent')
+if (!CANDIDATE) throw new Error('args.candidate is required — an absolute path to an artifact that already exists')
 if (!REFERENCE) throw new Error(
   'args.reference is required. The bar is the most important part of this method: without a ' +
   'concrete thing to compare against, the critic invents its own comparison and approves ' +
@@ -1255,12 +1257,28 @@ function probeFindings() {
 // both artifacts, and "one of these could not be opened" is an answer to the
 // question it was already asking.
 if (comparability && comparability.verdict === 'unreadable') {
+  const missing = comparability.generator_side || '(the probe did not name which)'
+  // WHICH SIDE IS MISSING DECIDES THE REMEDY, and for a long time both got the
+  // same sentence: check the path. That is right for a mistyped reference and
+  // actively misleading for the candidate, because four files told the operator
+  // the candidate would be "built from nothing if absent" (#62). Someone who
+  // followed the documentation was sent to check the one thing that was correct.
+  //
+  // This loop cannot create it and never could: it is a Workflow script with no
+  // filesystem, which is the same substrate fact that decided the ratchet in #18.
+  // So the promise was not merely unimplemented, it was unimplementable, and the
+  // refusal says so rather than leaving the operator to discover it.
+  const remedy = missing.includes(CANDIDATE)
+    ? 'The missing side is the CANDIDATE, and this loop cannot create it — it runs with no filesystem, so ' +
+      'args.candidate must already exist. Write a first version, however rough, and point at that. The method ' +
+      'compares what you HAVE against something better; against nothing there is no comparison to make.'
+    : 'Check the path — a typo here costs a whole run.'
   throw new Error(
-    'REFUSED: an artifact could not be opened — ' + (comparability.generator_side || '(the probe did not name which)') +
+    'REFUSED: an artifact could not be opened — ' + missing +
     '. ' + comparability.reasoning + '\n\n' +
     'This does not fail loudly on its own. The path check is a string test, so a path that does not exist ' +
     'still looks like a path, the run still claims its A/B was blind, and a critic judges one real artifact ' +
-    'against nothing. Check the path — a typo here costs a whole run.' + probeFindings())
+    'against nothing. ' + remedy + probeFindings())
 }
 if (comparability && comparability.verdict === 'generator') {
   const side = comparability.generator_side || '(the probe did not name which side)'

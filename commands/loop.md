@@ -176,7 +176,7 @@ Call the `Workflow` tool:
   ```json
   {
     "goal":      "<what you are trying to produce, in your words — the NEED, not your solution>",
-    "candidate": "<absolute path; built if absent>",
+    "candidate": "<absolute path to an artifact that ALREADY EXISTS — it is not created for you>",
     "reference": "<absolute path to the exemplar>",
     "inspect":   "<optional: how to look at them — a command to run, a thing to open>",
     "on_refusal": "<optional: 'refuse' (default) or 'warn' — 'warn' proceeds past the GENERATOR verdict and records it; an unopenable artifact still stops the run>",

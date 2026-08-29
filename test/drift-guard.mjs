@@ -40,7 +40,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-import { RUNTIME_FORBIDDEN, CAP_NAMES, LOOP_PINNED, LOOP_DISCLOSURES, COMPARER_CONTRACT } from './drift-facts.mjs'
+import { RUNTIME_FORBIDDEN, CAP_NAMES, LOOP_PINNED, LOOP_DISCLOSURES, COMPARER_CONTRACT, CONTRACT_STATED } from './drift-facts.mjs'
 const SKILLDIR = join(ROOT, 'skills', 'gauntlet-loop')
 const loop = readFileSync(join(SKILLDIR, 'loop.js'), 'utf8')
 
@@ -734,6 +734,15 @@ for (const pin of LOOP_PINNED) {
   else fail(`${pin.what}: loop.js still renders "${pin.loop}", but ${pin.agent}.md no longer says "${pin.needle}" — the standing prompt is stale`)
 }
 
+console.log('drift-guard: every surface that states the candidate contract still states it')
+for (const c of CONTRACT_STATED) {
+  let text
+  try { text = readFileSync(join(ROOT, c.file), 'utf8') } catch { fail(`${c.file} is missing — it is one of the surfaces that states the candidate contract`); continue }
+  if (!text.includes(c.needle)) {
+    fail(`${c.what}: ${c.file} no longer contains "${c.needle}". An operator reading THAT file is the one who acts on it, and a contract corrected in three places out of four is the state this check exists to catch (#62)`)
+  }
+}
+
 assertStripperKept(LOOP_DISCLOSURES, 'a pinned disclosure')
 assertStripperKept(LOOP_PINNED.map(x => x.loop), 'a pinned prompt clause')
 
@@ -827,7 +836,7 @@ if (!/await parallel\(/.test(loopCode)) {
 // instrument in this repository can enumerate the sentences that were never
 // pinned.
 const FACT_COUNT = RUNTIME_FORBIDDEN.length + CAP_NAMES.length + LOOP_PINNED.length +
-  LOOP_DISCLOSURES.length + COMPARER_CONTRACT.length
+  LOOP_DISCLOSURES.length + COMPARER_CONTRACT.length + CONTRACT_STATED.length
 function statResidual() {
   console.log(`drift-guard: NOT ESTABLISHED — the ${FACT_COUNT} facts checked here are hand-written`)
   console.log('             (test/drift-facts.mjs). scripts/guard-sweep.mjs shows each one still bites.')
@@ -841,4 +850,4 @@ if (failures) {
   process.exit(1)
 }
 statResidual()
-console.log(`\ndrift-guard: OK — ${LOOP_PINNED.length} prompt clauses pinned between loop.js and its agent definitions, ${comparerLanes} comparer lane(s) holding the cross-lane contract, ${ALLOWLIST.length} allowlists still denying, ${LOOP_DISCLOSURES.length} disclosure(s) present, loop.js clean of ${RUNTIME_FORBIDDEN.length} forbidden runtime APIs and ${CAP_NAMES.length} round-cap names.`)
+console.log(`\ndrift-guard: OK — ${LOOP_PINNED.length} prompt clauses pinned between loop.js and its agent definitions, ${comparerLanes} comparer lane(s) holding the cross-lane contract, ${ALLOWLIST.length} allowlists still denying, ${LOOP_DISCLOSURES.length} disclosure(s) present, ${CONTRACT_STATED.length} candidate-contract statement(s) held across their files, loop.js clean of ${RUNTIME_FORBIDDEN.length} forbidden runtime APIs and ${CAP_NAMES.length} round-cap names.`)

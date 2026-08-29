@@ -110,6 +110,26 @@ export const LOOP_DISCLOSURES = [
   'THE BLINDNESS PROBE MODELS THE FILESYSTEM ONLY',
 ]
 
+// ONE CONTRACT, PINNED ACROSS EVERY SURFACE THAT STATES IT. Four files told the
+// operator the candidate was "built from nothing if absent" and the loop refuses
+// exactly that, because it runs with no filesystem and cannot create anything
+// (#62). The four copies were written apart and drifted together; nothing related
+// them, so correcting one would have left three.
+//
+// PRESENCE, not absence. A rule forbidding the old phrase fails on the comments
+// that now quote it to explain the defect — a check tripped by its own history.
+// What must hold is that each surface SAYS the artifact has to exist already.
+export const CONTRACT_STATED = [
+  { file: 'skills/gauntlet-loop/SKILL.md', needle: 'It must ALREADY EXIST',
+    what: "SKILL.md's candidate row states the artifact must already exist" },
+  { file: 'skills/gauntlet-loop/loop.js', needle: 'It must ALREADY EXIST',
+    what: "loop.js's own args contract states the artifact must already exist" },
+  { file: 'commands/loop.md', needle: 'ALREADY EXISTS',
+    what: 'the command doc\'s args block states the artifact must already exist' },
+  { file: 'skills/gauntlet-loop/loop.js', needle: 'this loop cannot create it',
+    what: 'the unreadable refusal names the remedy when the missing side is the candidate' },
+]
+
 export const COMPARER_CONTRACT = [
   { test: /provenance/i, what: 'tells its comparer not to reason about provenance — without it the blind A/B is blind in name only' },
   { test: /\btie\b/i, what: 'forces the choice, with no tie available — a tie is the "seems fine" exit this comparison exists to refuse' },

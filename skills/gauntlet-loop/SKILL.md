@@ -56,7 +56,7 @@ Arguments the script takes:
 | arg | |
 |---|---|
 | `goal` | what you are trying to produce, as a NEED — not your intended solution |
-| `candidate` | absolute path to your artifact; built from nothing if absent |
+| `candidate` | absolute path to your artifact. It must ALREADY EXIST — the loop has no filesystem and cannot create it, and an absent path is refused as `unreadable` before anything spawns. Write a first version, however rough: the method compares what you have against something better |
 | `reference` | absolute path to the real thing it is judged against |
 | `critics` | how many judges must ALL pick yours to end the run. Default 1 |
 | `token` | the run token; its existence means "keep going" |

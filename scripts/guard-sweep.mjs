@@ -35,7 +35,7 @@ import { readFileSync, writeFileSync, mkdirSync, rmSync, cpSync, existsSync } fr
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { RUNTIME_FORBIDDEN, CAP_NAMES, LOOP_PINNED, LOOP_DISCLOSURES, COMPARER_CONTRACT } from '../test/drift-facts.mjs'
+import { RUNTIME_FORBIDDEN, CAP_NAMES, LOOP_PINNED, LOOP_DISCLOSURES, COMPARER_CONTRACT, CONTRACT_STATED } from '../test/drift-facts.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const argv = process.argv.slice(2)
@@ -90,6 +90,18 @@ function mutations() {
     out.push({
       list: 'COMPARER_CONTRACT', entry: String(c.test), file: null, lanes: true,
       apply: src => src.replace(new RegExp(c.test.source, c.test.flags.includes('g') ? c.test.flags : c.test.flags + 'g'), 'GUARDSWEEPREMOVED'),
+      expect: c.what,
+    })
+  }
+  for (const c of CONTRACT_STATED) {
+    out.push({
+      // Each entry names its OWN file, unlike the lists above which all mutate
+      // loop.js. The contract is stated on three surfaces and the point of the
+      // list is that correcting one leaves the others — so the mutation has to be
+      // able to land on whichever surface the entry is about.
+      // RELATIVE, like LOOP above: the sweep joins this onto its staged copy.
+      list: 'CONTRACT_STATED', entry: c.needle, file: c.file,
+      apply: src => src.split(c.needle).join('[[GUARD-SWEEP-REMOVED]]'),
       expect: c.what,
     })
   }
@@ -156,7 +168,7 @@ const laneFiles = () => {
 // died on the missing import, and every entry came back "redundancy unmeasured".
 // The list shape is not something to assume; the element boundary is.
 function removeEntry(src, m) {
-  const objectList = m.list === 'LOOP_PINNED' || m.list === 'COMPARER_CONTRACT'
+  const objectList = m.list === 'LOOP_PINNED' || m.list === 'COMPARER_CONTRACT' || m.list === 'CONTRACT_STATED'
   if (objectList) {
     const needle = m.list === 'LOOP_PINNED' ? m.entry : m.entry
     const i = src.indexOf(needle)
