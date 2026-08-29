@@ -70,6 +70,18 @@ export function deriveRole(probe, runner = { ok, sh }) {
     return { role: null, why: 'a probe needs at least run_artifact and deliverable_present' }
   }
   if (probe.reset) runner.sh(probe.reset)
+  // THE DELIVERABLE MUST NOT ALREADY BE THERE. Without this the PASS condition is
+  // satisfied by the thing being broken: an artifact that is literally `exit 0`
+  // derives does-the-work whenever the deliverable survives the reset, and the
+  // deriver says "running it reached the deliverable" about a script that did
+  // nothing. Reproduced before it was fixed, not reasoned about.
+  //
+  // It guards BOTH roles, not the one that broke. A pre-present deliverable ends
+  // the derivation at the first branch, so a generator can never be reached
+  // either — the artifact is credited with a state it found.
+  if (runner.ok(probe.deliverable_present)) {
+    return { role: null, why: 'the deliverable was already present before the artifact ran, so nothing distinguishes reaching it from finding it' }
+  }
   if (!runner.ok(probe.run_artifact)) {
     if (probe.reset) runner.sh(probe.reset)
     return { role: null, why: 'the artifact did not run' }
@@ -111,10 +123,12 @@ const pairings = existsSync(PAIRINGS)
 
 let bad = 0
 const derived = new Map()
+const goalOf = new Map()
 console.log(`constructed-verify: ${rows.length} constructed artifact(s)`)
 for (const r of rows) {
   const d = deriveRole(r.probe)
   derived.set(r.id, d.role)
+  goalOf.set(r.id, r.goal)
   const agree = d.role === r.expected_role
   if (!agree) bad++
   console.log(`  ${agree ? 'agrees ' : 'DISAGREES'} ${r.id.padEnd(24)} derived ${String(d.role).padEnd(24)} declared ${r.expected_role}`)
@@ -125,6 +139,22 @@ console.log()
 console.log(`constructed-verify: ${pairings.length} constructed pairing(s)`)
 for (const p of pairings) {
   const [x, y] = p.sides.map(s => derived.get(s))
+  // A PAIRING'S SIDES MUST SIT UNDER ONE GOAL. Both roles answer "does executing
+  // this terminate in THE GOAL'S deliverable", so two sides answering about
+  // different goals compose a verdict about nothing — and the composition would
+  // report it as confidently as any other.
+  //
+  // This check could not fail while every row carried the same goal, which is
+  // the whole of why it is written now: the second goal is what makes it capable
+  // of firing, and a guard that cannot fire is not evidence of anything.
+  const [ga, gb] = p.sides.map(s => goalOf.get(s))
+  if (ga !== gb) {
+    bad++
+    console.log(`  CROSS-GOAL ${p.id} — its sides declare different goals, so the composed verdict is about nothing`)
+    console.log(`            ${p.sides[0]}: ${ga}`)
+    console.log(`            ${p.sides[1]}: ${gb}`)
+    continue
+  }
   const v = (x && y) ? composeVerdict(x, y) : null
   if (!v) { bad++; console.log(`  UNDERIVABLE ${p.id} — a side's role could not be derived`); continue }
   console.log(`  ${p.id.padEnd(30)} ${x} + ${y}  =>  ${v}`)
@@ -140,6 +170,13 @@ console.log('                    exactly what makes them ground truth and exactl
 console.log('                    unrepresentative. They bound whether the probe can be RIGHT on a case')
 console.log('                    with a knowable answer; they say nothing about the corpus it is used on.')
 console.log('                    NOT ESTABLISHED: anything about the probe. Nothing here runs it.')
+console.log('                    NOT SUPPORTED — a goal whose deliverable is TRANSIENT: one that exists')
+console.log('                    only while the artifact runs, so deliverable_present has to re-run a')
+console.log('                    program to observe it. Such a check is bound to whichever program it')
+console.log('                    names, so the emission can never satisfy it and the generator branch')
+console.log('                    is unreachable. No guard is added, because a self-referential')
+console.log('                    deliverable and a genuinely broken chain produce IDENTICAL')
+console.log('                    observations here. It is a precondition on goals, not a defect.')
 
 if (argv.includes('--json')) console.log(JSON.stringify([...derived], null, 2))
 if (bad) process.exit(1)

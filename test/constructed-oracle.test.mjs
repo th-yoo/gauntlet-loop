@@ -163,6 +163,122 @@ console.log('constructed-oracle: the composition rule is one rule, applied both 
   eq(composeVerdict('could-not-open', 'does-the-work'), 'unreadable', 'an absent side makes the pairing unreadable')
 }
 
+console.log('constructed-oracle: a deliverable that was ALREADY there settles nothing')
+{
+  // THE REPRODUCIBLE. Built before the fix, and it came back does-the-work:
+  //
+  //   REPRO ROLE: does-the-work
+  //   REPRO WHY : running it reached the deliverable
+  //
+  // about a script whose entire body is `exit 0`. Nothing checked that the
+  // deliverable was absent before the artifact ran, so the PASS condition was
+  // satisfied by the thing being broken — the failure mode this repository's own
+  // rules name, sitting inside the instrument built to supply ground truth.
+  //
+  // Note there is no `reset` here ON PURPOSE. A probe whose reset does not clear
+  // the deliverable is indistinguishable from one that declares none, and both
+  // must be refused for the same reason.
+  writeFileSync(join(TMP, 'prepresent-greet'), 'greetings\n')
+  write('prepresent/donothing.sh', '#!/bin/sh\nexit 0\n', true)
+  const d = deriveRole({
+    run_artifact: `sh ${TMP}/prepresent/donothing.sh`,
+    deliverable_present: `test -e ${TMP}/prepresent-greet && grep -qx greetings ${TMP}/prepresent-greet`,
+  })
+  eq(d.role, null, 'an artifact that did nothing was credited with a deliverable it found')
+  ok(/already present before the artifact ran/.test(d.why), `and it must say why — got "${d.why}"`)
+}
+
+console.log('constructed-oracle: the set now exercises MORE THAN ONE GOAL, and both derive')
+{
+  // This is issue 33's remainder, and it was recorded as a bound rather than
+  // discovered later: docs/capacity-adjudications.jsonl carried a row saying the
+  // four original artifacts sat under one goal whose deliverable was a FILE, and
+  // that until a second goal existed no claim could treat these roles as evidence
+  // that the rule generalises across goals. That row is now deleted, because the
+  // constant it excused no longer holds — which is the check doing its job.
+  const rows = readFileSync(join(ROOT, 'oracle', 'constructed.jsonl'), 'utf8')
+    .split('\n').filter(Boolean).map(l => JSON.parse(l))
+  const goals = new Set(rows.map(r => r.goal))
+  ok(goals.size >= 2,
+     `every constructed row still sits under one goal (${[...goals].join(' | ')}) — the roles cannot be evidence that the derivation survives a change of goal`)
+
+  // A second goal that only ever produces workers would leave the branch the
+  // grounding actually rests on untested under it. The generator branch is the
+  // one that did not exist before this set, so it is the one that has to appear
+  // under each goal for the goal to be worth anything.
+  for (const g of goals) {
+    const gen = rows.filter(r => r.goal === g && r.expected_role === 'produces-an-instruction')
+    ok(gen.length >= 1,
+       `goal "${g}" has no produces-an-instruction row — it exercises only the branch that was already grounded, so it adds a goal without adding evidence`)
+  }
+
+  // And the deliverable of at least one goal must not be readable off the
+  // filesystem, which is the specific thing the adjudication said was unshown.
+  const nonFile = rows.filter(r => r.probe?.deliverable_present && !/test -e/.test(r.probe.deliverable_present))
+  ok(nonFile.length >= 1,
+     'every deliverable_present is still a `test -e` — the set has more goals but they are all file deliverables, so the bound the adjudication named is untouched')
+  console.log(`          ${goals.size} goal(s), each with a generator row; ${nonFile.length} row(s) whose deliverable is not read off the filesystem`)
+}
+
+console.log('constructed-oracle: a pairing whose sides sit under DIFFERENT goals is refused')
+{
+  // Both roles answer "does executing this terminate in THE GOAL'S deliverable".
+  // Two sides answering about different goals compose a verdict about nothing,
+  // and composeVerdict would return one as confidently as any other.
+  //
+  // THIS CHECK COULD NOT HAVE FAILED BEFORE TODAY. Every row carried the same
+  // goal, so no pairing could cross one. The second goal is what makes it capable
+  // of firing, which is the only reason it is worth writing — and it is driven
+  // through the real script rather than reimplemented here, because a test that
+  // recomputes the rule it audits agrees with it, defect and all.
+  const crossed = join(TMP, 'crossed-pairings.jsonl')
+  writeFileSync(crossed, JSON.stringify({
+    id: 'crossed-goal-pair',
+    sides: ['constructed-direct', 'constructed-commit-direct'],
+    selection_note: 'A file deliverable against a commit deliverable. Both sides are workers, so the composition would say comparable — about no goal at all.',
+  }) + '\n')
+  const r = spawnSync(process.execPath, ['scripts/constructed-verify.mjs'],
+    { cwd: ROOT, encoding: 'utf8', timeout: 300_000,
+      env: { ...process.env, CONSTRUCTED_PAIRINGS: crossed } })
+  const out = String(r.stdout || '') + String(r.stderr || '')
+  ok(r.status !== 0, 'a pairing crossing two goals was accepted, and composed to a verdict about nothing')
+  ok(/CROSS-GOAL/.test(out), `and the refusal was not reported — got:\n${out.split('\n').slice(-6).join('\n')}`)
+  ok(!/=>  comparable/.test(out.split('constructed pairing(s)')[1] || ''),
+     'it still composed a verdict for the crossed pairing')
+  console.log('          crossing two goals is refused, and the check can fail only now that goals vary')
+}
+
+console.log('constructed-oracle: a TRANSIENT deliverable is out of scope, and the deriver does not pretend otherwise')
+{
+  // The bound this second goal turned up, recorded rather than guarded.
+  //
+  // If a goal's deliverable exists only while a program runs, deliverable_present
+  // has to re-run a program to observe it — so the check is bound to whichever
+  // program it names. Run the scaffold and the deliverable is absent; run the
+  // emission and the check re-runs the SCAFFOLD, so it is absent still. The
+  // generator branch is unreachable under such a goal.
+  //
+  // NO GUARD IS ADDED. A self-referential deliverable and a genuinely broken chain
+  // produce identical observations here, so nothing mechanical can separate them
+  // — adding a detector for this one shape would be a rule fitted to the case that
+  // produced it. What is asserted is that it does not MISLABEL: it must refuse.
+  write('transient/scaffold.sh',
+        `#!/bin/sh\nprintf '#!/bin/sh\\nprintf %s\\n' "'greetings\\n'" > ${TMP}/transient/emit.sh\nchmod +x ${TMP}/transient/emit.sh\n`, true)
+  const d = deriveRole({
+    reset: `rm -f ${TMP}/transient/emit.sh`,
+    run_artifact: `sh ${TMP}/transient/scaffold.sh`,
+    deliverable_present: `sh ${TMP}/transient/scaffold.sh | grep -qx greetings`,
+    emitted_runnable: `test -x ${TMP}/transient/emit.sh`,
+    run_emitted: `sh ${TMP}/transient/emit.sh`,
+  })
+  eq(d.role, null, 'a goal whose deliverable is defined in terms of the artifact must not be given a role')
+  ok(d.why && d.why.length > 0, 'and it must say something')
+  console.log(`          refused, and the reason it gives is about the chain: "${d.why}"`)
+  console.log('          THAT REASON IS THE BOUND — the deriver cannot tell a self-referential')
+  console.log('          deliverable from a broken chain, so goals of this shape are a precondition')
+  console.log('          on the set, not a defect in the rule.')
+}
+
 rmSync(TMP, { recursive: true, force: true })
 
 console.log('constructed-oracle: stating what this cannot establish')
@@ -170,6 +286,9 @@ console.log('          NOT ESTABLISHED: that these artifacts resemble what the p
 console.log('          built to make one relationship definitional, which is what makes them ground')
 console.log('          truth and what makes them unrepresentative. They bound whether the probe can be')
 console.log('          RIGHT where the answer is knowable; they say nothing about the corpus it is used on.')
+console.log('          NOT SUPPORTED: goals whose deliverable is transient. The generator branch is')
+console.log('          unreachable under them and no mechanical check can distinguish that from a')
+console.log('          broken chain, so it is a precondition on goals rather than a defect.')
 console.log('          NOT ESTABLISHED: anything about the probe. Nothing here runs it — that needs live')
 console.log('          agents and is the next step, not this one.')
 console.log('          NOT POOLED with oracle/corpus.jsonl: these are constructed, not sampled, and')

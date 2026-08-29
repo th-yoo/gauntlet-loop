@@ -35,6 +35,7 @@ const AJ = 'scripts/adjudications.mjs'
 const DF = 'scripts/disclosure-figures.mjs'
 const DS = 'scripts/disclosure-sources.mjs'
 const MS = 'scripts/model-shaped.mjs'
+const CV = 'scripts/constructed-verify.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -53,6 +54,14 @@ export const PROPERTIES = [
   ['a piece whose run dies is not counted as a win', L, '  if (!o && !outcome) {', '  if (false) {'],
   ['a skipped piece is not blamed for crashing', L, '    if (!skippedNames.has(name)) {', '    if (true) {'],
   ['pieces must have distinct names', L, '    if (seenNames.has(key)) return false', '    if (false) return false'],
+  // --- the constructed oracle's role derivation ---------------------------------
+  // Added with issue 33's second goal. Both mutations were APPLIED and the suite
+  // watched to go red before being pinned here. Note the rest of
+  // scripts/constructed-verify.mjs is still unpinned: its four earlier refusals are
+  // driven by test/constructed-oracle.test.mjs but a rename would disarm nothing
+  // here, because nothing here points at them yet.
+  ['a deliverable already present is not credited to the artifact', CV, `  if (runner.ok(probe.deliverable_present)) {\n    return { role: null, why: 'the deliverable was already present`, `  if (false) {\n    return { role: null, why: 'the deliverable was already present`],
+  ['a pairing crossing two goals is refused', CV, '  if (ga !== gb) {', '  if (false) {'],
   // --- the refusal can be answered, and only where answering is coherent -------
   // Added with the on_refusal switch (#28 S5). Each mutation was APPLIED and the
   // suite watched to go red, not assumed from the fact that a test mentions it.
