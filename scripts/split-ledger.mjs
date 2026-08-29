@@ -19,7 +19,7 @@
 import { readFileSync, writeFileSync, appendFileSync, existsSync, mkdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { extractTrials, estimate, trialKey } from './split-extract.mjs'
+import { extractTrials, estimate, trialKey, wilson } from './split-extract.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const argv = process.argv.slice(2)
@@ -77,7 +77,25 @@ function report() {
   const sides = Object.values(e.by_side)
   if (sides.length === 2 && sides.every(s => s.judgements > 0)) {
     const gap = Math.abs(sides[0].candidate_wins / sides[0].judgements - sides[1].candidate_wins / sides[1].judgements)
-    console.log(`              between-side gap ${pct(gap)} — disagreement this large is position, not judge variance`)
+    // WHETHER THE GAP MEANS ANYTHING IS COMPUTED, not asserted and not thresholded.
+    // This line used to read "disagreement this large is position, not judge
+    // variance" unconditionally, and it printed that under a gap of 0% — a sentence
+    // emitted whatever the number says cannot be wrong, so it cannot inform, and
+    // here it stated the reverse of what the number meant.
+    //
+    // A hand-picked cut-off would be the same defect wearing arithmetic: a
+    // parameter fitted to whichever case prompted it. What decides instead is the
+    // same wilson() the rest of this instrument runs on. Two intervals that overlap
+    // are two rates this many trials cannot tell apart; the verdict flips on its
+    // own as trials accumulate, which is the whole design of issue 21.
+    const [aLo, aHi] = wilson(sides[0].candidate_wins, sides[0].judgements)
+    const [bLo, bHi] = wilson(sides[1].candidate_wins, sides[1].judgements)
+    const overlap = aLo <= bHi && bLo <= aHi
+    console.log(`              between-side gap ${pct(gap)}`)
+    console.log(`              side intervals ${pct(aLo)}-${pct(aHi)} and ${pct(bLo)}-${pct(bHi)}`)
+    console.log(overlap
+      ? '              they OVERLAP, so this set does not separate position from judge variance — the gap is not evidence of either, at this many judgements'
+      : '              they do NOT overlap, so the sides differ by more than sampling noise at this n; position is what the two groups differ by, and is the candidate explanation')
   }
   console.log('split-ledger: NOT ESTABLISHED — these trials come from whatever runs happened to be')
   console.log('              ingested. There is no sampling frame over artifacts, models or goals, so')

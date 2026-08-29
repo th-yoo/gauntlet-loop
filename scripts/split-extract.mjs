@@ -18,7 +18,7 @@
 // TWO TRIAL SHAPES, and the second is why this works at the DEFAULT k=1.
 //
 //   within-round — k judges on the same bytes in one round. Available only when
-//     the operator sets args.critics > 1, which has never been run.
+//     the operator sets args.critics > 1.
 //   arm-confirm  — #18's confirmation. A win ARMS the exit; the next round spawns
 //     a FRESH critic against the UNCHANGED artifact with the sides flipped, and
 //     only a second win fires. That is two independently spawned judges on
@@ -26,7 +26,15 @@
 //     needs, produced by every armed run at k=1, at no additional cost.
 //
 // The arm-confirm shape postdates this issue. It is the reason the accumulator is
-// worth building now rather than after someone first runs k>1.
+// worth building at the default k rather than only for operators who raise it.
+//
+// THIS COMMENT USED TO SAY k>1 "HAS NEVER BEEN RUN", AND IT HAD. A verdict from
+// 2026-08-26 carries `critics=2` on both of its pieces and two positions a round,
+// so two within-round trials were sitting unread while the text beside the reader
+// said the shape was hypothetical. The claim is removed rather than corrected to a
+// new count: how many runs of each shape exist is derivable from the ledger, and a
+// derivable fact restated in a comment is one nothing recomputes. `--report`
+// prints `by_kind`, which is the recomputation.
 //
 // NOTHING HERE SPAWNS, READS, OR WRITES. Verdict in, trials out.
 

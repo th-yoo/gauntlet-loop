@@ -36,6 +36,7 @@ const DF = 'scripts/disclosure-figures.mjs'
 const DS = 'scripts/disclosure-sources.mjs'
 const MS = 'scripts/model-shaped.mjs'
 const CV = 'scripts/constructed-verify.mjs'
+const SL = 'scripts/split-ledger.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -55,6 +56,7 @@ export const PROPERTIES = [
   ['a skipped piece is not blamed for crashing', L, '    if (!skippedNames.has(name)) {', '    if (true) {'],
   ['pieces must have distinct names', L, '    if (seenNames.has(key)) return false', '    if (false) return false'],
   ['the unreadable refusal names a remedy specific to the missing side', L, '  const remedy = missing.includes(CANDIDATE)', '  const remedy = false && missing.includes(CANDIDATE)'],
+  ['the position claim follows the interval rather than being asserted', SL, '    const overlap = aLo <= bHi && bLo <= aHi', '    const overlap = true'],
   // --- the constructed oracle's role derivation ---------------------------------
   // Added with issue 33's second goal. Both mutations were APPLIED and the suite
   // watched to go red before being pinned here. Note the rest of
