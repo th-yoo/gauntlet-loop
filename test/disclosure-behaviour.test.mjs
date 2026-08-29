@@ -18,7 +18,12 @@
 //
 // NOTHING HERE SPAWNS.
 
+import { existsSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
 import { runLoop } from './harness.mjs'
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 let failures = 0
 const fail = m => { console.error(`  FAIL  ${m}`); failures++ }
@@ -174,6 +179,45 @@ const AUTHORED = {
   unasked: 'NOBODY WAS ASKED WHETHER THE GOAL WAS WRITTEN BEFORE THE CANDIDATE WAS OPENED',
   independent: 'THE GOAL IS ATTESTED AS WRITTEN BEFORE THE CANDIDATE WAS OPENED',
   after: 'THE GOAL WAS WRITTEN AFTER THE CANDIDATE WAS READ',
+}
+
+console.log('disclosure-behaviour: THE EXIT IS A SINGLE JUDGEMENT — and only at k=1')
+{
+  // The provenance line beside this one says k>1 is an addition and stops there,
+  // so an operator learns k is ours and nothing about whether to use it. This pair
+  // says WHY it exists, and the branch has to follow the k actually run: telling an
+  // operator at k=4 that their exit is one opinion is as wrong as the reverse.
+  const one = (await runLoop({ args: ARGS, rounds: [win(), win()] })).result
+  const many = (await runLoop({ args: { ...ARGS, critics: 2 }, rounds: [win(), win()] })).result
+  const neOne = (one.not_enforced || []).join('\n')
+  const neMany = (many.not_enforced || []).join('\n')
+  ok(neOne.includes('THE EXIT IS A SINGLE JUDGEMENT'),
+     'a k=1 run does not say its exit is one judgement — the arrangement a measurement found wanting is the one it is running')
+  ok(!neOne.includes('THE EXIT IS UNANIMITY'), 'and a k=1 run must not claim unanimity over a set of one')
+  ok(neMany.includes('THE EXIT IS UNANIMITY OVER 2 JUDGES'),
+     `a k=2 run does not state the standard it actually applied — got: ${neMany.slice(0, 160)}`)
+  ok(!neMany.includes('THE EXIT IS A SINGLE JUDGEMENT'), 'and a k=2 run must not report a single-judgement exit')
+  // The reason is a measurement, so both branches must carry it rather than
+  // asserting the parameter matters and leaving the operator to take that on trust.
+  ok(neOne.includes('split 3-2') && neMany.includes('split 3-2'),
+     'neither branch names the measurement that is the whole reason k exists')
+  console.log('          k=1 says single judgement, k=2 says unanimity over 2, both name the 3-2 split')
+}
+
+console.log('disclosure-behaviour: THE SPLIT LEDGER IS FED BY HAND OR NOT AT ALL')
+{
+  // Not conditional — it holds on every run, because the loop has no filesystem
+  // and cannot record its own trials on any branch. What makes it more than a
+  // presence check is the command: a disclosure naming a script that is not there
+  // is an instruction nobody can follow, which is the shape #56 shipped for a day.
+  const r = (await runLoop({ args: ARGS, rounds: [win(), win()] })).result
+  const ne = (r.not_enforced || []).join('\n')
+  ok(ne.includes('THE SPLIT LEDGER IS FED BY HAND OR NOT AT ALL'),
+     'a run that produced arm-confirm trials does not say they are discarded unless someone ingests them')
+  const m = ne.match(/node (scripts\/[a-z-]+\.mjs) --ingest/)
+  ok(m, 'the disclosure does not name the command that would ingest them — an instruction with no command is not one')
+  if (m) ok(existsSync(join(ROOT, m[1])), `the disclosure names ${m[1]}, which is not in the tree`)
+  console.log(`          named ${m ? m[1] : '(nothing)'}, and it exists`)
 }
 
 console.log('disclosure-behaviour: NOBODY WAS ASKED WHETHER THE GOAL WAS WRITTEN BEFORE THE CANDIDATE WAS OPENED')

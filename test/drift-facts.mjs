@@ -67,6 +67,12 @@ export const LOOP_DISCLOSURES = [
   // If this line goes, the verdict starts implying a precedent that does not
   // exist — which is the exact class this tracker files most.
   'ADDITION, not source fidelity',
+  // The ADDITION line settles provenance and stops there. These two say why k>1
+  // exists at all and how the choice could stop being an argument. Pinned apart
+  // because the provenance claim can survive while the reason for the parameter
+  // disappears, which leaves a knob nobody has grounds to turn.
+  'THE EXIT IS A SINGLE JUDGEMENT',
+  'THE SPLIT LEDGER IS FED BY HAND OR NOT AT ALL',
   // Deleting the panel deleted the only calibration mechanism. If this line goes,
   // the plugin stops telling anyone that nothing checks its critics.
   'NO CALIBRATION ANYWHERE',

@@ -2236,6 +2236,17 @@ return {
         ? `PART OF THE GOAL IS TRACEABLE TO THE CANDIDATE'S OWN WORDING. ${fitted.reasoning} Verdicts on those clauses measure the overlap, not the work. Nothing here can see when the goal was written or by whom.`
         : 'The goal is operator-supplied, and reads as independent of the candidate. That is a fact about the two texts: nothing here can see when the goal was written or by whom, and a goal written after looking at the candidate can be phrased so that it does not overlap with it.',
     'k>1 is an ADDITION, not source fidelity. Both primary texts hold judges at one per piece — "Each piece gets its own builder and a separate critic with fresh context." — and get width by decomposing the goal — which this loop also does, when a lead returns a usable split. So k is a SECOND axis of width the source never describes: the source multiplies PIECES and holds judges at one, and k multiplies JUDGES within a piece. What k buys is a stronger reading of "every judge satisfied" than one critic can give; what it is not is fidelity, and at the default k=1 that phrase quantifies over a set of one.',
+    // WHY k>1 EXISTS, which the ADDITION line above never says. That line settles
+    // provenance and stops there, so an operator reading it learns k is ours and
+    // nothing about whether to use it. The reason is a measurement, and at k=1 the
+    // run is executing the arrangement that measurement found wanting.
+    CRITICS === 1
+      ? 'AT k=1 THE EXIT IS A SINGLE JUDGEMENT, and that arrangement is the one a measurement found wanting: five judges on one unchanged near-boundary pair split 3-2 (scripts/split-extract.mjs), so a fresh judge picks the minority side often enough that one win can be a coin flip rather than a verdict. k>1 exists for that reason and no other. At k=1 this is one comparer looping over two artifacts, and every round ends on one opinion.'
+      : `AT k=${CRITICS} THE EXIT IS UNANIMITY OVER ${CRITICS} JUDGES, bought because five judges on one unchanged near-boundary pair split 3-2 (scripts/split-extract.mjs) and a single win can therefore be a coin flip. What k cannot fix is a bias every judge shares: they are spawned from one model family against one prompt, so unanimity narrows variance and not common-mode error.`,
+    // The self-calibrating half of that design was built and never connected. If
+    // this line goes, the loop keeps producing the trials and keeps discarding
+    // them, and the parameter stays a matter of argument for good.
+    'THE SPLIT LEDGER IS FED BY HAND OR NOT AT ALL. Every armed round produces the paired observation that would narrow the choice of k — two independently spawned judges on identical bytes at opposite positions — and the loop cannot record it, having no filesystem. Unless someone runs `node scripts/split-ledger.mjs --ingest <verdict.json>` against this verdict, these trials are discarded and k remains chosen by argument rather than by measurement.',
     'Critic and builder share a model family, so the critic may be blind to exactly the mistakes the builder is prone to making.',
     'THE BLINDNESS PROBE MODELS THE FILESYSTEM ONLY, and the critic and builder both hold WebSearch and WebFetch. ' +
     'The probe resolves an artifact\'s citations against this working tree, so a `clean` verdict means neither artifact ' +

@@ -231,6 +231,23 @@ working; the same gap restated in round 5 as in round 1 means it is not, and tha
 is worth stopping for. `gaps_in_order` in the final verdict carries every gap
 verbatim, for reading afterwards.
 
+**When it ends, INGEST THE VERDICT.** The choice of `critics` is not settled by
+evidence — the one measurement behind it is five judges splitting 3-2 on unchanged
+bytes, an interval on p that spans "one critic is already enough" to "nineteen are
+needed". The design that would settle it is already built and has never been fed:
+
+```bash
+node scripts/split-ledger.mjs --ingest <verdict.json>   # then --report
+```
+
+Every armed round produced exactly the paired observation it wants — a win arms
+the exit, the next round spawns a FRESH critic against the UNCHANGED artifact with
+the sides flipped, and only a second win fires. Two independently spawned judges on
+identical bytes at opposite positions, at no extra cost. The loop cannot record
+them itself; it has no filesystem. So a run that is not ingested throws its
+measurement away, which is why `--report` still says `0 trial(s)` and why k is
+still chosen by argument.
+
 This is the source's "live progress page" in the form a Workflow script can offer
 one — the script has no filesystem and cannot write a page, but these lines reach
 you through `/workflows` as the run goes. Until they carried the gap, this
