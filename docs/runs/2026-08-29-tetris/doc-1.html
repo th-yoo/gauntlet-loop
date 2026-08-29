@@ -1,0 +1,178 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Tetris</title>
+<style>
+  body { background:#111; color:#eee; font-family:sans-serif; text-align:center; margin:0; padding:12px }
+  canvas { background:#000; border:1px solid #444 }
+  #score { font-size:20px; margin:8px }
+</style>
+<div id="score">Score 0</div>
+<canvas id="c" width="240" height="480"></canvas>
+<p>Left/Right move, Up/X rotates CW, Z rotates CCW, Down drops faster, Space drops hard.</p>
+<script>
+const C = 10, R = 20, S = 24
+const ctx = document.getElementById('c').getContext('2d')
+const scoreEl = document.getElementById('score')
+const SHAPES = [
+  [[1,1,1,1]],
+  [[1,1],[1,1]],
+  [[0,1,0],[1,1,1]],
+  [[1,0,0],[1,1,1]],
+  [[0,0,1],[1,1,1]],
+  [[0,1,1],[1,1,0]],
+  [[1,1,0],[0,1,1]],
+]
+const COLORS = ['#0ff','#ff0','#a0f','#00f','#fa0','#0f0','#f00']
+let board = Array.from({length:R}, () => Array(C).fill(0))
+let piece = null, score = 0, over = false, dropMs = 700, last = 0
+let lockStart = null, lockResets = 0
+const LOCK_DELAY = 500, MAX_LOCK_RESETS = 15
+
+function spawn() {
+  const i = Math.floor(Math.random() * SHAPES.length)
+  piece = { g: SHAPES[i], t: i, c: i + 1, x: 3, y: 0, r: 0 }
+  lockStart = null; lockResets = 0
+  if (hits(piece.g, piece.x, piece.y)) over = true
+}
+function hits(g, x, y) {
+  for (let r = 0; r < g.length; r++) for (let c = 0; c < g[r].length; c++) {
+    if (!g[r][c]) continue
+    const nx = x + c, ny = y + r
+    if (nx < 0 || nx >= C || ny >= R) return true
+    if (ny >= 0 && board[ny][nx]) return true
+  }
+  return false
+}
+function lockPiece() {
+  piece.g.forEach((row, r) => row.forEach((v, c) => { if (v && piece.y + r >= 0) board[piece.y + r][piece.x + c] = piece.c }))
+  let cleared = 0
+  for (let r = R - 1; r >= 0; r--) {
+    if (board[r].every(v => v)) { board.splice(r, 1); board.unshift(Array(C).fill(0)); cleared++; r++ }
+  }
+  if (cleared) { score += [0,100,300,500,800][cleared]; dropMs = Math.max(120, 700 - Math.floor(score / 500) * 60) }
+  scoreEl.textContent = 'Score ' + score
+  spawn()
+}
+// Grounded check: true when the piece cannot fall any further this frame.
+function grounded() { return hits(piece.g, piece.x, piece.y + 1) }
+
+// SRS-style kick tables, indexed by piece type and by the rotation-state
+// transition ("from>to"). Offsets are (dx, dy) with +y = down (canvas space,
+// the mirror of the guideline's +y-up tables). O has no meaningful rotation.
+const KICKS_JLSTZ = {
+  '0>1': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+  '1>0': [[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+  '1>2': [[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+  '2>1': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+  '2>3': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+  '3>2': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+  '3>0': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+  '0>3': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+}
+const KICKS_I = {
+  '0>1': [[0,0],[-2,0],[1,0],[-2,1],[1,-2]],
+  '1>0': [[0,0],[2,0],[-1,0],[2,-1],[-1,2]],
+  '1>2': [[0,0],[-1,0],[2,0],[-1,-2],[2,1]],
+  '2>1': [[0,0],[1,0],[-2,0],[1,2],[-2,-1]],
+  '2>3': [[0,0],[2,0],[-1,0],[2,-1],[-1,2]],
+  '3>2': [[0,0],[-2,0],[1,0],[-2,1],[1,-2]],
+  '3>0': [[0,0],[1,0],[-2,0],[1,2],[-2,-1]],
+  '0>3': [[0,0],[-1,0],[2,0],[-1,-2],[2,1]],
+}
+const KICKS_O = { '0>1':[[0,0]], '1>0':[[0,0]], '1>2':[[0,0]], '2>1':[[0,0]], '2>3':[[0,0]], '3>2':[[0,0]], '3>0':[[0,0]], '0>3':[[0,0]] }
+function kickTableFor(pieceType) {
+  if (pieceType === 0) return KICKS_I
+  if (pieceType === 1) return KICKS_O
+  return KICKS_JLSTZ
+}
+function rotateCW(g) { return g[0].map((_, i) => g.map(r => r[i]).reverse()) }
+function rotateCCW(g) { return g[0].map((_, i) => g.map(r => r[r.length - 1 - i])) }
+function refreshLock() { if (grounded()) { lockStart = now(); lockResets = Math.min(lockResets + 1, MAX_LOCK_RESETS) } }
+function rotate(dir) {
+  const n = dir > 0 ? rotateCW(piece.g) : rotateCCW(piece.g)
+  const from = piece.r, to = (piece.r + (dir > 0 ? 1 : 3)) % 4
+  const table = kickTableFor(piece.t)[`${from}>${to}`] || [[0,0]]
+  for (const [dx, dy] of table) {
+    if (!hits(n, piece.x + dx, piece.y + dy)) {
+      piece.g = n; piece.x += dx; piece.y += dy; piece.r = to
+      refreshLock()
+      return
+    }
+  }
+}
+function move(dx) { if (!hits(piece.g, piece.x + dx, piece.y)) { piece.x += dx; refreshLock() } }
+function down() { if (grounded()) lockPiece(); else { piece.y++; lockStart = null; lockResets = 0 } }
+function hard() { while (!hits(piece.g, piece.x, piece.y + 1)) piece.y++; lockPiece() }
+function now() { return performance.now() }
+
+// Custom delayed-auto-shift (DAS) / auto-repeat-rate (ARR) for held
+// left/right movement, independent of the OS/browser's own key-repeat
+// timing. Pressing a direction moves once immediately; if it is still held
+// after DAS_DELAY the piece then repeats every currentARR() ms, and ARR
+// tightens as the game speeds up (tracks dropMs) so held movement stays
+// responsive at higher levels instead of lagging behind faster gravity.
+let heldDir = 0, dasStart = 0, dasActive = false, nextRepeat = 0
+const DAS_DELAY = 170
+function currentARR() { return Math.max(20, Math.round(dropMs / 8)) }
+function startHeld(dir) {
+  if (heldDir === dir) return
+  heldDir = dir; dasActive = false; dasStart = now()
+  move(dir)
+}
+function releaseHeld(dir) { if (heldDir === dir) { heldDir = 0; dasActive = false } }
+function updateAutoRepeat(t) {
+  if (heldDir === 0) return
+  if (!dasActive) {
+    if (t - dasStart >= DAS_DELAY) { dasActive = true; nextRepeat = t; move(heldDir) }
+  } else if (t - nextRepeat >= currentARR()) {
+    nextRepeat = t; move(heldDir)
+  }
+}
+
+addEventListener('keydown', e => {
+  if (over) return
+  if (e.key === 'ArrowLeft') startHeld(-1)
+  else if (e.key === 'ArrowRight') startHeld(1)
+  else if (e.key === 'ArrowUp' || e.key === 'x' || e.key === 'X') rotate(1)
+  else if (e.key === 'z' || e.key === 'Z') rotate(-1)
+  else if (e.key === 'ArrowDown') down()
+  else if (e.key === ' ') hard()
+  else return
+  e.preventDefault(); draw()
+})
+addEventListener('keyup', e => {
+  if (e.key === 'ArrowLeft') releaseHeld(-1)
+  else if (e.key === 'ArrowRight') releaseHeld(1)
+})
+addEventListener('blur', () => { heldDir = 0; dasActive = false })
+
+function draw() {
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, C * S, R * S)
+  for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+    if (board[r][c]) { ctx.fillStyle = COLORS[board[r][c] - 1]; ctx.fillRect(c * S, r * S, S - 1, S - 1) }
+  }
+  if (piece) piece.g.forEach((row, r) => row.forEach((v, c) => {
+    if (v) { ctx.fillStyle = COLORS[piece.c - 1]; ctx.fillRect((piece.x + c) * S, (piece.y + r) * S, S - 1, S - 1) }
+  }))
+  if (over) { ctx.fillStyle = '#fff'; ctx.font = '24px sans-serif'; ctx.fillText('Game Over', 60, 240) }
+}
+function loop(t) {
+  if (!over) {
+    updateAutoRepeat(t)
+    if (grounded()) {
+      // Lock-delay grace window: the piece has landed but does not merge
+      // instantly. It stays live until the timer expires (or the reset
+      // budget from move/rotate is spent), so a last-moment slide or spin
+      // still counts.
+      if (lockStart === null) lockStart = t
+      else if (t - lockStart >= LOCK_DELAY || lockResets >= MAX_LOCK_RESETS) { lockPiece(); last = t }
+    } else {
+      lockStart = null; lockResets = 0
+      if (t - last > dropMs) { piece.y++; last = t }
+    }
+    draw()
+  }
+  requestAnimationFrame(loop)
+}
+spawn(); requestAnimationFrame(loop)
+</script>

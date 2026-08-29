@@ -1,0 +1,5 @@
+A browser game of Tetris that a person can actually sit down and play. Pieces fall
+and can be moved, rotated and dropped; filled lines clear and score; the game speeds
+up and eventually ends. It should be clear at a glance what is happening and what is
+coming next. It runs by opening one HTML file, is controlled from the keyboard, and
+feels responsive rather than sluggish.
