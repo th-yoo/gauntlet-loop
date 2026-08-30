@@ -163,9 +163,10 @@ deleted.
   detection rate was a single observation. It is now measured at **12/15 = 80%**, and that
   argument is gone — but the interval runs 55% to 93%, the trials differ by one mechanical
   transform, and a wrong revert is quieter than a wrong refusal, which at least stops the
-  run. So revert stays off as an operator's decision with no answer on file, rather than
-  as a settled one. The rate at which rounds actually regress is what this produces, and
-  it is still what would justify turning it on.
+  run. Decided and recorded in `docs/decisions/0003-no-automatic-revert.md`: revert stays
+  off, because the script cannot verify a revert and the verdict is one judge. The only
+  run since the check shipped regressed 0/3; the first regressed round in a real run is
+  what reopens it.
 - **k critics on one piece is ours, not his.** Both source texts say one critic
   per piece, singular. It is disclosed in every run rather than presented as
   fidelity.

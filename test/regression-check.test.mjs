@@ -42,8 +42,12 @@
 // than a wrong refusal — a refusal is loud and stops the run, a revert silently discards
 // work and the next round's critic never sees what went. That used to rest on the
 // detection rate being one observation; it is 12/15 now, 95% CI 55-93%, measured on
-// pairs differing by one mechanical transform. What is still missing before the trade
-// can be made is the rate at which rounds actually regress, which this half produces.
+// pairs differing by one mechanical transform. The rate at which rounds actually
+// regress is what this half produces; the first run to carry it read 0/3.
+//
+// DECIDED, 2026-08-30: docs/decisions/0003-no-automatic-revert.md. No automatic
+// revert — the revert cannot be verified by a script with no filesystem, the verdict
+// is one judge, and a wrong revert is silent. The decision names what reopens it.
 //
 // The no-revert assertion below is therefore an ASSERTION, not an absence: turning
 // revert on has to change this line deliberately rather than quietly satisfy it.
