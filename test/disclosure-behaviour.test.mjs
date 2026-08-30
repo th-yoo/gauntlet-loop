@@ -262,8 +262,21 @@ console.log('disclosure-behaviour: an attestation the loop cannot read is refuse
 }
 
 
+console.log('disclosure-behaviour: THE PAIRING CHECK READS THIS DISK TOO — the measured residual, on every run')
+{
+  const r = (await runLoop({ args: ARGS, rounds: [win(), win()] })).result
+  const ne = (r.not_enforced || []).join('\n')
+  ok(/THE PAIRING CHECK READS THIS DISK TOO/.test(ne),
+     'every run discloses that the goal-check probe can read the tree')
+  ok(/staging was measured once/.test(ne) && /finding nothing, not proof/.test(ne),
+     'and carries the measurement with its hedge — one comparison found nothing, which is not proof')
+  const cited = ne.match(/docs\/runs\/2026-08-31-blindness-residual\/verdict\.md/)
+  ok(cited !== null, 'and cites the run record the numbers live in')
+  console.log('          disclosed, hedged, and cited')
+}
+
 if (failures) {
   console.error(`\ndisclosure-behaviour: ${failures} failure(s) — a pinned disclosure that the loop contradicts is a false claim with a guard in front of it.`)
   process.exit(1)
 }
-console.log('\ndisclosure-behaviour: OK — nine disclosures driven against the loop and confirmed.')
+console.log('\ndisclosure-behaviour: OK — ten disclosures driven against the loop and confirmed.')

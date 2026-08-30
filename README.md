@@ -82,8 +82,8 @@ the same method.
     plus what is derivable from a plant: its size, its class, and whether a sealed note is
     something the transforms can still **produce** from its source. All 105 undrifted
     notes on file reproduce exactly; a note edited to agree with a ledger row does not.
-  - `scripts/guard-sweep.mjs` — does each of drift-guard's 40 hand-written facts still
-    bite? **40/40**, 0 redundant, recomputed every run rather than stored.
+  - `scripts/guard-sweep.mjs` — does each of drift-guard's 41 hand-written facts still
+    bite? **41/41**, 0 redundant, recomputed every run rather than stored.
   - `scripts/plugin-version-check.mjs` — does `agents/` still match what the version in
     `plugin.json` shipped? The record is git, not a list: the tree at the commit that set
     the current version, diffed to the working tree. The plugin cache is version-pinned,

@@ -114,6 +114,9 @@ export const LOOP_DISCLOSURES = [
   // that disclosure goes while the tools remain, a `clean` probe result reads as
   // broader than it is — see the tool-grant check below, which pins the pair.
   'THE BLINDNESS PROBE MODELS THE FILESYSTEM ONLY',
+  // #35's residual: measured once, cannot be closed. If this goes, the one measurement
+  // of the goal-check probe's tree access stops being reported and gets re-discovered.
+  'THE PAIRING CHECK READS THIS DISK TOO',
 ]
 
 // ONE CONTRACT, PINNED ACROSS EVERY SURFACE THAT STATES IT. Four files told the

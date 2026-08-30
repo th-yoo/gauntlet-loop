@@ -2451,6 +2451,7 @@ return {
     'copy can be fetched and compared, which identifies which side is the shipped one, and a builder can retrieve a fix ' +
     'from the web rather than composing it — a live retrieval channel distinct both from the model\'s own prior and from ' +
     'anything on disk, and the one issue #25 does not cover. Neither agent needs the network for its stated job.',
+    'THE PAIRING CHECK READS THIS DISK TOO, and staging was measured once (#35): the goal-check probe holds Bash and can grep the tree, and its verdicts were drawn on the same six constructed artifacts in-tree and byte-identically staged outside the repository — 6/6 rows unchanged over 30 draws (docs/runs/2026-08-31-blindness-residual/verdict.md). One comparison finding nothing, not proof: six constructed artifacts, one model family, and staging cannot touch what the model recognises from content alone or fetches from the network.',
     'The critic holds Bash and KillShell, which can write files directly (redirection, heredocs, etc.) — nothing mechanically stops it from altering either artifact through Bash instead of Write/Edit. The no-Write/no-Edit property above is real but narrow (prompt-deep, not structural).',
     'AB_SCHEMA.gap is a free-text string: nothing stops several gaps being packed into it (e.g. "Gap 1: ... Gap 2: ..."). Only one gap SLOT is enforced, not one gap.',
     'Nothing verifies that the named gap is really the LARGEST — only that exactly one slot came back.',
