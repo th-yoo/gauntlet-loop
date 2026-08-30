@@ -195,6 +195,39 @@ const GOAL = 'a goal worth looping over'
   console.log('loop: a breaker silent before its type is proven reports the ambiguity, not a cancel OK')
 }
 
+// THE VERDICT'S OWN WORDS — issue #69. The two facts above were computed, stored in
+// `stopped_by_silence`, and then `outcome.why` was written from `history.length` alone:
+// a run whose breaker never answered was told "the run token was already absent — check
+// the path" while the token sat on disk. True statement and false statement in one
+// verdict, and `why` is the one an operator reads.
+//
+// The anchor is not the wording. It is the other field: `why` may claim the token was
+// absent or removed EXACTLY when the run has a probe that said so, and a silent probe is
+// recorded in `stopped_by_silence`. Checked across the three ways a run stops — a probe
+// that reported ABSENT, a probe silent before its type is proven, a probe silent after.
+{
+  const cases = [
+    ['absent',        { breaker: r => r <= 2 }],
+    ['silent-first',  { breaker: () => null }],
+    ['silent-later',  { breaker: r => (r === 1 ? true : null) }],
+    ['threw-first',   { breaker: () => 'throw' }],
+  ]
+  for (const [name, o] of cases) {
+    const r = await runLoop({ args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN }, rounds: [], runawayGuard: 5, ...o })
+    const why = r.result.outcome.why || ''
+    eq(r.result.outcome.status, 'CANCELLED', `${name}: stops CANCELLED`)
+    const claimsAbsence = /already absent|removed the run token|check the path/.test(why)
+    const silent = r.result.stopped_by_silence !== null
+    eq(claimsAbsence, !silent,
+       `${name}: outcome.why claims the token was gone (${claimsAbsence}) exactly when a probe reported it (silent=${silent}) — got: ${why}`)
+    if (silent) {
+      ok(why.includes(r.result.stopped_by_silence),
+         `${name}: the verdict carries the reading the run already computed, not a different one — got: ${why}`)
+    }
+  }
+  console.log('loop: outcome.why says the token was gone only when a probe said so (#69) OK')
+}
+
 // THE CASE A HAND-WRITTEN SIBLING LIST GETS WRONG — and the reason the derivation
 // exists at all.
 //

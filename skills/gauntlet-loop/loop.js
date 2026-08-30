@@ -1381,14 +1381,26 @@ async function runPiece(piece) {
   if (!tokenOk) {
     pieceOutcome = {
       status: 'CANCELLED',
-      // `round` is per PIECE, so round 1 does NOT mean nothing has run: a later
-      // piece's first round can find the token gone after other pieces have
-      // completed rounds. Only an empty history licenses the "it may never have
-      // existed" reading — anything else is an ordinary cancel, and saying
-      // otherwise sends the operator hunting a path bug that is not there.
-      why: history.length === 0
-        ? `the run token at ${TOKEN} was already absent before any round ran — either the operator cancelled immediately, or it was never created (check the path)`
-        : `the operator removed the run token at ${TOKEN}; stopped at the ${piece.name ? `"${piece.name}" round ${round}` : `round ${round}`} boundary after ${history.length} completed round(s)`,
+      // A breaker that did not ANSWER is a different event from one that reported
+      // ABSENT, and `why` is the field an operator reads. Issue #69: the run had
+      // already told them apart and stored the reading in `breakerSilent`, then wrote
+      // this field from `history.length` alone — so a run whose breaker could not be
+      // spawned was told its token "was already absent (check the path)" while the
+      // token sat on disk. The claim below may say the token was gone only when a
+      // probe said so; when the probe was silent, the token's state is UNKNOWN and
+      // the verdict says that, in the same words `stopped_by_silence` carries.
+      //
+      // Within the probe-answered branch, `round` is per PIECE, so round 1 does NOT
+      // mean nothing has run: a later piece's first round can find the token gone
+      // after other pieces have completed rounds. Only an empty history licenses
+      // the "it may never have existed" reading — anything else is an ordinary
+      // cancel, and saying otherwise sends the operator hunting a path bug that is
+      // not there.
+      why: breakerSilent !== null
+        ? `the run stopped because its breaker could not be read, not because the token at ${TOKEN} was seen absent — whether it is present is unknown. ${breakerSilent}${history.length ? ` Stopped at the ${piece.name ? `"${piece.name}" round ${round}` : `round ${round}`} boundary after ${history.length} completed round(s).` : ''}`
+        : history.length === 0
+          ? `the run token at ${TOKEN} was already absent before any round ran — either the operator cancelled immediately, or it was never created (check the path)`
+          : `the operator removed the run token at ${TOKEN}; stopped at the ${piece.name ? `"${piece.name}" round ${round}` : `round ${round}`} boundary after ${history.length} completed round(s)`,
     }
     break
   }
