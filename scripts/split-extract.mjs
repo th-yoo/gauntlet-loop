@@ -1,12 +1,39 @@
-// Turn a run's history into q-trials, and q-trials into an interval on p.
+// Turn a run's history into panel trials, and panel trials into an interval on
+// the judges' disagreement — and, under one stated assumption, on their error.
 //
 // ISSUE 21. `q` was measured once — five identical judges on one unchanged
-// near-boundary pair split 3-2 — and the interval on p runs from 0.05 to 0.85.
-// Worked through the exit arithmetic that spans "the tunnel buys nothing" (N=1)
-// to "the tunnel is unaffordable" (N=19), so a point estimate of 0.4 would
-// hard-code a design decision the data does not support in either direction.
-// Narrowing it directly needs ~92 trials at ~44k tokens each — about 4M tokens,
-// for one artifact pair, one model family, one side assignment.
+// near-boundary pair split 3-2 — and the interval on it was wide enough to span
+// "the tunnel buys nothing" (N=1) to "the tunnel is unaffordable" (N=19), so a
+// point estimate would hard-code a design decision the data does not support in
+// either direction. Narrowing it directly needs ~92 trials at ~44k tokens each —
+// about 4M tokens, for one artifact pair, one model family, one side assignment.
+//
+// ISSUE 71 — WHAT IS ESTIMATED, AND WHY THE OLD ESTIMATOR COULD NOT BE POOLED.
+// This file used to score a panel by min(against, k - against): the minority
+// side, taken to be the side that erred. That is the question the panel exists to
+// answer, borrowed as its own premise, and it produced two symptoms from one
+// cause: the rate was biased low (0.240 against a true 0.4 at k=2) and it moved
+// with k (0.342 at k=9), so trials from runs at different critic counts could not
+// be pooled and a loop deriving N from its own splits would raise k, read a higher
+// rate, derive a larger N, and raise k again.
+//
+// The estimand now is DISCORDANT PAIRS PER PAIR: for a panel of k judges with
+// `for` picking the candidate and `against` not, for*against of the k(k-1)/2
+// pairs disagree. For judges erring independently with probability q its
+// expectation is 2q(1-q) at EVERY k — computed exactly in test/split-extract.test.mjs
+// against the binomial, beside the two rates it replaces, which drift. So panels
+// from k=2 and k=9 are samples of one quantity and pooling them is sound, and a
+// derived N cannot feed back into the rate it was derived from.
+//
+// WHAT IT STILL CANNOT DO, and it is stated in the report on every branch:
+// disagreement is symmetric in q and 1-q. A panel of judges right 80% of the time
+// and a panel right 20% of the time disagree at exactly the same rate. Recovering
+// q from d picks the root below one half — a judge that beats a coin — and that is
+// an ASSUMPTION about the judge, not a measurement of it. The only ground-truthed
+// q this repository holds is the detection rate on planted defects (12/15,
+// docs/runs/2026-08-27-detection-rate/), and it is what makes the assumption
+// reasonable rather than proven. No equivalent exists for "which of two artifacts
+// is better", which is the judgement the loop actually makes.
 //
 // The issue's answer was to stop buying the study and let the loop pay for it:
 // every round already spawns the critics, so record the splits and accumulate
@@ -68,7 +95,10 @@ export function extractTrials(verdict, run) {
       out.push({
         run: token, kind: 'within-round', rounds: [h.round], piece: h.piece || null,
         judges: positions.length,
-        minority: Math.min(against, positions.length - against),
+        // BOTH COUNTS, NEITHER CALLED THE ERROR. Which side erred is not known here,
+        // and a field named `minority` was the place that assumption used to hide.
+        for_candidate: positions.length - against,
+        against_candidate: against,
         disagreed: against > 0 && against < positions.length,
         sides: positions.map(p => p.side),
         candidate_wins_by_side: positions.reduce((m, p) => {
@@ -116,7 +146,8 @@ export function extractTrials(verdict, run) {
     out.push({
       run: token, kind: 'arm-confirm', rounds: [h.round, next.round], piece: h.piece || null,
       judges: 2,
-      minority: a.candidateWon === second.candidateWon ? 0 : 1,
+      for_candidate: (a.candidateWon ? 1 : 0) + (second.candidateWon ? 1 : 0),
+      against_candidate: (a.candidateWon ? 0 : 1) + (second.candidateWon ? 0 : 1),
       disagreed: a.candidateWon !== second.candidateWon,
       sides: [a.side, second.side],
       candidate_wins_by_side: {
@@ -130,9 +161,10 @@ export function extractTrials(verdict, run) {
 }
 
 // --------------------------------------------------------------------------
-// THE ESTIMATE. p is the probability a fresh judge lands on the minority side of
-// the same artifact — the quantity #20 measured once at 2/5 and #21 says nothing
-// has narrowed since.
+// THE ESTIMATE. d is the discordant-pair rate — of the pairs of judges that saw
+// the same bytes, the fraction that disagreed. It is what the panels measure
+// directly, at any k. q is the per-judge error it implies IF a judge beats a coin,
+// and N is what impliedN makes of q.
 // --------------------------------------------------------------------------
 export function wilson(k, n, z = 1.96) {
   if (!n) return [0, 1]
@@ -141,43 +173,67 @@ export function wilson(k, n, z = 1.96) {
   return [Math.max(0, (c - m) / d), Math.min(1, (c + m) / d)]
 }
 
-// N such that a false exit costs at most `target` per round, at disagreement
-// probability p. DERIVED, never tabulated: the table in issue 21 is what this
-// function returns at p = 0.05, 0.40 and 0.85, and a table would go stale the
-// moment p moved, which is the whole point of accumulating.
-export function impliedN(p, target = 0.05) {
-  if (!(p > 0)) return 1                    // a judge that never dissents needs no line
-  if (p >= 1) return Infinity               // a coin that always dissents is never safe
-  return Math.max(1, Math.ceil(Math.log(target) / Math.log(p)))
+// N such that a false exit costs at most `target` per round, at per-judge error
+// q. DERIVED, never tabulated: the table in issue 21 is what this function
+// returns at q = 0.05, 0.40 and 0.85, and a table would go stale the moment q
+// moved, which is the whole point of accumulating.
+export function impliedN(q, target = 0.05) {
+  if (!(q > 0)) return 1                    // a judge that never errs needs no line
+  if (q >= 1) return Infinity               // a judge that always errs is never safe
+  return Math.max(1, Math.ceil(Math.log(target) / Math.log(q)))
+}
+
+// A panel's discordant-pair fraction: for*against disagreeing pairs of the
+// k(k-1)/2 the panel contains. A panel of two is one pair, so this is 0 or 1.
+export function discordance(t) {
+  const k = t.for_candidate + t.against_candidate
+  const pairs = k * (k - 1) / 2
+  return pairs ? (t.for_candidate * t.against_candidate) / pairs : null
+}
+
+// d -> q under the assumption q <= 1/2. d = 2q(1-q) has two roots, q and 1-q,
+// and disagreement cannot tell them apart; this takes the one that says the
+// judge beats a coin. Above d = 1/2 no q produces it in expectation — more
+// disagreement than independent judges can have — and q is reported at 1/2.
+export function errorFromDiscordance(d) {
+  if (d === null || !(d >= 0)) return null
+  if (d >= 0.5) return 0.5
+  return (1 - Math.sqrt(1 - 2 * d)) / 2
 }
 
 export function estimate(trials, target = 0.05) {
-  // THE UNIT IS A JUDGE, because that is the unit impliedN consumes: p^N is the
-  // chance N judges all err independently. This counted disagreeing PANELS over
-  // panels (#70), and the two are not the same number — the first real ingest this
-  // repository did was two panels of two, split 1-1, which reads 2/2 = 100% and
-  // Infinity critics as a panel rate and 2/4 = 50% and five critics as a judge
-  // rate. It printed the first, under the headline that no affordable N reaches
-  // the bar.
-  //
-  // It survived because the test beside it built five trials of five judges and
-  // asserted 0.4, calling that "#20's 2/5" — 2 panels over 5 panels prints the same
-  // digits as 2 judges over 5 judges, and the coincidence made the wrong unit look
-  // right.
-  //
-  // A unanimous panel contributes its judges to the denominator and nothing to the
-  // numerator; dropping it would be the same defect one level in.
-  const nTrials = trials.length
-  const n = trials.reduce((s, t) => s + (t.judges || 0), 0)
-  const k = trials.reduce((s, t) => s + (t.minority || 0), 0)
-  const p = n ? k / n : null
-  const [lo, hi] = wilson(k, n)
+  // ONLY ROWS THAT CARRY BOTH COUNTS. A row from before issue 71 carries `minority`
+  // and neither count; the counts are not recoverable from it, and reading it as
+  // anything would be reading the assumption this estimator exists to remove.
+  // Such rows are counted and named so the ledger can be regenerated from its
+  // verdicts, which is one command.
+  const usable = trials.filter(t => Number.isInteger(t.for_candidate) && Number.isInteger(t.against_candidate) && t.for_candidate + t.against_candidate >= 2)
+  const legacy = trials.length - usable.length
+  // THE UNIT IS A PANEL. The pairs inside a panel share judges and are not
+  // independent, so the pair count is not a sample size; each panel is one
+  // observation of a bounded quantity, and the interval is over panels.
+  const n = usable.length
+  const sum = usable.reduce((s, t) => s + discordance(t), 0)
+  const d = n ? sum / n : null
+  const [dLo, dHi] = wilson(sum, n)
+  const q = errorFromDiscordance(d)
+  // PER k, because the model's one falsifiable prediction is that d does not move
+  // with k. Rates that drift across this table are what issue 71 found; a d that
+  // drifts would say the independent-judge model is wrong, not that k matters.
+  const by_k = {}
+  for (const t of usable) {
+    const k = t.for_candidate + t.against_candidate
+    by_k[k] = by_k[k] || { panels: 0, discordance_sum: 0 }
+    by_k[k].panels++
+    by_k[k].discordance_sum += discordance(t)
+  }
+  for (const k of Object.keys(by_k)) { by_k[k].d = by_k[k].discordance_sum / by_k[k].panels; delete by_k[k].discordance_sum }
   // POSITION BIAS, SEPARATED. Every trial puts judges on both sides — arm-confirm
   // by construction, within-round by (round + index) parity — so the candidate's
   // win rate per side is readable without a separate study. If it differs, the
   // disagreement being measured is partly the position and not the judge.
   const bySide = {}
-  for (const t of trials) {
+  for (const t of usable) {
     for (const side of Object.keys(t.judgements_by_side || {})) {
       bySide[side] = bySide[side] || { judgements: 0, candidate_wins: 0 }
       bySide[side].judgements += t.judgements_by_side[side]
@@ -185,22 +241,24 @@ export function estimate(trials, target = 0.05) {
     }
   }
   return {
-    trials: nTrials,
-    judges: n,
-    // KEPT SEPARATE from `disagreements`, which is now a judge count. A reader
-    // comparing runs needs to see how many panels split as well as how many judges
-    // dissented, and collapsing the two is what produced #70.
-    split_panels: trials.filter(t => t.disagreed).length,
-    disagreements: k,
-    p,
-    wilson: n ? [lo, hi] : null,
+    trials: n,
+    legacy_rows: legacy,
+    judges: usable.reduce((s, t) => s + t.for_candidate + t.against_candidate, 0),
+    split_panels: usable.filter(t => t.for_candidate > 0 && t.against_candidate > 0).length,
+    // d: what was measured. q: what it implies under the stated assumption.
+    d,
+    d_wilson: n ? [dLo, dHi] : null,
+    q,
+    q_wilson: n ? [errorFromDiscordance(dLo), errorFromDiscordance(dHi)] : null,
+    d_above_half: d !== null && d > 0.5,
     // The interval's ENDS are what issue 21 is about: the point estimate is not
     // the finding, the span is.
-    N_at_point: p === null ? null : impliedN(p, target),
-    N_at_low: n ? impliedN(lo, target) : null,
-    N_at_high: n ? impliedN(hi, target) : null,
+    N_at_point: q === null ? null : impliedN(q, target),
+    N_at_low: n ? impliedN(errorFromDiscordance(dLo), target) : null,
+    N_at_high: n ? impliedN(errorFromDiscordance(dHi), target) : null,
     target,
+    by_k,
     by_side: bySide,
-    by_kind: trials.reduce((m, t) => { m[t.kind] = (m[t.kind] || 0) + 1; return m }, {}),
+    by_kind: usable.reduce((m, t) => { m[t.kind] = (m[t.kind] || 0) + 1; return m }, {}),
   }
 }

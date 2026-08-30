@@ -77,7 +77,10 @@ export const PROPERTIES = [
   ['a skipped piece is not blamed for crashing', L, '    if (!skippedNames.has(name)) {', '    if (true) {'],
   ['pieces must have distinct names', L, '    if (seenNames.has(key)) return false', '    if (false) return false'],
   ['the unreadable refusal names a remedy specific to the missing side', L, '  const remedy = missing.includes(CANDIDATE)', '  const remedy = false && missing.includes(CANDIDATE)'],
-  ['p is counted over judges, not over panels', SE, '  const n = trials.reduce((s, t) => s + (t.judges || 0), 0)', '  const n = trials.length'],
+  // --- issue 71: the estimand is k-free, and q follows from it only under a stated assumption
+  ['the estimand is discordant pairs, not the minority', SE, '  return pairs ? (t.for_candidate * t.against_candidate) / pairs : null', '  return pairs ? Math.min(t.for_candidate, t.against_candidate) / (t.for_candidate + t.against_candidate) : null'],
+  ['q is the root below one half', SE, '  return (1 - Math.sqrt(1 - 2 * d)) / 2', '  return (1 + Math.sqrt(1 - 2 * d)) / 2'],
+  ['a row without both counts is not a panel', SE, "  const usable = trials.filter(t => Number.isInteger(t.for_candidate) && Number.isInteger(t.against_candidate) && t.for_candidate + t.against_candidate >= 2)", '  const usable = trials.slice()'],
   ['the position claim follows the interval rather than being asserted', SL, '    const overlap = aLo <= bHi && bLo <= aHi', '    const overlap = true'],
   // --- the constructed oracle's role derivation ---------------------------------
   // Added with issue 33's second goal. Both mutations were APPLIED and the suite

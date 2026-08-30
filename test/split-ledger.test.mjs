@@ -35,7 +35,7 @@ const ok = (cond, m) => { if (!cond) fail(m) }
 const TMP = mkdtempSync(join(tmpdir(), 'split-ledger-'))
 const trial = (i, winsA, judgA, winsB, judgB, disagreed) => ({
   run: 'r', kind: 'within-round', rounds: [i], piece: null, judges: judgA + judgB,
-  minority: disagreed ? 1 : 0, disagreed,
+  for_candidate: winsA + winsB, against_candidate: (judgA - winsA) + (judgB - winsB), disagreed,
   judgements_by_side: { A: judgA, B: judgB },
   candidate_wins_by_side: { A: winsA, B: winsB },
 })

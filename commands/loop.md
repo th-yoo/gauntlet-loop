@@ -237,8 +237,11 @@ because a sharpening drill cannot see either.
 
 **When it ends, INGEST THE VERDICT.** The choice of `critics` is not settled by
 evidence — the one measurement behind it is five judges splitting 3-2 on unchanged
-bytes, an interval on p that spans "one critic is already enough" to "nineteen are
-needed". The design that would settle it is already built and has never been fed:
+bytes, a single panel whose interval spans nearly everything. The ledger measures
+discordance: of the pairs of judges that saw the same bytes, how many disagreed.
+That rate has the same expectation at every `critics`, so panels from different
+runs pool (issue 71); the per-judge error it implies assumes a judge beats a coin,
+and the report says so. The design that would narrow it is built and is fed by hand:
 
 ```bash
 node scripts/split-ledger.mjs --ingest <verdict.json>   # then --report
@@ -249,8 +252,8 @@ the exit, the next round spawns a FRESH critic against the UNCHANGED artifact wi
 the sides flipped, and only a second win fires. Two independently spawned judges on
 identical bytes at opposite positions, at no extra cost. The loop cannot record
 them itself; it has no filesystem. So a run that is not ingested throws its
-measurement away, which is why `--report` still says `0 trial(s)` and why k is
-still chosen by argument.
+measurement away. The ledger the report reads is derived and not committed —
+regenerate it from the committed verdicts with `--ingest`, one command per run.
 
 This is the source's "live progress page" in the form a Workflow script can offer
 one — the script has no filesystem and cannot write a page, but these lines reach

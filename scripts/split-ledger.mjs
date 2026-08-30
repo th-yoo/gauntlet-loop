@@ -55,21 +55,33 @@ function ingest() {
 function report() {
   const trials = read()
   const e = estimate(trials)
-  console.log(`split-ledger: ${e.trials} trial(s) — ${JSON.stringify(e.by_kind)}`)
+  console.log(`split-ledger: ${e.trials} trial(s) — ${JSON.stringify(e.by_kind)}${e.legacy_rows ? ` — plus ${e.legacy_rows} row(s) from before issue 71 that carry no for/against counts, NOT counted; regenerate the ledger from its verdicts with --ingest` : ''}`)
   if (!e.trials) {
     // THE RESIDUAL ON THE EMPTY BRANCH, which is the branch this is on today and
     // the one where a silent report would be most misleading.
-    console.log('split-ledger: p is UNMEASURED here. Nothing has been ingested, so this says nothing')
-    console.log('              about the critic and does not narrow #20\'s 2/5. The interval still spans')
-    console.log('              N=1 ("the tunnel buys nothing") to N=19 ("the tunnel is unaffordable").')
+    console.log('split-ledger: disagreement is UNMEASURED here. Nothing has been ingested, so this says')
+    console.log('              nothing about the critic and does not narrow #20\'s one panel of five.')
     console.log('              An empty ledger is an empty ledger, never a low disagreement rate.')
     return
   }
   const pct = x => `${(x * 100).toFixed(0)}%`
-  // THE UNITS ARE IN THE LINE, because printing "2/2" over trials while the
-  // arithmetic below consumes a per-judge rate is how #70 read as a result.
-  console.log(`split-ledger: dissent p = ${e.disagreements}/${e.judges} JUDGES = ${pct(e.p)}   Wilson 95% CI ${pct(e.wilson[0])}–${pct(e.wilson[1])}`)
-  console.log(`split-ledger: over ${e.trials} trial(s), of which ${e.split_panels} panel(s) split`)
+  // THE UNITS ARE IN THE LINE. The old line printed a per-judge rate that moved
+  // with k (#71) and before that a per-panel rate under a per-judge label (#70);
+  // each read as a result. What is measured is pairs, over panels.
+  console.log(`split-ledger: discordance d = ${pct(e.d)} of judge PAIRS on the same bytes disagreed, over ${e.trials} PANEL(s) (${e.judges} judges; ${e.split_panels} panel(s) split)   Wilson 95% CI ${pct(e.d_wilson[0])}–${pct(e.d_wilson[1])}`)
+  console.log(`split-ledger: by k — ${Object.entries(e.by_k).map(([k, v]) => `k=${k}: d=${pct(v.d)} over ${v.panels} panel(s)`).join('; ')}`)
+  console.log('              d has the same expectation at every k for independent judges, so these are poolable;')
+  console.log('              a d that drifts with k as panels accumulate says the judges are not independent.')
+  console.log(`split-ledger: per-judge error q = ${pct(e.q)}   (CI ${pct(e.q_wilson[0])}–${pct(e.q_wilson[1])}) — IF a judge beats a coin. d = 2q(1-q) has two`)
+  console.log('              roots, q and 1-q, and disagreement cannot tell a judge right 80% of the time from one')
+  console.log('              right 20% of the time. This takes the root below one half. That is an assumption about')
+  console.log('              the judge; the only ground-truthed q here is the detection rate on planted defects')
+  console.log('              (docs/runs/2026-08-27-detection-rate/), and none exists for "which artifact is better".')
+  if (e.d_above_half) {
+    console.log(`              d = ${pct(e.d)} is above 50%, more disagreement than independent judges can produce in`)
+    console.log('              expectation. At this many panels that is noise; if it stays above one half as panels')
+    console.log('              accumulate, the independent-judge model is wrong and q is not defined by d at all.')
+  }
   console.log(`split-ledger: critics needed for a <=${pct(e.target)} false exit — ${e.N_at_low} at the low end of the interval, ${e.N_at_point} at the point estimate, ${e.N_at_high} at the high end`)
   if (e.N_at_low === 1) console.log('              At the low end a single critic already clears the bar, so the line buys nothing.')
   if (!Number.isFinite(e.N_at_high) || e.N_at_high > 10) console.log('              At the high end no affordable N reaches it, which falsifies the composition rather than tuning it.')
@@ -103,6 +115,8 @@ function report() {
   console.log('split-ledger: NOT ESTABLISHED — these trials come from whatever runs happened to be')
   console.log('              ingested. There is no sampling frame over artifacts, models or goals, so')
   console.log('              the interval is about THIS set of runs and generalises only as far as it does.')
+  console.log('              NOT ESTABLISHED — which side of any split was RIGHT. d measures disagreement;')
+  console.log('              q is what it implies for a judge assumed to beat a coin, and nothing here tests that.')
 }
 
 if (!has('--ingest') && !has('--report')) {

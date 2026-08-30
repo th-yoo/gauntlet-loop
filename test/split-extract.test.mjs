@@ -26,7 +26,7 @@
 //
 // NOTHING HERE SPAWNS.
 
-import { extractTrials, estimate, impliedN, wilson, trialKey } from '../scripts/split-extract.mjs'
+import { extractTrials, estimate, impliedN, wilson, trialKey, discordance, errorFromDiscordance } from '../scripts/split-extract.mjs'
 import { runLoop } from './harness.mjs'
 import { spawnSync } from 'node:child_process'
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs'
@@ -71,7 +71,9 @@ console.log('split-extract: a disarmed run yields a paired trial that DISAGREED'
   const dis = t.filter(x => x.disagreed)
   ok(t.length >= 2, `expected at least two paired trials from an arm, a disarm, and a re-arm — got ${t.length}`)
   eq(dis.length, 1, 'exactly one of them is a disagreement')
-  eq(dis[0].minority, 1, 'and its minority count is one')
+  eq(dis[0].for_candidate, 1, 'one judge picked the candidate')
+  eq(dis[0].against_candidate, 1, 'and one did not — both counts are recorded, neither called the error')
+  eq(discordance(dis[0]), 1, 'a pair that disagreed is one discordant pair of one')
 }
 
 console.log('split-extract: a single critic is NOT a split')
@@ -161,34 +163,78 @@ console.log('split-extract: N is DERIVED from p, never tabulated')
   eq(impliedN(1), Infinity, 'a judge that always dissents is never safe at any N')
 }
 
-console.log('split-extract: p counts JUDGES, not panels')
+console.log('split-extract: the estimand does not move with k — and the two rates it replaced do')
 {
-  // THE REPRODUCIBLE for issue 70. The case beside this one builds five trials of
-  // five judges and asserts p === 0.4, calling it "2/5, which is what #20
-  // measured". Those digits agree by coincidence: 2 disagreeing PANELS over 5
-  // panels prints the same as #20's 2 minority JUDGES over 5 judges, and that
-  // coincidence is why nothing noticed the estimator was counting the wrong unit.
+  // THE REPRODUCIBLE for issue 71, computed rather than asserted. For judges erring
+  // independently with probability q, a panel of k has `a` judges on the wrong side
+  // with binomial probability. A ledger is built that REALISES that distribution
+  // exactly — C(k,a) q^a (1-q)^(k-a) of the rows carry each `a`, scaled to integers —
+  // so every rate below is the expectation, not a sample. Nothing here reads a
+  // number off the issue; the key is derived from q and k.
   //
-  // Here the two readings cannot coincide. Two trials, two judges each, split 1-1:
-  //   per-panel  2/2 = 100%  -> impliedN = Infinity
-  //   per-judge  2/4 =  50%  -> impliedN = 5
-  // The first is what the ledger printed on the first real ingest this repository
-  // ever did, under the headline "no affordable N reaches it, which falsifies the
-  // composition rather than tuning it".
-  const split = n => Array.from({ length: n }, (_, i) => ({
-    run: 'r', kind: 'within-round', rounds: [i], judges: 2, minority: 1, disagreed: true,
-    sides: ['A', 'B'], candidate_wins_by_side: { A: 1, B: 0 }, judgements_by_side: { A: 1, B: 1 },
-  }))
-  const e = estimate(split(2))
-  eq(e.trials, 2, 'two trials were recorded')
-  eq(e.p, 0.5, 'p must be minority judges over judges (2/4), which is the quantity impliedN consumes — not split panels over panels (2/2)')
-  eq(e.N_at_point, 5, 'and N follows from that p rather than from Infinity')
-  // A panel that is unanimous contributes judges to the denominator and none to
-  // the numerator. Without this, "count judges" could be satisfied by counting
-  // only the judges of panels that split, which is the same defect one level in.
-  const mixed = [...split(1), { run: 'r', kind: 'within-round', rounds: [9], judges: 2, minority: 0,
-    disagreed: false, sides: ['A', 'B'], candidate_wins_by_side: { A: 1, B: 1 }, judgements_by_side: { A: 1, B: 1 } }]
-  eq(estimate(mixed).p, 0.25, 'a unanimous panel still contributes its judges to the denominator (1 minority of 4)')
+  // Then the crossing: the property claimed (k-independence) against the confound
+  // the old estimators measured instead (k). An estimand that is really "how wide
+  // was the panel" moves down this table; one that is really about the judge holds.
+  const C = (n, r) => { let x = 1; for (let i = 1; i <= r; i++) x = x * (n - i + 1) / i; return x }
+  const q = 0.4
+  const ledgerAt = k => {
+    const scale = 5 ** k                      // makes every binomial term an integer at q = 2/5
+    const rows = []
+    for (let a = 0; a <= k; a++) {
+      const count = Math.round(C(k, a) * q ** a * (1 - q) ** (k - a) * scale)
+      for (let i = 0; i < count; i++) rows.push({
+        run: 'r', kind: 'within-round', rounds: [rows.length], judges: k,
+        for_candidate: k - a, against_candidate: a, disagreed: a > 0 && a < k,
+        sides: ['A', 'B'], candidate_wins_by_side: { A: k - a, B: 0 }, judgements_by_side: { A: k, B: 0 },
+      })
+    }
+    return rows
+  }
+  const close = (x, y) => Math.abs(x - y) < 1e-9
+  const dExpected = 2 * q * (1 - q)
+  const oldMinRate = rows => rows.reduce((s, t) => s + Math.min(t.for_candidate, t.against_candidate), 0) / rows.reduce((s, t) => s + t.judges, 0)
+  const oldSplitRate = rows => rows.filter(t => t.disagreed).length / rows.length
+  const seen = { d: [], min: [], split: [] }
+  for (const k of [2, 3, 5]) {
+    const rows = ledgerAt(k)
+    const e = estimate(rows)
+    ok(close(e.d, dExpected), `at k=${k} the discordant-pair rate must be 2q(1-q) = ${dExpected} — got ${e.d}`)
+    ok(close(e.q, q), `and the per-judge error recovered from it must be q = ${q} — got ${e.q}`)
+    ok(close(e.by_k[k].d, e.d), 'the per-k breakdown agrees with the pooled figure when only one k is present')
+    seen.d.push(e.d); seen.min.push(oldMinRate(rows)); seen.split.push(oldSplitRate(rows))
+  }
+  ok(seen.d.every(x => close(x, seen.d[0])), `d is the same at k=2,3,5 — got ${seen.d.map(x => x.toFixed(3)).join(', ')}`)
+  ok(!close(seen.min[0], seen.min[2]), `the OLD minority-per-judge rate must move with k, or this crossing proves nothing — got ${seen.min.map(x => x.toFixed(3)).join(', ')}`)
+  ok(!close(seen.split[0], seen.split[2]), `and so must the panel-split rate — got ${seen.split.map(x => x.toFixed(3)).join(', ')}`)
+  ok(seen.min.every(x => x < q), `the old rate is biased low at every k (true q = ${q}) — got ${seen.min.map(x => x.toFixed(3)).join(', ')}`)
+  // POOLED ACROSS k. Rows from k=2 and k=5 are samples of one quantity now, so the
+  // pooled estimate is the same number; under the old estimator it was a mixture
+  // of two distributions reported as one.
+  const pooled = estimate([...ledgerAt(2), ...ledgerAt(5)])
+  ok(close(pooled.d, dExpected) && close(pooled.q, q), `pooling k=2 and k=5 panels still reads d = ${dExpected}, q = ${q} — got d=${pooled.d}, q=${pooled.q}`)
+  eq(Object.keys(pooled.by_k).join(','), '2,5', 'and the per-k table shows both')
+  console.log(`          d = ${seen.d.map(x => x.toFixed(3)).join(' = ')} across k; the replaced rate read ${seen.min.map(x => x.toFixed(3)).join(', ')}`)
+}
+
+console.log('split-extract: q is the root below one half, and above d = 1/2 it is reported at the boundary')
+{
+  ok(Math.abs(errorFromDiscordance(2 * 0.2 * 0.8) - 0.2) < 1e-12, 'd = 0.32 reads as q = 0.2, not 0.8 — the assumption that a judge beats a coin, made explicit')
+  eq(errorFromDiscordance(0.5), 0.5, 'd = 1/2 is q = 1/2')
+  eq(errorFromDiscordance(0.9), 0.5, 'd above 1/2 has no q that produces it in expectation, and is reported at 1/2 rather than as a number')
+  eq(errorFromDiscordance(0), 0, 'no disagreement reads as no error — under the same assumption')
+  eq(errorFromDiscordance(null), null, 'and no d is no q')
+}
+
+console.log('split-extract: a row from before issue 71 is counted as unreadable, never as a panel')
+{
+  const legacy = { run: 'r', kind: 'within-round', rounds: [1], judges: 2, minority: 1, disagreed: true,
+    sides: ['A', 'B'], candidate_wins_by_side: { A: 1, B: 0 }, judgements_by_side: { A: 1, B: 1 } }
+  const fresh = { run: 'r', kind: 'within-round', rounds: [2], judges: 2, for_candidate: 2, against_candidate: 0, disagreed: false,
+    sides: ['A', 'B'], candidate_wins_by_side: { A: 1, B: 1 }, judgements_by_side: { A: 1, B: 1 } }
+  const e = estimate([legacy, fresh])
+  eq(e.trials, 1, 'only the row carrying both counts is a trial')
+  eq(e.legacy_rows, 1, 'and the other is named as a legacy row')
+  eq(e.d, 0, 'the estimate is over the readable row alone')
 }
 
 console.log('split-extract: the estimate reports the SPAN, not a point')
@@ -198,19 +244,24 @@ console.log('split-extract: the estimate reports the SPAN, not a point')
   // that "#20's 2/5" — but 2 panels over 5 panels only prints the same digits as 2
   // judges over 5 judges. That coincidence is what hid #70 in the fixture written to
   // catch it. #20 was ONE panel: five judges on one unchanged pair, split 3-2.
-  const trials = [{ run: 'r', kind: 'within-round', rounds: [1], judges: 5, minority: 2,
+  const trials = [{ run: 'r', kind: 'within-round', rounds: [1], judges: 5, for_candidate: 3, against_candidate: 2,
     disagreed: true, sides: ['A', 'B'],
     candidate_wins_by_side: { A: 5, B: 0 }, judgements_by_side: { A: 5, B: 5 } }]
   const e = estimate(trials)
   eq(e.trials, 1, 'one trial — #20 was a single panel of five')
   eq(e.judges, 5, 'and five judges in it')
-  eq(e.disagreements, 2, 'two of the five landed on the minority side')
-  eq(e.split_panels, 1, 'and that panel is recorded as split, kept separate from the judge count')
-  eq(e.p, 0.4, 'p is 2/5 JUDGES, which is the quantity #20 measured and impliedN consumes')
-  ok(e.wilson[0] < 0.2 && e.wilson[1] > 0.7,
-     `the interval on 2/5 should still be wide (got ${e.wilson.map(x => x.toFixed(2)).join('-')}) — issue 21 is about the SPAN, and a narrow one here would mean the arithmetic is wrong`)
-  ok(e.N_at_low < e.N_at_point && e.N_at_point < e.N_at_high,
-     `N must increase with p across the interval — got ${e.N_at_low}, ${e.N_at_point}, ${e.N_at_high}`)
+  eq(e.split_panels, 1, 'and that panel is recorded as split')
+  // 3-2 is 3*2 = 6 discordant pairs of the 10 a panel of five contains. That is
+  // ABOVE one half — more disagreement than independent judges produce in
+  // expectation — so the one panel the whole parameter rested on reads as q at
+  // its boundary, with an interval over ONE panel that spans nearly everything.
+  eq(e.d, 0.6, 'd is 6 of 10 pairs — which no min() decided')
+  eq(e.d_above_half, true, 'and it is flagged as above one half')
+  eq(e.q, 0.5, 'so q is reported at the boundary rather than as a number below it')
+  ok(e.d_wilson[0] < 0.2 && e.d_wilson[1] > 0.9,
+     `the interval on one panel must be wide (got ${e.d_wilson.map(x => x.toFixed(2)).join('-')}) — issue 21 is about the SPAN, and a narrow one here would mean the arithmetic is wrong`)
+  ok(e.N_at_low <= e.N_at_point && e.N_at_point <= e.N_at_high,
+     `N must not decrease across the interval — got ${e.N_at_low}, ${e.N_at_point}, ${e.N_at_high}`)
   // POSITION BIAS, separated rather than assumed absent.
   ok(e.by_side.A && e.by_side.B, 'both sides are reported')
   eq(e.by_side.A.candidate_wins, 5, 'the candidate won every judgement it had on A in this fixture')
@@ -221,8 +272,9 @@ console.log('split-extract: an empty history claims nothing')
 {
   const e = estimate([])
   eq(e.trials, 0, 'no trials')
-  eq(e.p, null, 'p is null rather than 0 — no observation is not an observation of zero')
-  eq(e.wilson, null, 'and there is no interval to report')
+  eq(e.d, null, 'd is null rather than 0 — no observation is not an observation of zero')
+  eq(e.q, null, 'and so is q')
+  eq(e.d_wilson, null, 'and there is no interval to report')
   eq(extractTrials({}, 'r').length, 0, 'a verdict with no history yields nothing')
   eq(extractTrials(null, 'r').length, 0, 'and neither does no verdict at all')
 }
@@ -269,9 +321,11 @@ console.log('split-ledger: accumulation across runs, deduped by unit')
   // THE UNITS MUST BE IN THE LINE. "disagreement p = 2/2" over trials, with the
   // arithmetic below consuming a per-judge rate, is exactly how #70 read as a
   // result rather than as a category error.
-  ok(/dissent p = \d+\/\d+ JUDGES = /.test(rep),
-     `the report must state p over JUDGES and say so — got: ${(rep.match(/split-ledger: .*p = .*/) || ['(no p line)'])[0]}`)
+  ok(/discordance d = \d+% of judge PAIRS on the same bytes disagreed, over \d+ PANEL\(s\)/.test(rep),
+     `the report must state d over PAIRS and its unit as PANELS — got: ${(rep.match(/split-ledger: discordance.*/) || ['(no d line)'])[0]}`)
   ok(/panel\(s\) split/.test(rep), 'and must still report how many panels split, which is a different number')
+  ok(/by k — k=2: d=/.test(rep), 'and the per-k breakdown, which is where a drift with k would show')
+  ok(/IF a judge beats a coin/.test(rep) && /two\s+roots/.test(rep), 'and states the assumption under which q follows from d, and why it is an assumption')
   ok(/Wilson 95% CI/.test(rep), 'with an interval, because issue 21 is about the span rather than the point')
   ok(/critics needed/.test(rep), 'and the implied N at both ends of that interval')
   ok(/position breakdown/.test(rep), 'and the position breakdown, which is what separates side bias from judge variance')
@@ -280,8 +334,10 @@ console.log('split-ledger: accumulation across runs, deduped by unit')
 }
 
 console.log('split-extract: stating what this cannot establish')
-console.log('          NOT MEASURED: p itself. This accumulates trials the loop produces; until runs')
+console.log('          NOT MEASURED: d itself. This accumulates trials the loop produces; until runs')
 console.log('          happen the ledger is empty and the interval stays as wide as #20 left it.')
+console.log('          NOT MEASURED: which side of any split was right. q follows from d only if a judge')
+console.log('          beats a coin, and the k-independence shown above is a property of that model.')
 console.log('          NOT MEASURED: whether an arm/confirm pair is exchangeable with a within-round')
 console.log('          pair. Both are two judges on the same bytes, and nothing here shows they draw')
 console.log('          from one distribution — they are counted separately for that reason.')

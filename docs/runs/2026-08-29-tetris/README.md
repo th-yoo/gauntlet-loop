@@ -77,9 +77,12 @@ to `movement-and-rotation`, and the clause's piece never got a round. So the cla
 covered and never judged, and `gaps_in_order` — the stated test of whether the loop is
 working — has no way to show a piece that never ran. That is what `goal_coverage` in the
 verdict now carries (`never_judged`), for runs made after this one.
-`runs/splits.jsonl` is deliberately NOT committed while issue 71 stands: the rates it pools
-depend on k, so a ledger mixing runs at different critic counts reports one number over
-incomparable samples.
+
+The ledger those commands write is derived and not committed — the commands regenerate it.
+Issue 71 replaced its estimand while this run was its only content: the rate it pools is now
+discordant pairs per pair (here 2 panels, each one pair, each discordant — d = 100% over two
+panels, an interval that spans 34%–100%), whose expectation does not move with the critic
+count, so panels from runs at different `critics` are samples of one quantity.
 
 ## What the run answered, of issue 30's three
 
