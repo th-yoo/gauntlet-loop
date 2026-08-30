@@ -1,0 +1,1 @@
+{"verdict": "could-not-open", "reasoning": "ls on the path returns 'No such file or directory' (exit 2); the parent directory oracle/fixtures/constructed-absent/ does not exist either, so there is nothing to read, run, or follow.", "what_it_is": "A path to a file that does not exist — the named .sh script and its containing directory are both absent from the filesystem."}

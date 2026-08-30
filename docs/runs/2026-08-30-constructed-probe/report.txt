@@ -1,0 +1,95 @@
+oracle report — the pairing check's roleOf classifier
+
+corpus: 7 row(s) — 6 mechanical, 0 agentic, 1 absence
+        expecting — 4 does-the-work, 2 produces-an-instruction, 1 could-not-open
+instrument that ships: sha256:131b8d46350793c4…   (read from loop.js, never from the ledger)
+
+── instrument sha256:131b8d46350793c4… ── LIVE — the prompt loop.js sends today
+
+   does-the-work arm
+     observations      14
+     distinct artifacts 4   <- the number that bears on any statistical claim
+     misclassified     0
+     corroborated      14/14
+     answer stability  0/4 redrawn row(s) FLIPPED between draws
+                       4 row(s) drawn twice, none flipped. At this many redraws that
+                       bounds instability loosely, and says nothing about the rows never redrawn.
+     rate              CANNOT BE POSED — 4 distinct artifact(s) supports no rate.
+                       0/4 wrong is consistent with a per-side error rate anywhere
+                       up to about 75% (rule of three at 4 distinct artifact(s)). Not evidence of accuracy.
+
+   produces-an-instruction arm
+     observations      4
+     distinct artifacts 2   <- the number that bears on any statistical claim
+     misclassified     0
+     corroborated      4/4
+     answer stability  0/2 redrawn row(s) FLIPPED between draws
+                       2 row(s) drawn twice, none flipped. At this many redraws that
+                       bounds instability loosely, and says nothing about the rows never redrawn.
+     rate              CANNOT BE POSED — 2 distinct artifact(s) supports no rate.
+                       0/2 wrong is consistent with a per-side error rate anywhere
+                       up to 100% — at 2 distinct artifact(s) the rule of three bounds nothing. Not evidence of accuracy.
+
+   could-not-open arm
+     observations      2
+     distinct artifacts 1   <- the number that bears on any statistical claim
+     misclassified     0
+     corroborated      2/2
+     answer stability  0/1 redrawn row(s) FLIPPED between draws
+                       1 row(s) drawn twice, none flipped. At this many redraws that
+                       bounds instability loosely, and says nothing about the rows never redrawn.
+     rate              CANNOT BE POSED — 1 distinct artifact(s) supports no rate.
+                       0/1 wrong is consistent with a per-side error rate anywhere
+                       up to 100% — at 1 distinct artifact(s) the rule of three bounds nothing. Not evidence of accuracy.
+
+   ── the trivial-confound baseline ── 6 distinct artifact(s)
+     trivial baseline  4/6 (67%) — file extension alone: .md is called a writer, anything else a worker
+     this instrument   6/6 (100%) on the same artifacts
+                       The confound scores below the instrument, so this set can tell them
+                       apart. How far below is the margin the rates above are earning.
+                       ONE confound, not all of them: a set crossed against file extension can
+                       still be saturated on length, subject or authorship, and this line would
+                       not notice.
+
+── pairings ── 5 declared
+   constructed-generator-pair produces-an-instruction + does-the-work -> generator   2 draw(s)
+                        draw constructed-generator-pair-mtfu85a7-1: produces-an-instruction + does-the-work -> generator   refused, and the corpus says it should be
+                        draw constructed-generator-pair-mtfu85a7-2: produces-an-instruction + does-the-work -> generator   refused, and the corpus says it should be
+   constructed-comparable-pair does-the-work + does-the-work -> comparable   2 draw(s)
+                        a refusal on this pairing would be FALSE — this is the cell the rate comes from
+                        draw constructed-comparable-pair-mtfu85a7-1: does-the-work + does-the-work -> comparable
+                        draw constructed-comparable-pair-mtfu85a7-2: does-the-work + does-the-work -> comparable
+   constructed-absent-pair could-not-open + does-the-work -> unreadable   2 draw(s)
+                        draw constructed-absent-pair-mtfu85a7-1: could-not-open + does-the-work -> unreadable   refused, and the corpus says it should be
+                        draw constructed-absent-pair-mtfu85a7-2: could-not-open + does-the-work -> unreadable   refused, and the corpus says it should be
+   constructed-commit-generator-pair produces-an-instruction + does-the-work -> generator   2 draw(s)
+                        draw constructed-commit-generator-pair-mtfu85a7-1: produces-an-instruction + does-the-work -> generator   refused, and the corpus says it should be
+                        draw constructed-commit-generator-pair-mtfu85a7-2: produces-an-instruction + does-the-work -> generator   refused, and the corpus says it should be
+   constructed-commit-comparable-pair does-the-work + does-the-work -> comparable   2 draw(s)
+                        a refusal on this pairing would be FALSE — this is the cell the rate comes from
+                        draw constructed-commit-comparable-pair-mtfu85a7-1: does-the-work + does-the-work -> comparable
+                        draw constructed-commit-comparable-pair-mtfu85a7-2: does-the-work + does-the-work -> comparable
+REFUSAL_EVIDENCE_JSON {"pairings":2,"draws":4,"falsely_refused":0,"redrawn":2,"flipped":0,"ci":[0,0.658]}
+
+   ── the false-refusal cell ── 2 distinct pairing(s), 4 draw(s)
+     falsely refused   0 of 4 draw(s) — NO RATE: 2 distinct pairing(s) supports no rate.
+                       Same threshold the per-side arm uses on distinct artifacts. Declaring and
+                       drawing more pairings in this cell moves it; redrawing these ones does not.
+   ── the refusal-fires cell ── 3 distinct pairing(s), 6 draw(s) whose true verdict is a refusal
+     fired correctly   6 of 6 draw(s) — NO RATE: 3 distinct pairing(s) supports no rate.
+
+   The sides of these draws are also counted in the per-side arm above, so the measured figure
+   and the derived 2q(1-q) one rest on the SAME draws. Comparing them tests the independence
+   assumption on one body of evidence; it does not corroborate either with a second.
+   And the draw id records that two sides belong to one draw. Nothing here establishes that they
+   were DRAWN together — the same residual --raw carries about where an answer came from.
+
+WHAT THIS DOES NOT ESTABLISH
+  - Selection bias is not corrected. The corpus is whatever its builder chose to add;
+    the RELATION in each row is mechanical, the SELECTION of rows is not. Adding more
+    rows of the same kind does not fix this and can hide it.
+  - Answer stability beyond the rows that were actually redrawn. Two draws bound
+    instability loosely, and a redraw is the same model asked again — not an
+    independent draw.
+  - Coverage. The classification rule is one rule, but which artifacts were put in
+    front of it is exactly the corpus and nothing more.

@@ -281,6 +281,42 @@ console.log('constructed-oracle: a TRANSIENT deliverable is out of scope, and th
 
 rmSync(TMP, { recursive: true, force: true })
 
+// ---------------------------------------------------------------------------
+// THE LEDGER LAYER KNOWS THE CONSTRUCTED FRAME — issue 33's closing step. The first
+// live draw against this set classified all 20 spawns correctly and RECORDED 2:
+// oracle-record pins an artifact by a hash the constructed rows never stored, and
+// oracle-report grounds a mechanical row by an acceptance command these rows do not
+// have. Two things are asserted here, both recomputed rather than read back.
+// ---------------------------------------------------------------------------
+import { createHash } from 'node:crypto'
+console.log('constructed-oracle: every constructed row pins its artifact by the hash on disk now')
+{
+  const rows = readFileSync(join(ROOT, 'oracle', 'constructed.jsonl'), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l))
+  for (const r of rows) {
+    if (r.expected_role === 'could-not-open') { ok(!r.artifact_hash, `${r.id}: an absence row carries no hash`); continue }
+    const now = 'sha256:' + createHash('sha256').update(readFileSync(join(ROOT, r.artifact))).digest('hex')
+    ok(r.artifact_hash === now, `${r.id}: artifact_hash must equal the file on disk (${r.artifact}) — oracle-record refuses an observation otherwise. Regenerate the hash when the artifact changes.`)
+  }
+}
+console.log('constructed-oracle: oracle-report grounds a constructed row by re-deriving its role, and refuses one whose derivation moved')
+{
+  const dir = join(TMP, 'report-grounding')
+  mkdirSync(dir, { recursive: true })
+  const empty = join(dir, 'results.jsonl'); writeFileSync(empty, '')
+  const env = (manifest) => ({ ...process.env, GAUNTLET_SUITE: '1', ORACLE_CORPUS: manifest, ORACLE_PAIRINGS: join(ROOT, 'oracle', 'constructed-pairings.jsonl'), ORACLE_RESULTS: empty })
+  const real = spawnSync(process.execPath, ['scripts/oracle-report.mjs'], { cwd: ROOT, encoding: 'utf8', timeout: 120_000, env: env(join(ROOT, 'oracle', 'constructed.jsonl')) })
+  const out = String(real.stdout || '') + String(real.stderr || '')
+  ok(!/REFUSING/.test(out) && /NO OBSERVATIONS YET/.test(out), `the real constructed set is grounded (no REFUSING) and an empty ledger reads as no observations — got:\n${out.slice(0, 600)}`)
+  // A manifest that declares the wrong role for a row it can derive: the report must refuse it.
+  const rows = readFileSync(join(ROOT, 'oracle', 'constructed.jsonl'), 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l))
+  const lied = rows.map(r => r.id === 'constructed-scaffold' ? { ...r, expected_role: 'does-the-work' } : r)
+  const bad = join(dir, 'lying.jsonl'); writeFileSync(bad, lied.map(r => JSON.stringify(r)).join('\n') + '\n')
+  const r2 = spawnSync(process.execPath, ['scripts/oracle-report.mjs'], { cwd: ROOT, encoding: 'utf8', timeout: 120_000, env: env(bad) })
+  const out2 = String(r2.stdout || '') + String(r2.stderr || '')
+  ok(r2.status !== 0 && /REFUSING/.test(out2) && /constructed-scaffold/.test(out2) && /derives "produces-an-instruction"/.test(out2),
+     `a constructed row declaring a role its probe does not derive is refused by name — got exit ${r2.status}:\n${out2.slice(0, 600)}`)
+}
+
 console.log('constructed-oracle: stating what this cannot establish')
 console.log('          NOT ESTABLISHED: that these artifacts resemble what the probe meets. They are')
 console.log('          built to make one relationship definitional, which is what makes them ground')

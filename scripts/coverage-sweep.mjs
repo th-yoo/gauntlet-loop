@@ -211,6 +211,7 @@ export const PROPERTIES = [
   ['the report groups by template, not by filled-in prompt', OP, "r.template_hash || 'template-unknown:'", "r.prompt_hash || 'template-unknown:'"],
 
   ['a generator row without its emission is refused', OA, '  if (!emissions.length) {', '  if (false) {'],
+  ['a constructed row is grounded by re-deriving its role', OP, "      if (d.role !== row.expected_role) ungrounded.push(", "      if (false) ungrounded.push("],
   ['a disputed row is excluded from any rate', OP, '    const a = all.filter(r => !r.disputed)', '    const a = all'],
 
   ['a small corpus refuses to state a rate', OP, 'if (distinct < 5) {', 'if (false) {'],

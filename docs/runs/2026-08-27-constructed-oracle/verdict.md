@@ -85,8 +85,9 @@ corpus that already has no sampling frame (#38). A different frame belongs in a 
 
 ## What this does NOT establish
 
-- **Anything about the probe.** Nothing here runs it. This builds the ruler; measuring the
-  probe against it needs live agents and is the next step.
+- **Anything about the probe** — as of this document. Measured three days later:
+  `docs/runs/2026-08-30-constructed-probe/verdict.md`, 20 draws, every composed verdict
+  matching, no rate.
 - **That these artifacts resemble what the probe meets.** They are built to make one
   relationship definitional, which is exactly what makes them ground truth and exactly what
   makes them unrepresentative. They bound whether the probe can be **right where the answer is

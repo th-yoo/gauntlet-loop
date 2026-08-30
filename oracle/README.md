@@ -156,6 +156,16 @@ location and requires the same row to produce the same pins there. Fifteen obser
 predating that change keep a machine-bound pin: their prompt is not the one that ships, so
 nothing can establish what text they were made against.
 
+## The constructed frame
+
+`oracle/constructed.jsonl` and `oracle/constructed-pairings.jsonl` are a separate frame — rows
+whose role is derived by running them (`scripts/constructed-verify.mjs`), never sampled — and
+they are never pooled with the corpus above. Every tool here reads them through the same
+environment variables: `ORACLE_CORPUS`, `ORACLE_PAIRINGS`, and an `ORACLE_RESULTS` of their own
+(`oracle/constructed-results.jsonl`). The report grounds a constructed row by re-deriving its
+role at read time rather than by an acceptance command, and refuses a row whose derivation and
+declaration disagree.
+
 ## Reading the report
 
 ```

@@ -38,7 +38,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { readFileSync, existsSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import { namesAModel } from './model-shaped.mjs'
 
@@ -116,6 +116,14 @@ export function composeVerdict(a, b) {
   return 'generator'
 }
 
+// RUNS ONLY WHEN INVOKED. scripts/oracle-report.mjs imports deriveRole to ground a
+// constructed row at read time — the same derivation, not a second one — and an
+// import that executed every artifact and printed this report into the middle of
+// that one would make the shared function unusable. The suite still drives this
+// file as a subprocess, which is where its output is asserted.
+const invoked = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
+if (invoked) main()
+function main() {
 if (!existsSync(MANIFEST)) { console.error(`constructed-verify: no manifest at ${MANIFEST}`); process.exit(2) }
 const rows = readFileSync(MANIFEST, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l))
 const pairings = existsSync(PAIRINGS)
@@ -180,3 +188,4 @@ console.log('                    observations here. It is a precondition on goal
 
 if (argv.includes('--json')) console.log(JSON.stringify([...derived], null, 2))
 if (bad) process.exit(1)
+}

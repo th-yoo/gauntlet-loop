@@ -34,6 +34,7 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 import { liveInstrument } from './oracle-instrument.mjs'
 import { verdictFor } from './oracle-derive.mjs'
+import { deriveRole } from './constructed-verify.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 // ORACLE_CORPUS / ORACLE_RESULTS, same as the other two tools — a test asserting on
@@ -110,6 +111,16 @@ if (corpus.length) {
         const now = 'sha256:' + createHash('sha256').update(readFileSync(abs)).digest('hex')
         if (now !== em.hash) ungrounded.push(`row ${JSON.stringify(row.id)}: its emission ${em.path} has changed since the row was added — grounded against ${String(em.hash).slice(0, 23)}…, on disk now ${now.slice(0, 23)}…`)
       }
+      continue
+    }
+    // A CONSTRUCTED ROW is grounded by DERIVATION, not by an acceptance command: its
+    // role follows from running it and watching the filesystem, which is exactly what
+    // scripts/constructed-verify.mjs does. Re-derived here, now, with the same
+    // function — a row whose derivation no longer agrees with its declared role is
+    // ungrounded for the same reason a failing acceptance command is. Issue 33.
+    if (row.probe && !(row.evidence && row.evidence.acceptance_command)) {
+      const d = deriveRole(row.probe)
+      if (d.role !== row.expected_role) ungrounded.push(`row ${JSON.stringify(row.id)}: its constructed probe now derives ${JSON.stringify(d.role)} and the row declares ${JSON.stringify(row.expected_role)} — ${d.why}`)
       continue
     }
     const cmd = row.evidence && row.evidence.acceptance_command
