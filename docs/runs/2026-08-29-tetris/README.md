@@ -19,7 +19,8 @@ curl -sfL -o doc-2.html "https://raw.githubusercontent.com/MehmetMHY/tetris/$SHA
 curl -sfL -o sw.js             "https://raw.githubusercontent.com/MehmetMHY/tetris/$SHA/sw.js"
 curl -sfL -o site.webmanifest  "https://raw.githubusercontent.com/MehmetMHY/tetris/$SHA/site.webmanifest"
 mkdir -p assets   # fetch every file from the repo's assets/ at the same SHA
-cp ../docs/runs/2026-08-29-tetris/{doc-1.html,play.mjs,GOAL.txt} .
+cp ../docs/runs/2026-08-29-tetris/{doc-1.html,GOAL.txt} .
+cp ../scripts/play.mjs .   # the probe; it lived here during the run and moved for issue 66
 sha256sum GOAL.txt   # must be 511357cc539479995abcdf2368cb784dbe6c08afd6e2b1bbea3267353748a3b2
 ```
 
@@ -33,8 +34,9 @@ attestation as `verified: false` and can never check it itself.
 
 ## The probe
 
-`play.mjs` has no dependencies — Node 22's built-in `fetch` and `WebSocket` drive Chrome over
-CDP. Three things in it are corrections, each paid for once:
+`play.mjs` — now `scripts/play.mjs`, with `test/play.test.mjs` building a page for each defect
+below (issue 66) — has no dependencies: Node 22's built-in `fetch` and `WebSocket` drive Chrome
+over CDP. Three things in it are corrections, each paid for once:
 
 - **It serves the directory over http.** Under `file://` the browser blocks `fetch` and
   manifest loads on CORS grounds, so a page that fetches anything looks broken through no

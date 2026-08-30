@@ -39,6 +39,7 @@ const CV = 'scripts/constructed-verify.mjs'
 const SL = 'scripts/split-ledger.mjs'
 const SE = 'scripts/split-extract.mjs'
 const PV = 'scripts/plugin-version-check.mjs'
+const PL = 'scripts/play.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -54,6 +55,11 @@ export const PROPERTIES = [
   // check to the one case `git diff <commit>` cannot see; the second is the verdict itself.
   ['an untracked agent counts as a change to the shipped set', PV, "const untracked = git('ls-files', '--others', '--exclude-standard', '--', SCOPE).stdout.split('\\n').filter(Boolean)", 'const untracked = []'],
   ['an agent set that differs from its record fails', PV, 'if (changes.length) {', 'if (false) {'],
+  // --- issue 66: the headless probe, one needle per defect it was caught with live ----
+  ['artifacts are served over http, not file://', PL, "await send('Page.navigate', { url: `http://127.0.0.1:${httpPort}/${basename(resolve(file))}` })", "await send('Page.navigate', { url: `file://${resolve(file)}` })"],
+  ['an absent favicon is not charged as a page error', PL, "  if (rel === 'favicon.ico' && !existsSync(join(root, rel))) { res.writeHead(204); return res.end() }", ''],
+  ['the warm-up runs before the measured keys', PL, 'if (WARMUP.length) {', 'if (false) {'],
+  ['the warm-up line reports the observation', PL, '  gate = before === after\n', '  gate = true\n'],
   ['size growth is measured per piece', L, '      const k = x.piece || null', '      const k = null'],
   ['an empty artifact is a measurement, not a failure', L, 'Number.isFinite(m.bytes) && m.bytes >= 0', 'Number.isFinite(m.bytes) && m.bytes > 0'],
   ['concurrent pieces cannot each spend the last round', L, 'budgetLeft() < ROUND_RESERVE * (roundsInFlight + 1)', 'budgetLeft() < ROUND_RESERVE'],

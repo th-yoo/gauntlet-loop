@@ -80,7 +80,8 @@ jobs:
           # this loop — so removing a binary from the check still passed. A guard
           # matching a message instead of the executable text is the same defect as
           # a scan reading comments, which this repo has now fixed three times.
-          REQUIRED="cc make node python3 sed sqlite3"
+          # google-chrome is what scripts/play.mjs drives; test/play.test.mjs runs it.
+          REQUIRED="cc make node python3 sed sqlite3 google-chrome"
           missing=""
           for bin in $REQUIRED; do
             command -v "$bin" >/dev/null 2>&1 || missing="$missing $bin"

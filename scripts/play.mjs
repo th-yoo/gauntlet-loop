@@ -3,10 +3,27 @@
 // space, which is what every keyboard game binds, and knows nothing about the
 // page it is driving.
 //
-//   node play.mjs <file.html> <out.png> [keySequence]
+//   node scripts/play.mjs <file.html> <out.png> [keySequence]
 //
 // keySequence is comma-separated CDP key names, default a short left/right/rotate/drop
-// run. No npm dependencies: Node 22 has fetch and WebSocket built in.
+// run. No npm dependencies: Node 22 has fetch and WebSocket built in. PLAY_WARMUP
+// overrides the keys pressed before the measured sequence (default Enter,Space; empty
+// disables); PLAY_CHROME names the browser binary (default google-chrome).
+//
+// WHY IT LIVES HERE — issue 66. It began as a scratch file beside the Tetris run's
+// artifacts, and every defect in it was found by reading its output during a live run,
+// at the cost of a verdict each time: the file:// CORS block, the favicon 404 charged as
+// a page error, the start screen eating every measured key, and a warm-up label that
+// claimed a verdict it could not have. test/play.test.mjs builds a page for each of
+// those and requires this probe to say the right thing about it, so the next defect is
+// found by a test and not by a critic.
+//
+// WHAT IT REPORTS, AND WHAT IT DOES NOT. Observations: the screenshot, the page's
+// document.title after the keys (the one channel a page has to state a number without
+// the reader parsing pixels), whether the warm-up changed the screen, and every page
+// error. Not conclusions: it never says a start screen was dismissed, because a hard
+// drop changes the screen exactly as a closing menu does, and a label that fires on
+// both names neither.
 import { spawn } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -14,9 +31,10 @@ import { join, resolve } from 'node:path'
 import { createServer } from 'node:http'
 import { readFileSync, existsSync, statSync } from 'node:fs'
 import { extname, dirname, basename } from 'node:path'
+import { namesAModel } from './model-shaped.mjs'
 
 const [file, out, seqArg] = process.argv.slice(2)
-if (!file || !out) { console.error('usage: node play.mjs <file.html> <out.png> [keys]'); process.exit(2) }
+if (!file || !out) { console.error('usage: node scripts/play.mjs <file.html> <out.png> [keys]'); process.exit(2) }
 const KEYS = (seqArg || 'ArrowLeft,ArrowLeft,ArrowUp,ArrowRight,ArrowDown,ArrowDown,Space,ArrowRight,ArrowUp,Space,ArrowLeft,Space').split(',')
 
 const CODES = {
@@ -53,11 +71,20 @@ const server = createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r))
 const httpPort = server.address().port
 const profile = mkdtempSync(join(tmpdir(), 'play-'))
-const chrome = spawn('google-chrome', [
+const CHROME = process.env.PLAY_CHROME || 'google-chrome'
+// The binary is caller-supplied, so test/containment.test.mjs cannot read what runs
+// here and requires the barrier every such site carries: the value is checked for a
+// model runner before it is spawned. A browser is inert; a PLAY_CHROME naming an
+// agent would make this file a spawner, and it refuses.
+if (namesAModel(CHROME)) { server.close(); console.error(`play: refusing PLAY_CHROME=${CHROME} — it names a model runner, and this probe drives a browser`); process.exit(2) }
+const chrome = spawn(CHROME, [
   '--headless=new', '--disable-gpu', '--no-sandbox', '--remote-debugging-port=0',
   `--user-data-dir=${profile}`, '--window-size=520,760', 'about:blank',
 ], { stdio: ['ignore', 'ignore', 'pipe'] })
 
+// A missing browser is an environment failure, named as one. Without this the spawn
+// error is unhandled and the process dies with a stack trace that names nothing.
+chrome.on('error', e => { server.close(); console.error(`play: cannot start ${CHROME} (${e.code || e.message}) — install it or set PLAY_CHROME`); process.exit(2) })
 let port = null
 chrome.stderr.on('data', d => { const m = /ws:\/\/127\.0\.0\.1:(\d+)\//.exec(String(d)); if (m && !port) port = m[1] })
 for (let i = 0; i < 100 && !port; i++) await sleep(100)
@@ -134,7 +161,11 @@ await sleep(1200)
 const shot = await send('Page.captureScreenshot', { format: 'png' })
 const { writeFileSync } = await import('node:fs')
 writeFileSync(out, Buffer.from(shot.result.data, 'base64'))
+// The title is reported verbatim: it is the page's own statement, and a page that puts
+// its score there has given the reader a number that does not need pixels to read.
+const title = await send('Runtime.evaluate', { expression: 'String(document.title)', returnByValue: true })
 console.log(`play: wrote ${out} after ${KEYS.length} key(s)`)
+console.log(`play: title ${JSON.stringify((title.result && title.result.result && title.result.result.value) || '')}`)
 console.log(`play: warm-up ${WARMUP.join(',')} ran BEFORE the measured keys, on this and every artifact: ${gate}`)
 console.log('play: NOTE — a warm-up press can consume the first piece in a game that has no start screen. Both sides get the same warm-up, so the comparison is level; a single artifact read in isolation is one piece further on than a human would be.')
 console.log(errors.length ? `play: ${errors.length} page error(s):\n  ${errors.slice(0, 5).join('\n  ')}` : 'play: no page errors')
