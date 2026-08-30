@@ -60,6 +60,10 @@ export const PROPERTIES = [
   ['an absent favicon is not charged as a page error', PL, "  if (rel === 'favicon.ico' && !existsSync(join(root, rel))) { res.writeHead(204); return res.end() }", ''],
   ['the warm-up runs before the measured keys', PL, 'if (WARMUP.length) {', 'if (false) {'],
   ['the warm-up line reports the observation', PL, '  gate = before === after\n', '  gate = true\n'],
+  // --- issue 67: the goal's clauses, and which the pieces never reached -----------------
+  ['a clause no piece cited is reported as uncovered', L, '  const uncovered = clauses.filter(c => coveredBy(c.n).length === 0).map(c => c.n)', '  const uncovered = []'],
+  ['a clause cited only by pieces that never ran is reported', L, '    .filter(x => x.pieces.length && x.pieces.every(name => !ran.has(name)))', '    .filter(x => false)'],
+  ['a citation naming no clause is dropped in code', L, "    p.invalid_citations = p.covers.filter(n => !valid.has(n))\n    p.covers = [...new Set(p.covers.filter(n => valid.has(n)))].sort((a, b) => a - b)", "    p.invalid_citations = []\n    p.covers = [...new Set(p.covers)].sort((a, b) => a - b)"],
   ['size growth is measured per piece', L, '      const k = x.piece || null', '      const k = null'],
   ['an empty artifact is a measurement, not a failure', L, 'Number.isFinite(m.bytes) && m.bytes >= 0', 'Number.isFinite(m.bytes) && m.bytes > 0'],
   ['concurrent pieces cannot each spend the last round', L, 'budgetLeft() < ROUND_RESERVE * (roundsInFlight + 1)', 'budgetLeft() < ROUND_RESERVE'],

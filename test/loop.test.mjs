@@ -2755,3 +2755,66 @@ console.log('loop: args.critics is validated OK')
   ok(/EXCESS as readily as an absence/.test(critic.schema.properties.gap.description), 'the gap field admits an excess, not only a lack')
   console.log('loop: adding is framed as one way to close a gap, and a gap may be an excess OK')
 }
+
+// THE GOAL IS READ AFTER THE SPLIT — issue #67. `gaps_in_order` is the stated test of
+// whether the loop is working, and it reads the gap sequence: every gap is the largest
+// difference inside the piece it was handed, so a clause stated in the goal in plain
+// words can go the whole run without becoming a gap, and the sequence sharpens whether
+// or not anything outside the drill was looked at. The tetris run had a piece for its
+// next-piece clause and cancelled during the first piece; nothing in the verdict said so.
+//
+// The clauses are the goal's sentences — derived from its text, not chosen by an agent.
+// The lead cites which it covers; the loop checks the citations in code; and whether a
+// piece ran is read from history. The anchors here are the test's own goal text and its
+// own choice of which pieces cite what and which the breaker lets run.
+{
+  const goal = 'Pieces fall and can be moved. Filled lines clear and score. It should be clear what is coming next.'
+  const r = await runLoop({
+    args: { goal, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'each subsystem is exercised by its own key sequence', pieces: [
+      { name: 'movement', observable: 'press the arrows', covers: [1] },
+      { name: 'scoring', observable: 'fill a row', covers: [2, 9, 2] },   // 9 names no clause; 2 twice
+      { name: 'hud', observable: 'read the next-piece box' },              // cites nothing
+    ] },
+    critic: () => ({ winner: 'A', why: 'w', gap: 'g', inspected: 'i' }),  // sides alternate, so the candidate never wins twice running and nothing exits
+    breaker: n => n <= 2,
+    runawayGuard: 8,
+  })
+  const gc = r.result.goal_coverage
+  eq(r.result.outcome.status, 'CANCELLED', 'the run was cancelled during the first piece')
+  eq(gc.decomposed, true, 'a decomposed run reports coverage per piece')
+  eq(gc.clauses.map(c => c.text), ['Pieces fall and can be moved.', 'Filled lines clear and score.', 'It should be clear what is coming next.'],
+     'the clauses are the goal\'s sentences, numbered from 1, derived from the text')
+  eq(gc.by_piece, { movement: [1], scoring: [2], hud: null }, 'citations are recorded per piece — deduplicated, sorted, invalid numbers removed, and a piece that cited nothing is null rather than []')
+  eq(gc.invalid_citations, { scoring: [9] }, 'a citation naming no clause is dropped in code and recorded against the piece')
+  eq(gc.unstated_by, ['hud'], 'a piece that cited nothing is named — that is not the same as covering nothing')
+  eq(gc.uncovered, [3], 'the clause no piece cited is reported as uncovered')
+  const pieceThatRan = [...new Set(r.result.history.map(h => h.piece))]
+  eq(pieceThatRan, ['movement'], 'only the first piece ran before the cancel (the anchor for never_judged)')
+  eq(gc.judged, [1], 'the clause cited by the piece that ran is judged')
+  eq(gc.never_judged, [{ n: 2, pieces: ['scoring'] }], 'the clause cited only by a piece that never ran a round is reported with that piece — the tetris shape')
+  ok(/1 of 3 clause\(s\) cited by no piece; 1 cited only by pieces that never ran a round; 1 piece\(s\) cited nothing/.test(gc.note), `the note carries the three counts — got: ${gc.note}`)
+  ok(/citation is the lead's claim of scope/.test(gc.note), 'and says what a citation is not: evidence that a critic attended to the clause')
+  ok(/goal_coverage/.test(r.result.reading_note), 'the reading note sends the reader from gaps_in_order to goal_coverage')
+  // The lead was TOLD the clauses, numbered, in the prompt it answered.
+  const lead = r.prompts.find(p => p.label === 'decompose')
+  ok(/1\. Pieces fall and can be moved\.\s+2\. Filled lines clear and score\.\s+3\. It should be clear what is coming next\./.test(lead.prompt), 'the lead prompt lists the numbered clauses it is asked to cite')
+  ok(lead.schema.properties.pieces.items.properties.covers, 'and the schema has the field to cite them in')
+  console.log('loop: goal coverage — uncovered, never-judged and unstated clauses are derived and reported (#67) OK')
+}
+
+// An undecomposed run has no pieces to cite. Every clause was in every critic's scope,
+// which is not coverage and is not its absence; the field says which it is.
+{
+  const r = await runLoop({
+    args: { goal: 'One sentence. Another one.', candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [{ candidateWins: false, gap: 'g' }],
+    breaker: n => n <= 1,
+  })
+  const gc = r.result.goal_coverage
+  eq(gc.decomposed, false, 'an undecomposed run says so')
+  eq(gc.clauses.map(c => c.n), [1, 2], 'the clauses are still enumerated')
+  eq([gc.uncovered, gc.never_judged, gc.unstated_by], [null, null, null], 'and nothing is reported as uncovered or unjudged — those are properties of a split')
+  ok(/ran whole/.test(gc.note) && /gaps_in_order/.test(gc.note), 'the note says every clause was in every critic\'s scope and points at the only record of what was looked at')
+  console.log('loop: an undecomposed run reports coverage as not applicable, not as complete OK')
+}

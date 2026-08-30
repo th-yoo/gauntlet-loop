@@ -113,6 +113,17 @@ const GOAL = args && args.goal
 const CANDIDATE = args && args.candidate
 const REFERENCE = args && args.reference
 const INSPECT = (args && args.inspect) || null
+
+// THE GOAL'S CLAUSES, enumerated from its text and nothing else — issue #67. The goal
+// is consulted when the pieces are cut and never again: every gap names the largest
+// difference inside the piece it was handed, so a clause stated in the goal in plain
+// words can go the whole run without becoming a gap, and the gap sequence — the
+// stated test of whether the loop is working — cannot see that. Sentences are the
+// unit because they are derivable from the artifact; an agent choosing the clauses
+// would be choosing what it can be held to. Numbered from 1 so the lead can cite them.
+const GOAL_CLAUSES = String(GOAL || '').replace(/\s+/g, ' ').trim()
+  .split(/(?<=[.!?])\s+/).map(t => t.trim()).filter(Boolean)
+  .map((text, i) => ({ n: i + 1, text }))
 const TOKEN = args && args.token
 
 if (!GOAL) throw new Error('args.goal is required')
@@ -1066,6 +1077,7 @@ const PIECE_SCHEMA = {
           reference: { type: 'string', description: 'absolute path to the matching part of the reference, when it is its own file' },
           focus: { type: 'string', description: 'when the piece is not a separate file: what a critic should attend to, and what it should ignore' },
           depends_on: { type: 'array', items: { type: 'string' }, description: 'names of pieces that must WIN before this one can be judged — only where judging this piece is meaningless until that one exists. Not "related to". An empty list is the common and correct answer.' },
+          covers: { type: 'array', items: { type: 'integer' }, description: 'the numbered goal clauses THIS piece is responsible for. A clause no piece cites is reported as uncovered in the verdict — that is a disclosure, not a defect, but it is one the operator reads.' },
         },
       },
     },
@@ -1082,7 +1094,12 @@ async function decompose() {
 
 THE GOAL:
 ${GOAL}
-
+${GOAL_CLAUSES.length ? `
+ITS CLAUSES, numbered — for each piece, cite in \`covers\` the clause numbers that piece is
+responsible for. A clause no piece cites will be reported as uncovered; if that is
+deliberate, say why in your split criterion.
+${GOAL_CLAUSES.map(c => `  ${c.n}. ${c.text}`).join('\n')}
+` : ''}
 THE ARTIFACT BEING IMPROVED: ${CANDIDATE}
 THE REFERENCE IT IS JUDGED AGAINST: ${REFERENCE}
 ${INSPECT ? `\nHOW TO INSPECT THEM:\n${INSPECT}\n` : ''}
@@ -1136,6 +1153,15 @@ hides exactly those weaknesses, because every piece can pass while the whole is 
     return true
   })
   const dropped = (plan.pieces || []).length - kept.length
+  // Citations are checked HERE, in code. A number that names no clause is dropped and
+  // recorded against the piece; a piece that cited nothing is recorded as having said
+  // nothing, which is not the same as covering nothing. Both reach the verdict.
+  for (const p of kept) {
+    if (!Array.isArray(p.covers)) { p.covers = null; p.invalid_citations = []; continue }
+    const valid = new Set(GOAL_CLAUSES.map(c => c.n))
+    p.invalid_citations = p.covers.filter(n => !valid.has(n))
+    p.covers = [...new Set(p.covers.filter(n => valid.has(n)))].sort((a, b) => a - b)
+  }
   if (kept.length < 2) return { refused: true, why: `fewer than two pieces survived with an observable and a distinct name (${kept.length} of ${(plan.pieces || []).length}); one piece is not a decomposition${withObservable.length > kept.length ? `, and ${withObservable.length - kept.length} shared a name with an earlier piece` : ''}`, dropped }
   return { pieces: kept, split_criterion: plan.split_criterion, dropped }
 }
@@ -2037,6 +2063,45 @@ const CONTENT_LEAKS = !!(selfid && (selfid.verdict === 'self-identifying' || LEA
 // and printed "content blindness was NOT checked" while looking perfectly healthy.
 const GOAL_CHECK_SPAWNABLE = typeProven('gauntlet-loop:gauntlet-goal-check')
 
+// GOAL COVERAGE — issue #67. Which clauses of the goal any piece took responsibility
+// for, and which of those were ever judged. Derived, not asserted: the citations are
+// the lead's (checked in code), the clause list is the goal's own text, and whether
+// a piece ran is read from history. What this cannot say is whether a piece that
+// cited a clause actually attended to it — a citation is a claim of scope, and the
+// only thing that tests it is a critic reading that piece.
+function goalCoverage() {
+  const clauses = GOAL_CLAUSES.map(c => ({ n: c.n, text: c.text }))
+  const decomposed = !!(decomposition && decomposition.pieces)
+  if (!decomposed) {
+    return {
+      clauses, decomposed: false, by_piece: null, uncovered: null, never_judged: null, unstated_by: null, invalid_citations: null,
+      note: 'the artifact ran whole: every clause was inside every critic\'s scope and no critic was asked about any clause in particular, so nothing here says which clauses a gap ever named. `gaps_in_order` is the only record of what was looked at.',
+    }
+  }
+  const ran = new Set(history.map(h => h.piece))
+  const by_piece = {}
+  const invalid_citations = {}
+  const unstated_by = []
+  for (const p of decomposition.pieces) {
+    by_piece[p.name] = p.covers
+    if (p.invalid_citations && p.invalid_citations.length) invalid_citations[p.name] = p.invalid_citations
+    if (p.covers === null) unstated_by.push(p.name)
+  }
+  const coveredBy = n => decomposition.pieces.filter(p => p.covers && p.covers.includes(n)).map(p => p.name)
+  const uncovered = clauses.filter(c => coveredBy(c.n).length === 0).map(c => c.n)
+  // Cited only by pieces that never ran a round: the clause was in scope and nothing
+  // ever looked. This is the tetris run's shape — the next-piece clause sat in the
+  // fourth of five pieces and the run was cancelled during the first.
+  const never_judged = clauses
+    .map(c => ({ n: c.n, pieces: coveredBy(c.n) }))
+    .filter(x => x.pieces.length && x.pieces.every(name => !ran.has(name)))
+  const judged = clauses.map(c => c.n).filter(n => coveredBy(n).some(name => ran.has(name)))
+  return {
+    clauses, decomposed: true, by_piece, uncovered, never_judged, judged, unstated_by, invalid_citations,
+    note: `${uncovered.length} of ${clauses.length} clause(s) cited by no piece; ${never_judged.length} cited only by pieces that never ran a round; ${unstated_by.length} piece(s) cited nothing. A citation is the lead's claim of scope — it says a piece was responsible for a clause, not that any critic attended to it.`,
+  }
+}
+
 const recordedVerdicts = history.reduce((n, h) => n + ((h.split && h.split.positions.length) || 0), 0) + (split_check.ran ? 1 : 0)
 
 return {
@@ -2127,6 +2192,8 @@ return {
     : { verdict: 'unchecked', reference_is_for: null, parts_not_attempted: null },
 
   gaps_in_order: history.map(h => `${h.piece ? `${h.piece} ` : ''}round ${h.round}: ${h.gap}`),
+
+  goal_coverage: goalCoverage(),
 
   dependency_graph: decomposition && decomposition.pieces
     ? { edges: [...deps.entries()].filter(([, d]) => d.length).map(([n, d]) => `${d.join(' + ')} -> ${n}`), dropped_edges: droppedEdges, cycle_broken: cycleBroken, skipped }
@@ -2285,5 +2352,8 @@ return {
     'not need to be realistically reachable" and that the operator stopping is the normal ending — ' +
     'Shumer stopped his own run "while it was still improving". Read `gaps_in_order` instead: if the ' +
     'gaps got smaller and more specific, the loop was working. If the last round names the same gap ' +
-    'as the first, it was not — and that is the signal to read, not the verdict.',
+    'as the first, it was not — and that is the signal to read, not the verdict. Then read ' +
+    '`goal_coverage`: gaps sharpen only inside the pieces that ran, and a drill that sharpened ' +
+    'for five rounds says nothing about a clause no piece cited or one that sat in a piece that ' +
+    'never ran a round (issue #67).',
 }

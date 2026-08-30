@@ -229,7 +229,9 @@ critic named, truncated with a marker when it runs long. That is the judgement t
 make while it runs: gaps getting smaller and more specific mean the loop is
 working; the same gap restated in round 5 as in round 1 means it is not, and that
 is worth stopping for. `gaps_in_order` in the final verdict carries every gap
-verbatim, for reading afterwards.
+verbatim, for reading afterwards — and `goal_coverage` beside it says which of the
+goal's sentences no piece cited and which sat in a piece that never ran a round,
+because a sharpening drill cannot see either.
 
 **When it ends, INGEST THE VERDICT.** The choice of `critics` is not settled by
 evidence — the one measurement behind it is five judges splitting 3-2 on unchanged

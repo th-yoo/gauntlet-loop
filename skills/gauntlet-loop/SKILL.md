@@ -182,7 +182,9 @@ itself:
 | `ERROR` | an agent returned nothing or died: a critic with no verdict, a builder that built nothing, a piece whose run failed. The run stops rather than deciding a round on a short line |
 
 Read `gaps_in_order` before any of them. A `CANCELLED` run whose gaps got smaller
-and more specific taught you more than a `WON` run that never iterated.
+and more specific taught you more than a `WON` run that never iterated. Then read
+`goal_coverage`: gaps sharpen only inside the pieces that ran, and say nothing about
+a clause no piece cited or one whose piece never got a round.
 
 ## What the verdict carries
 
@@ -192,7 +194,8 @@ Beyond `outcome` and `history`, the fields worth knowing before you read one:
 |---|---|
 | `rounds` | how many rounds ran in total. In a split run this is the sum across pieces, not the round any one piece won at |
 | `decomposition` | what the lead decided: the criterion it split on and the pieces it kept, or `refused` and why. Also how many proposed pieces were dropped for naming no observable. `refused` is set only when the lead ANSWERED and declined to split; a lead that returned nothing sets `no_plan_returned` instead, because running the artifact whole is also what a genuine refusal produces and the two must not read alike |
-| `gaps_in_order` | every gap in the order it came back, each naming its piece. **Read this first.** Gaps getting smaller and more specific mean the loop is working; round 5 restating round 1 means it is not |
+| `gaps_in_order` | every gap in the order it came back, each naming its piece. **Read this first.** Gaps getting smaller and more specific mean the loop is working; round 5 restating round 1 means it is not. It cannot see a clause outside the pieces that ran — that is `goal_coverage` |
+| `goal_coverage` | the goal's sentences, numbered, and which piece cited each as its responsibility. `uncovered` are clauses no piece cited; `never_judged` are clauses cited only by pieces that never ran a round; `unstated_by` are pieces that cited nothing. A citation is the lead's claim of scope, checked in code for pointing at a real clause and for nothing else. On an undecomposed run every clause was in every critic's scope and this says so instead |
 | `enforced` | properties this run could not lose — each one a tool restriction or a structural fact, not a promise someone remembered to keep |
 | `not_enforced` | what it did **not** check, and what a clean result there does and does not mean. The most important field in the verdict |
 | `goal_fairness` | whether the reference even attempts the goal. `partly` names the clauses it does not — verdicts on those measure your goal, not the work |
@@ -279,7 +282,9 @@ was weak or the goal was fitted to the candidate. The verdict says
 
 Read `gaps_in_order` before the verdict. If the gaps got smaller and more
 specific, the loop was working. If the last round names the first round's gap, it
-was not — and that is the signal, not the outcome.
+was not — and that is the signal, not the outcome. Then `goal_coverage`: a drill
+that sharpened for five rounds inside one piece says nothing about the clauses that
+piece never cited, or about a piece the run never reached.
 
 ## Testing the loop itself
 

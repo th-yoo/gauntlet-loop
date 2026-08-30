@@ -67,6 +67,16 @@ node scripts/split-ledger.mjs --report
 ```
 
 That yields two `within-round` trials, both 1-1 splits of two critics on the same bytes.
+
+It also answers the question issue 67 said the record could not: **was there ever a piece
+under which a next-piece preview would have been the largest gap?** `decomposition.pieces[3]`
+is `at-a-glance-hud-and-next-piece`, whose observable is the next-piece indicator — the lead
+cut a piece for that clause. `dependency_graph.skipped` lists it, with three others, as
+"the run stopped (CANCELLED) while this piece waited for doc-1.html": all three rounds went
+to `movement-and-rotation`, and the clause's piece never got a round. So the clause was
+covered and never judged, and `gaps_in_order` — the stated test of whether the loop is
+working — has no way to show a piece that never ran. That is what `goal_coverage` in the
+verdict now carries (`never_judged`), for runs made after this one.
 `runs/splits.jsonl` is deliberately NOT committed while issue 71 stands: the rates it pools
 depend on k, so a ledger mixing runs at different critic counts reports one number over
 incomparable samples.
