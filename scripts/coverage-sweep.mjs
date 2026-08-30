@@ -38,6 +38,7 @@ const MS = 'scripts/model-shaped.mjs'
 const CV = 'scripts/constructed-verify.mjs'
 const SL = 'scripts/split-ledger.mjs'
 const SE = 'scripts/split-extract.mjs'
+const PV = 'scripts/plugin-version-check.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -48,6 +49,11 @@ export const PROPERTIES = [
   ['the split check only judges what the pieces edited', L, 'const PIECES_EDIT_THE_WHOLE = PIECES.every(p => (p.candidate || CANDIDATE) === CANDIDATE)', 'const PIECES_EDIT_THE_WHOLE = true'],
   ['a cancel after rounds is not reported as a bad token path', L, '        : history.length === 0', '        : round === 1'],
   ['a silent breaker is not reported as an absent token', L, '      why: breakerSilent !== null', '      why: false'],
+  // --- issue 68's class: agents/ changed, version not ---------------------------------
+  // Both applied and the suite watched to go red before being pinned. The first blinds the
+  // check to the one case `git diff <commit>` cannot see; the second is the verdict itself.
+  ['an untracked agent counts as a change to the shipped set', PV, "const untracked = git('ls-files', '--others', '--exclude-standard', '--', SCOPE).stdout.split('\\n').filter(Boolean)", 'const untracked = []'],
+  ['an agent set that differs from its record fails', PV, 'if (changes.length) {', 'if (false) {'],
   ['size growth is measured per piece', L, '      const k = x.piece || null', '      const k = null'],
   ['an empty artifact is a measurement, not a failure', L, 'Number.isFinite(m.bytes) && m.bytes >= 0', 'Number.isFinite(m.bytes) && m.bytes > 0'],
   ['concurrent pieces cannot each spend the last round', L, 'budgetLeft() < ROUND_RESERVE * (roundsInFlight + 1)', 'budgetLeft() < ROUND_RESERVE'],

@@ -92,6 +92,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history. scripts/plugin-version-check.mjs finds the commit that set the
+          # current plugin version and diffs agents/ from there; at depth 1 it cannot, and
+          # it exits 2 rather than pass — which in the sweep would read as every mutation
+          # CAUGHT, because a suite red before the mutation is red after it.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:

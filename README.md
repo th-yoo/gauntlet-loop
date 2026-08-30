@@ -35,7 +35,7 @@ the same method.
   and reports anything nothing notices. A passing suite says the code is right; it
   does not say the tests would catch it going wrong, and those are different
   claims. A structural edit once removed four cases beyond the one being rewritten
-  and the suite stayed green at a lower count — this is what sees that. **163 properties,
+  and the suite stayed green at a lower count — this is what sees that. **165 properties,
   0 unpinned.** Slow, so it is not part of `run-all`: run it after touching tests, on a
   tree you are not editing.
 - `scripts/sweep-status.mjs` — prints the last sweep's conclusion at session start,
@@ -84,6 +84,11 @@ the same method.
     notes on file reproduce exactly; a note edited to agree with a ledger row does not.
   - `scripts/guard-sweep.mjs` — does each of drift-guard's 40 hand-written facts still
     bite? **40/40**, 0 redundant, recomputed every run rather than stored.
+  - `scripts/plugin-version-check.mjs` — does `agents/` still match what the version in
+    `plugin.json` shipped? The record is git, not a list: the tree at the commit that set
+    the current version, diffed to the working tree. The plugin cache is version-pinned,
+    so an agent swap without a bump reaches no install — 2548f55 did exactly that and every
+    installed copy died at the first spawn for six commits (#68).
   - `scripts/capacity-check.mjs` — could the design have produced another answer? It asks
     the ledgers, not the prose, whether a field ever took a second value.
   - `scripts/disclosure-audit.mjs` — is each pinned disclosure **driven** by a behavioural
@@ -166,7 +171,7 @@ deleted.
 node test/run-all.mjs
 ```
 
-That globs every `test/*.test.mjs` — 35 suites, and it is what CI runs. It covers the
+That globs every `test/*.test.mjs` — 37 suites, and it is what CI runs. It covers the
 drift guard, the offline loop harness, and every measurement instrument above.
 
 The loop suite runs `loop.js` against a stubbed agent runtime, so it proves the control
@@ -175,7 +180,7 @@ shape — behaves as the file's own comments claim. It proves nothing about whet
 critic given the real prompt produces a good verdict: every `agent()` call in the tests
 is a lookup table, not a model.
 
-`node scripts/coverage-sweep.mjs` is separate and slow: **163 properties**, and it runs
+`node scripts/coverage-sweep.mjs` is separate and slow: **165 properties**, and it runs
 the whole suite once per property — 68 and 70 minutes on the runner for the last two
 completed sweeps. Do not run it against a tree you are still editing: it applies each
 mutation in place, so an edit made while it runs is either lost or committed by mistake.
