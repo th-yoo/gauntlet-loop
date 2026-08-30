@@ -192,6 +192,13 @@ every piece has beaten the reference. Where it refuses to split — which is the
 right answer for most prose, specs and decisions — the artifact runs whole. You
 do not configure this; the lead decides and the run reports what it decided.
 
+**`on_refusal` has a default the corpus sets, not you.** The pairing check's GENERATOR
+verdict stops a run only while `oracle/results.jsonl` holds no pairing it falsely refused
+and none whose verdict flipped between draws, over at least five distinct pairings; the
+verdict's `refusal_authority` says what the numbers were. The day the corpus records a
+counterexample the default becomes `warn` on its own. Passing `on_refusal` yourself
+overrides the evidence either way, and the record says so.
+
 **Choose `critics` deliberately — it is the exit rule's FLOOR, not a knob.** The
 candidate must get past every one of them in a single round, so k sets how
 demanding the standard is at minimum. The lead may raise a piece's line above it

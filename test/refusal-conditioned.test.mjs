@@ -172,12 +172,86 @@ console.log('refusal-conditioned: a probe that died is unaffected by the downgra
      'a probe that threw leaves no verdict, with or without the downgrade — there is no refusal to downgrade, and inventing one from a dead probe would be the switch manufacturing evidence')
 }
 
+// ---------------------------------------------------------------------------
+// THE OTHER HALF OF S5 — the authority is conditioned on the CORPUS, not only on
+// the operator. loop.js carries a copy of the corpus's false-refusal cell
+// (REFUSAL_EVIDENCE) because a Workflow script cannot read oracle/; the default of
+// on_refusal is DERIVED from it. Two things have to be true for that to be more
+// than a constant with a story: the copy must equal what the corpus says today,
+// recomputed by the same code that tallies it; and the branches only a different
+// corpus reaches must be driven, by handing the script a different copy.
+// ---------------------------------------------------------------------------
+import { spawnSync } from 'node:child_process'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const LOOP_SRC = readFileSync(join(ROOT, 'skills', 'gauntlet-loop', 'loop.js'), 'utf8')
+const EVIDENCE_LINE = /^const REFUSAL_EVIDENCE = (\{.*\})$/m
+
+console.log('refusal-conditioned: the copy of the false-refusal cell in loop.js is what the corpus says today')
+{
+  const m = LOOP_SRC.match(EVIDENCE_LINE)
+  ok(m !== null, 'loop.js carries REFUSAL_EVIDENCE as one JSON literal on one line')
+  const stored = m ? JSON.parse(m[1]) : null
+  const r = spawnSync(process.execPath, ['scripts/oracle-report.mjs'], { cwd: ROOT, encoding: 'utf8', timeout: 120_000, env: { ...process.env, GAUNTLET_SUITE: '1' } })
+  const line = (String(r.stdout || '').match(/^REFUSAL_EVIDENCE_JSON (\{.*\})$/m) || [])[1]
+  ok(line !== undefined, 'oracle-report emits the cell as REFUSAL_EVIDENCE_JSON — without it nothing can recompute the copy')
+  const live = line ? JSON.parse(line) : null
+  ok(stored && live && JSON.stringify(stored) === JSON.stringify(live),
+     `the copy in loop.js must equal the corpus's tally — stored ${JSON.stringify(stored)}, corpus ${JSON.stringify(live)}. Regenerate: node scripts/oracle-report.mjs | grep REFUSAL_EVIDENCE_JSON`)
+  console.log(`          corpus: ${line}`)
+}
+
+console.log('refusal-conditioned: with the corpus as it stands, the refusal holds and says what it rests on')
+{
+  const clean = await runLoop({ args: base, breaker: rd => rd <= 1, rounds: [], roles: [WORKER, WORKER] })
+  const ra = clean.result.refusal_authority
+  ok(ra && ra.holds === true && ra.default === 'refuse' && ra.set_by === 'evidence', `a clean run records that the refusal's authority holds by evidence — got ${JSON.stringify(ra && { holds: ra.holds, default: ra.default, set_by: ra.set_by })}`)
+  ok(ra && /no counterexample on file/.test(ra.why) && /not evidence of accuracy/.test(ra.why), 'and says the authority is absence of a counterexample, not accuracy')
+  ok((clean.result.not_enforced || []).some(l => /AUTHORITY IS CONDITIONED ON THE CORPUS/.test(l)), 'the disclosure states the conditioning on every run')
+  ok(refusedMessage !== null && /THE AUTHORITY TO STOP YOU RESTS ON/.test(refusedMessage), 'and the refusal itself states what its authority rests on')
+}
+
+console.log('refusal-conditioned: a corpus with a counterexample withdraws the authority — the run proceeds by EVIDENCE, and the record says so')
+{
+  const withEvidence = e => src => src.replace(EVIDENCE_LINE, `const REFUSAL_EVIDENCE = ${JSON.stringify(e)}`)
+  const cases = [
+    ['a false refusal on file', { pairings: 6, draws: 18, falsely_refused: 1, redrawn: 6, flipped: 0, ci: [0.005, 0.445] }, /falsely refused pairing/],
+    ['a flipped verdict on file', { pairings: 6, draws: 18, falsely_refused: 0, redrawn: 6, flipped: 1, ci: [0, 0.39] }, /flipped between draws/],
+    ['too few pairings to pose a rate', { pairings: 4, draws: 8, falsely_refused: 0, redrawn: 4, flipped: 0, ci: [0, 0.49] }, /fewer than the five/],
+  ]
+  for (const [name, evidence, why] of cases) {
+    let err = null, r = null
+    try { r = await runLoop({ args: base, breaker: rd => rd <= 2, rounds: [], roles: [WRITER, WORKER], source: withEvidence(evidence) }) }
+    catch (e) { err = e.message }
+    ok(err === null, `${name}: the same pairing that is refused today proceeds — got: ${err ? err.slice(0, 140) : '(proceeded)'}`)
+    const ra = r && r.result.refusal_authority
+    const por = r && r.result.proceeded_over_refusal
+    ok(ra && ra.holds === false && ra.default === 'warn' && ra.set_by === 'evidence', `${name}: the record says the authority does not hold and the default came from evidence — got ${JSON.stringify(ra && { holds: ra.holds, default: ra.default, set_by: ra.set_by })}`)
+    ok(ra && why.test(ra.why), `${name}: and names the counterexample — got: ${ra && ra.why}`)
+    ok(por && por.downgraded_by === 'evidence' && por.verdict === 'generator', `${name}: proceeded_over_refusal keeps the probe's verdict and says the evidence downgraded it — got ${JSON.stringify(por)}`)
+  }
+  // The operator's explicit 'refuse' still refuses under a bad corpus — and the
+  // refusal says the operator overrode the evidence.
+  let msg = null
+  try { await runLoop({ args: { ...base, on_refusal: 'refuse' }, breaker: rd => rd <= 2, rounds: [], roles: [WRITER, WORKER], source: withEvidence(cases[0][1]) }) }
+  catch (e) { msg = e.message }
+  ok(msg !== null && /GENERATOR/.test(msg) && /You set args.on_refusal to "refuse" explicitly/.test(msg), `an explicit 'refuse' still stops the run under a withdrawn authority, and says the operator chose it — got: ${msg && msg.slice(0, 160)}`)
+  // And the transform is honest about itself: an unchanged source is refused by the harness.
+  let hookErr = null
+  try { await runLoop({ args: base, rounds: [], roles: [WORKER, WORKER], breaker: rd => rd <= 1, source: src => src.replace(/no such constant anywhere/, 'x') }) }
+  catch (e) { hookErr = e.message }
+  ok(hookErr !== null && /matched nothing/.test(hookErr), 'a source transform that changes nothing is an error, not a silent pass')
+}
+
 console.log('refusal-conditioned: stating what this file does NOT establish')
-console.log('          NOT MEASURED: whether refusing was RIGHT. This asserts that the refusal can be')
-console.log('          answered, never that it should be. The rate that would justify overruling it lives')
-console.log('          in oracle/, which loop.js still does not read — making the authority conditional on')
-console.log('          an OPERATOR is not making it conditional on EVIDENCE, and the second is what S5')
-console.log('          names. A fix that lands only the switch closes half of this.')
+console.log('          NOT MEASURED: whether refusing was RIGHT. The corpus now reaches the decision —')
+console.log('          the default of on_refusal is derived from its false-refusal cell, recomputed above —')
+console.log('          but the corpus itself was labelled by a person (#38), so a probe that agrees with')
+console.log('          its labeller passes. Ground truth nobody authored is #33, and it is not here.')
+console.log('          NOT MEASURED: the copy is recomputed when the SUITE runs, not when the loop runs. A')
+console.log('          corpus that moved after the last push is not what an installed loop reads.')
 console.log('          ALSO NOT MEASURED YET: three of the five must-not-apply cases pass VACUOUSLY')
 console.log('          today — the input is ignored, so nothing can be wrongly downgraded. They begin')
 console.log('          measuring only once the switch exists, and are here so the fix is judged against')

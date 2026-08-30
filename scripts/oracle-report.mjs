@@ -609,6 +609,23 @@ if (pairings.length) {
   const refused = cell.filter(s => s.observed !== 'comparable')
   const distinctPairings = new Set(cell.map(s => s.pairing)).size
   const trueCell = scored.filter(s => s.expected !== 'comparable')
+  // THE FALSE-REFUSAL CELL AS ONE LINE OF JSON — issue #28. loop.js carries a copy of
+  // these numbers because a Workflow script cannot read this ledger, and
+  // test/refusal-conditioned.test.mjs recomputes them HERE and fails when the copy has
+  // gone stale. Same derivation as the prose above, emitted once, never restated.
+  {
+    const byPairing = new Map()
+    for (const s of cell) { if (!byPairing.has(s.pairing)) byPairing.set(s.pairing, []); byPairing.get(s.pairing).push(s.observed) }
+    const redrawnP = [...byPairing.values()].filter(v => v.length > 1)
+    const flippedP = redrawnP.filter(v => new Set(v).size > 1)
+    const refusedUnitsJ = new Set(refused.map(s => s.pairing)).size
+    const ciJ = distinctPairings ? wilson(refusedUnitsJ, distinctPairings) : [0, 1]
+    const r3 = x => Math.round(x * 1000) / 1000
+    console.log('REFUSAL_EVIDENCE_JSON ' + JSON.stringify({
+      pairings: distinctPairings, draws: cell.length, falsely_refused: refusedUnitsJ,
+      redrawn: redrawnP.length, flipped: flippedP.length, ci: [r3(ciJ[0]), r3(ciJ[1])],
+    }))
+  }
 
   if (!scored.length) {
     console.log('')

@@ -29,8 +29,19 @@ export function eq(actual, expected, msg) {
 // `export const meta` is stripped because these are not ES modules at
 // runtime; the Workflow harness loads them as scripts, not imports.
 // ---------------------------------------------------------------------------
-function loadWorkflowScript(filename) {
-  const src = readFileSync(join(SKILLS_DIR, filename), 'utf8').replace('export const meta', 'const meta')
+// `transform`, when given, rewrites the SOURCE before it is compiled. It exists for
+// one kind of test: a constant loop.js carries as a copy of a record it cannot read
+// (REFUSAL_EVIDENCE, a copy of the corpus's false-refusal cell) has branches that
+// only a different record reaches, and the only way to drive those is to hand the
+// script a different record. A test that uses it must say which constant it
+// replaced, and must not use it to patch behaviour.
+function loadWorkflowScript(filename, transform) {
+  let src = readFileSync(join(SKILLS_DIR, filename), 'utf8').replace('export const meta', 'const meta')
+  if (transform) {
+    const out = transform(src)
+    if (typeof out !== 'string' || out === src) throw new Error('opts.source must return a changed source string — an unchanged source means the transform matched nothing')
+    src = out
+  }
   return new AsyncFunction('agent', 'parallel', 'pipeline', 'log', 'phase', 'args', 'budget', src)
 }
 
@@ -416,7 +427,7 @@ export async function runLoop(opts) {
   const phase = () => {}
   const budget = opts.budget || { total: null, remaining: () => Infinity }
 
-  const fn = loadWorkflowScript('loop.js')
+  const fn = loadWorkflowScript('loop.js', opts.source)
   const result = await fn(agent, parallel, pipeline, log, phase, opts.args, budget)
 
   if (schemaViolation) throw Object.assign(new Error(schemaViolation + ' (raised after the script returned: the script caught the in-flight throw.)'), { __harness: true })

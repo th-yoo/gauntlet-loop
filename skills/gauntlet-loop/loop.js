@@ -158,7 +158,43 @@ for (const [label, value] of [['candidate', CANDIDATE], ['reference', REFERENCE]
 // which is the argument the cap refusal below already makes, applied to the
 // argument that can switch a guard OFF rather than one that cannot.
 const ON_REFUSAL_VALUES = ['refuse', 'warn']
-const ON_REFUSAL = (args && args.on_refusal !== undefined) ? args.on_refusal : 'refuse'
+
+// WHAT THE CORPUS SAYS ABOUT THE PROBE — issue #28's other half. The pairing check
+// is the only component here that can stop a run, and until now its authority was
+// conditioned on nothing but an operator's switch. The corpus that measures it
+// (oracle/results.jsonl, tallied by scripts/oracle-report.mjs) lives where a
+// Workflow script cannot read, so its false-refusal cell is COPIED here and the
+// copy is recomputed from the corpus by test/refusal-conditioned.test.mjs, which
+// fails the moment the corpus and this line disagree. Regenerate with
+//     node scripts/oracle-report.mjs | grep REFUSAL_EVIDENCE_JSON
+// and paste. A derived fact stored beside its source, with the recompute that
+// this repository requires of one.
+const REFUSAL_EVIDENCE = {"pairings":6,"draws":18,"falsely_refused":0,"redrawn":6,"flipped":0,"ci":[0,0.39]}
+
+// THE AUTHORITY, DERIVED. The refusal keeps its authority only while the corpus
+// holds NO counterexample: no pairing it falsely refused, no pairing whose verdict
+// flipped between draws, over at least the five distinct pairings oracle-report
+// itself demands before it will pose a rate at all (a smaller cell "supports no
+// rate", in its words). Zero is the one threshold with no free parameter — the
+// day the corpus records a false refusal or a flip, the probe has shown the
+// failure mode #28 named, and the refusal becomes a warning by default. What
+// this is NOT: evidence of accuracy. The interval on 0/n reaches high at small n,
+// and the field says so.
+const REFUSAL_AUTHORITY = (() => {
+  const e = REFUSAL_EVIDENCE
+  const enough = e.pairings >= 5
+  const clean = e.falsely_refused === 0 && e.flipped === 0
+  const holds = enough && clean
+  const why = !enough
+    ? `the corpus holds ${e.pairings} distinct pairing(s) in the false-refusal cell, fewer than the five oracle-report requires to pose a rate, so nothing on file supports a refusal that stops work`
+    : !clean
+      ? `the corpus records ${e.falsely_refused} falsely refused pairing(s) and ${e.flipped} pairing(s) whose verdict flipped between draws, over ${e.pairings} distinct pairings — the probe has shown the failure mode that removes its authority (#28), so the GENERATOR verdict is a warning unless the operator says otherwise`
+      : `${e.pairings} distinct pairings in the false-refusal cell, ${e.draws} draws, none falsely refused, none flipped over ${e.redrawn} redrawn — no counterexample on file. That is absence of a counterexample, not evidence of accuracy: the interval on the false-refusal rate reaches ${Math.round(e.ci[1] * 100)}%, and a probe consistently wrong in the same way passes this test`
+  return { holds, why, evidence: e }
+})()
+const ON_REFUSAL_DEFAULT = REFUSAL_AUTHORITY.holds ? 'refuse' : 'warn'
+const ON_REFUSAL = (args && args.on_refusal !== undefined) ? args.on_refusal : ON_REFUSAL_DEFAULT
+const ON_REFUSAL_SOURCE = (args && args.on_refusal !== undefined) ? 'operator' : 'evidence'
 if (!ON_REFUSAL_VALUES.includes(ON_REFUSAL)) throw new Error(
   `args.on_refusal must be one of ${ON_REFUSAL_VALUES.map(v => JSON.stringify(v)).join(' or ')}, and was ` +
   `${JSON.stringify(ON_REFUSAL)}. Refused rather than ignored: an argument that switches a guard off and is ` +
@@ -1354,10 +1390,10 @@ if (comparability && comparability.verdict === 'generator') {
   // come back looking like a comparison nothing objected to, which is the false
   // all-clear this repository keeps finding in its own instruments.
   if (ON_REFUSAL === 'warn') {
-    proceeded_over_refusal = { verdict: comparability.verdict, side, reasoning: comparability.reasoning }
+    proceeded_over_refusal = { verdict: comparability.verdict, side, reasoning: comparability.reasoning, downgraded_by: ON_REFUSAL_SOURCE }
     log(
       `WARNING: proceeding over a refusal. The pairing check called ${side} a GENERATOR rather than an attempt ` +
-      `at the goal, and args.on_refusal is "warn", so the run continues. ${comparability.reasoning}\n` +
+      `at the goal, and ${ON_REFUSAL_SOURCE === 'operator' ? 'args.on_refusal is "warn"' : `the corpus has withdrawn the refusal's authority (${REFUSAL_AUTHORITY.why})`}, so the run continues. ${comparability.reasoning}\n` +
       'What that costs: a blind A/B between a thing and a recipe for a thing returns WON at round 1 with no ' +
       'build round, which reads exactly like success. If this verdict is right, this run means nothing. The ' +
       'record carries proceeded_over_refusal so the result cannot later be read as an unobjected comparison.'
@@ -1368,6 +1404,8 @@ if (comparability && comparability.verdict === 'generator') {
     'A blind A/B between a thing and a recipe for a thing is a category error, and it does not fail loudly: it ' +
     'returns WON at round 1 with no build round, which reads exactly like success. That happened twice, for 419k ' +
     'tokens, before this refusal existed.\n\n' +
+    `THE AUTHORITY TO STOP YOU RESTS ON: ${REFUSAL_AUTHORITY.why}. ` +
+    (ON_REFUSAL_SOURCE === 'operator' ? 'You set args.on_refusal to "refuse" explicitly. ' : '') +
     'THE FIX IS CHEAP AND THIS PAIRING IS PROBABLY FINE. Execute that side once — hand it to a fresh agent and ' +
     'keep what it produces — then pass the OUTPUT as the artifact. The same two sources come back comparable. ' +
     'This is what the source method already does: it judges rendered frames against real frames, not a prompt ' +
@@ -2178,6 +2216,9 @@ return {
   comparability,
   // Present only when a refusal was overruled — see the declaration above.
   ...(proceeded_over_refusal ? { proceeded_over_refusal } : {}),
+  // WHAT THE REFUSAL'S AUTHORITY RESTED ON THIS RUN, on every branch — a run that
+  // was not refused still ran under a probe whose authority is this and no more.
+  refusal_authority: { holds: REFUSAL_AUTHORITY.holds, default: ON_REFUSAL_DEFAULT, applied: ON_REFUSAL, set_by: ON_REFUSAL_SOURCE, why: REFUSAL_AUTHORITY.why, evidence: REFUSAL_EVIDENCE },
   size_by_round: sizeByRound,
   size_unmeasured: sizeUnmeasured,
   // Grouped BY PIECE, because sizeByRound stops describing one file the moment
@@ -2396,6 +2437,7 @@ return {
     // them, and the parameter stays a matter of argument for good.
     'THE SPLIT LEDGER IS FED BY HAND OR NOT AT ALL. Every armed round produces the paired observation that would narrow the choice of k — two independently spawned judges on identical bytes at opposite positions — and the loop cannot record it, having no filesystem. Unless someone runs `node scripts/split-ledger.mjs --ingest <verdict.json>` against this verdict, these trials are discarded and k remains chosen by argument rather than by measurement.',
     'Critic and builder share a model family, so the critic may be blind to exactly the mistakes the builder is prone to making.',
+    `THE REFUSAL'S AUTHORITY IS CONDITIONED ON THE CORPUS, NOT ONLY ON YOU (issue #28). The pairing check's GENERATOR verdict ${REFUSAL_AUTHORITY.holds ? 'stops a run by default' : 'is a WARNING by default'} because ${REFUSAL_AUTHORITY.why}. The numbers are in refusal_authority and are a copy of oracle/results.jsonl as tallied by scripts/oracle-report.mjs, recomputed by the suite; the day the corpus records a false refusal or a flipped verdict, the default becomes a warning without anyone editing this file. What the corpus cannot supply: ground truth nobody authored (#33, #38) — every pairing in it was labelled by a person, so a probe that agrees with its labeller passes.`,
     'THE BLINDNESS PROBE MODELS THE FILESYSTEM ONLY, and the critic and builder both hold WebSearch and WebFetch. ' +
     'The probe resolves an artifact\'s citations against this working tree, so a `clean` verdict means neither artifact ' +
     'gives away its origin TO A READER OF THIS DISK. It says nothing about the network: a reference with a published ' +

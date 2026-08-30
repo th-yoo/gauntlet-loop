@@ -97,7 +97,8 @@ export const PROPERTIES = [
   // Added with the on_refusal switch (#28 S5). Each mutation was APPLIED and the
   // suite watched to go red, not assumed from the fact that a test mentions it.
   ['an unrecognised on_refusal is refused, not ignored', L, 'if (!ON_REFUSAL_VALUES.includes(ON_REFUSAL)) throw new Error(', 'if (false) throw new Error('],
-  ['a downgraded refusal is recorded, not laundered', L, 'proceeded_over_refusal = { verdict: comparability.verdict, side, reasoning: comparability.reasoning }', 'proceeded_over_refusal = null'],
+  ['the refusal keeps its authority only while the corpus holds no counterexample', L, "  const clean = e.falsely_refused === 0 && e.flipped === 0", "  const clean = true"],
+  ['a downgraded refusal is recorded, not laundered', L, 'proceeded_over_refusal = { verdict: comparability.verdict, side, reasoning: comparability.reasoning, downgraded_by: ON_REFUSAL_SOURCE }', 'proceeded_over_refusal = null'],
   ['an unopenable artifact is not downgradable', L, "if (comparability && comparability.verdict === 'unreadable') {", "if (comparability && comparability.verdict === 'unreadable' && ON_REFUSAL !== 'warn') {"],
   // --- the regression check, #18's measuring half (NOT a ratchet) ------------------------------------
   ['a round with no snapshot is named, not silently skipped', L, '  if (!snapshot) {', '  if (false) {'],
