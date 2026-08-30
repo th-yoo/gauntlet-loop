@@ -35,7 +35,7 @@ the same method.
   and reports anything nothing notices. A passing suite says the code is right; it
   does not say the tests would catch it going wrong, and those are different
   claims. A structural edit once removed four cases beyond the one being rewritten
-  and the suite stayed green at a lower count — this is what sees that. **180 properties,
+  and the suite stayed green at a lower count — this is what sees that. **181 properties,
   0 unpinned.** Slow, so it is not part of `run-all`: run it after touching tests, on a
   tree you are not editing.
 - `scripts/sweep-status.mjs` — prints the last sweep's conclusion at session start,
@@ -202,7 +202,7 @@ shape — behaves as the file's own comments claim. It proves nothing about whet
 critic given the real prompt produces a good verdict: every `agent()` call in the tests
 is a lookup table, not a model.
 
-`node scripts/coverage-sweep.mjs` is separate and slow: **180 properties**, and it runs
+`node scripts/coverage-sweep.mjs` is separate and slow: **181 properties**, and it runs
 the whole suite once per property — 68 and 70 minutes on the runner for the last two
 completed sweeps. Do not run it against a tree you are still editing: it applies each
 mutation in place, so an edit made while it runs is either lost or committed by mistake.

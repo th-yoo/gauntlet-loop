@@ -48,3 +48,12 @@ growth the parent file calls cheating.
   nothing is being asserted is printed exactly when it does not matter. If a verdict
   cannot establish something, the branch that carries the verdict is the branch that
   must say so.
+
+- **A quantity with no sampling frame is a permanent disclosure, not work.** Reached
+  three times before it became a rule: #21 (`p` is undefined, not unmeasured), #35 (the
+  blindness residual cannot be closed, so it is reported), #38 (the corpus selection is
+  authored, and adding rows can hide it). The triage question is "does the quantity have
+  a denominator in the world, or only in this collection?" — if only here, working the
+  issue buys re-draws with zero coverage, and the honest close is a disclosure printed
+  by the instrument on every branch that states a number, PINNED by a test so deleting
+  it goes red. An open issue holds a fact worse than a failing test does.

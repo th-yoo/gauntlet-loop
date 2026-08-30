@@ -811,3 +811,44 @@ function run(script, args, extraEnv) {
   ok(/All three expressible/.test(r.out), 'and the trial says so in its own terms')
   console.log('oracle: the corpus can express an absence row and a pairing, so both refusing verdicts can be measured OK')
 }
+
+// THE PERMANENT DISCLOSURE IS PINNED — issue #38. The selection of corpus rows is
+// authored and has no sampling frame; the report prints that beside every rate, and
+// #38's whole status is "hold it as a disclosure, not as work". A disclosure held by
+// an open issue can be deleted from the output with nothing going red; this is the
+// test that makes the deletion fail. Anchored on the load-bearing claims, not the
+// prose: the selection is authored, adding rows can HIDE it, and the corpus is the
+// whole of the coverage.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'oracle-report-residual-'))
+  const results = join(dir, 'results.jsonl')
+  const mk = row => JSON.stringify({
+    row, arm: 'does-the-work', artifact: '/x/' + row, expected_role: 'does-the-work',
+    predicted_role: 'does-the-work', correct: true,
+    prompt_hash: 'sha256:P' + row, template_hash: 'sha256:TPL1', schema_fingerprint: 'sha256:fp', observer: 't',
+  })
+  writeFileSync(results, ['a', 'b', 'c'].map(mk).join('\n') + '\n')
+  const env = { ...process.env, ORACLE_CORPUS: join(dir, 'corpus.jsonl'), ORACLE_RESULTS: results }
+  let out = ''
+  try { out = execFileSync(process.execPath, [join(ROOT, 'scripts', 'oracle-report.mjs')], { encoding: 'utf8', cwd: ROOT, env }) }
+  catch (e) { out = String(e.stdout || '') + String(e.stderr || '') }
+  ok(/WHAT THIS DOES NOT ESTABLISH/.test(out), 'a report that printed rates states what they do not establish')
+  ok(/Selection bias is not corrected/.test(out) && /whatever its builder chose to add/.test(out),
+     'the selection-bias residual prints beside the numbers — the corpus has no sampling frame, and only this sentence holds that fact once #38 closes')
+  ok(/Adding more\s+rows of the same kind does not fix this and can hide it/.test(out),
+     'and it says the part that matters: more rows of the same kind can HIDE the bias, so row count is not a remedy')
+  ok(/front of it is exactly the corpus and nothing more/.test(out),
+     'and the coverage residual: which artifacts met the rule is the corpus, nothing more')
+
+  // The empty path exits before the rates and carries its own residual instead — a
+  // report with nothing to establish has nothing to disclaim about numbers it did
+  // not print, and must still refuse to read as a rate of zero.
+  writeFileSync(results, '')
+  let empty = ''
+  try { empty = execFileSync(process.execPath, [join(ROOT, 'scripts', 'oracle-report.mjs')], { encoding: 'utf8', cwd: ROOT, env }) }
+  catch (e) { empty = String(e.stdout || '') + String(e.stderr || '') }
+  ok(/cannot be posed yet/.test(empty) && /not a rate of zero/.test(empty),
+     'an empty ledger refuses to read as a rate, which is that branch\'s own residual')
+  rmSync(dir, { recursive: true, force: true })
+  console.log('oracle: the selection-bias residual is pinned to the output, not to an open issue (#38) OK')
+}
