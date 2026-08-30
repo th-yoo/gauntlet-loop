@@ -129,20 +129,29 @@ function updateAutoRepeat(t) {
   }
 }
 
+// KEYED ON e.code, THE PHYSICAL KEY, not e.key, the character produced. e.key runs
+// through the active input source: with a Korean IME the Z key reports '\u314b' and the
+// rotate binding never fires, while the arrows and space keep working because their
+// e.key is layout-independent. The result is a game that plays and cannot rotate, with
+// the on-screen instructions still promising that it can. e.key is kept as a fallback so
+// nothing that worked before stops working.
+const held = e => e.code || ''
 addEventListener('keydown', e => {
   if (over) return
-  if (e.key === 'ArrowLeft') startHeld(-1)
-  else if (e.key === 'ArrowRight') startHeld(1)
-  else if (e.key === 'ArrowUp' || e.key === 'x' || e.key === 'X') rotate(1)
-  else if (e.key === 'z' || e.key === 'Z') rotate(-1)
-  else if (e.key === 'ArrowDown') down()
-  else if (e.key === ' ') hard()
+  const c = held(e)
+  if (c === 'ArrowLeft' || e.key === 'ArrowLeft') startHeld(-1)
+  else if (c === 'ArrowRight' || e.key === 'ArrowRight') startHeld(1)
+  else if (c === 'ArrowUp' || c === 'KeyX' || e.key === 'ArrowUp' || e.key === 'x' || e.key === 'X') rotate(1)
+  else if (c === 'KeyZ' || e.key === 'z' || e.key === 'Z') rotate(-1)
+  else if (c === 'ArrowDown' || e.key === 'ArrowDown') down()
+  else if (c === 'Space' || e.key === ' ') hard()
   else return
   e.preventDefault(); draw()
 })
 addEventListener('keyup', e => {
-  if (e.key === 'ArrowLeft') releaseHeld(-1)
-  else if (e.key === 'ArrowRight') releaseHeld(1)
+  const c = held(e)
+  if (c === 'ArrowLeft' || e.key === 'ArrowLeft') releaseHeld(-1)
+  else if (c === 'ArrowRight' || e.key === 'ArrowRight') releaseHeld(1)
 })
 addEventListener('blur', () => { heldDir = 0; dasActive = false })
 

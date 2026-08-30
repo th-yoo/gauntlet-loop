@@ -51,7 +51,7 @@ directory.
 
 | | candidate | reference |
 |---|---|---|
-| bytes | 7,306 | 89,340 |
+| bytes | 7,306 (as measured; now 8,033, corrected by hand) | 89,340 |
 | next-piece preview | — | yes |
 | hold | — | yes |
 | ghost piece | — | yes |
@@ -83,8 +83,15 @@ symptom: the game plays, and only rotation-by-letter is dead.
 
 The reference matches on `e.code === "KeyZ"`, the physical key. It is immune.
 
-**Not one round of any run named this**, and the artifact's own on-screen text asserts the
-behaviour it does not have.
+**Not one round of any run named this**, and the artifact's own on-screen text asserted the
+behaviour it did not have.
+
+**Corrected by hand**, keyed on `e.code` with `e.key` kept as a fallback: 7,306 -> 8,033
+bytes. All three cases above now rotate, arrows and space unchanged, no page errors. The
+bytes as the run left them are at `31f8c74`, and `docs/runs/2026-08-29-tetris/README.md`
+carries the same note — a file that is no longer a run's output must not keep claiming to be
+one. Fixing it here is the operator building rather than the loop, which is worth saying
+plainly: it is one more thing the instrument did not do.
 
 ## 5. Why the loop could not have closed the gap anyway
 

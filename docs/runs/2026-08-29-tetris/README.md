@@ -24,9 +24,27 @@ cp ../scripts/play.mjs .   # the probe; it lived here during the run and moved f
 sha256sum GOAL.txt   # must be 511357cc539479995abcdf2368cb784dbe6c08afd6e2b1bbea3267353748a3b2
 ```
 
-`doc-1.html` here is the candidate as the run left it — 7,306 bytes, grown from a 3,247-byte
-seed that had no wall kicks, ghost, hold or next-piece preview. It is the one artifact that
-cannot be re-fetched.
+`doc-1.html` is the candidate the run produced, grown from a 3,247-byte seed that had no
+wall kicks, ghost, hold or next-piece preview. It is the one artifact that cannot be
+re-fetched.
+
+**IT HAS BEEN CORRECTED ONCE BY HAND, and no longer is what the run left.** At 7,306 bytes
+its key handler matched on `e.key`, the character an input source produces, so under a
+Korean IME the Z key reported `ㅋ` and rotation was dead while the arrows and space kept
+working — a game that plays and cannot rotate, with the on-screen instructions still
+promising that it can. Found by the operator pressing the key, not by any round of any run;
+recorded in `docs/runs/2026-08-30-tetris-rerun/`. Now 8,033 bytes, keyed on `e.code` with
+`e.key` kept as a fallback.
+
+The bytes as the run left them are at `31f8c74`:
+
+```bash
+git show 31f8c74:docs/runs/2026-08-29-tetris/doc-1.html
+```
+
+That distinction matters for anything derived from this file. `size_by_round` in
+`verdict.json` and the trials the split ledger ingests were all measured against the
+7,306-byte version, and re-measuring this one would compare a hand-edit against a build.
 
 `GOAL.txt` was written before any candidate existed, which is what makes
 `goal_authored: 'independently'` honest; the hash is the evidence, since the loop records the
