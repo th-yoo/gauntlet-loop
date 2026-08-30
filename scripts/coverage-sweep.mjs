@@ -66,6 +66,8 @@ export const PROPERTIES = [
   // --- issue 63: the lead can raise a piece's line and cannot lower it ------------------
   ['the lead cannot lower the line below the floor', L, "const lineFor = piece => Math.max(CRITICS, (piece && piece.critics_asked) || 0)", "const lineFor = piece => (piece && piece.critics_asked) || CRITICS"],
   ['a lead-raised line is reserved for before the round starts', L, 'ROUND_RESERVE = BUILD_RESERVE + K_MAX * CRITIC_RESERVE\n', ''],
+  // --- issue 30: growth is read through the regression verdicts, not asserted from bytes -
+  ['growth is read through the regression verdicts', L, "        if (h.regression && h.regression.prefers === 'new') judged.newer++", "        if (false) judged.newer++"],
   ['a citation naming no clause is dropped in code', L, "    p.invalid_citations = p.covers.filter(n => !valid.has(n))\n    p.covers = [...new Set(p.covers.filter(n => valid.has(n)))].sort((a, b) => a - b)", "    p.invalid_citations = []\n    p.covers = [...new Set(p.covers)].sort((a, b) => a - b)"],
   ['size growth is measured per piece', L, '      const k = x.piece || null', '      const k = null'],
   ['an empty artifact is a measurement, not a failure', L, 'Number.isFinite(m.bytes) && m.bytes >= 0', 'Number.isFinite(m.bytes) && m.bytes > 0'],

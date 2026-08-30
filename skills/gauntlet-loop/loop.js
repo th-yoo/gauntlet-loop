@@ -2214,7 +2214,31 @@ return {
       return null
     }
     const what = growers.map(g => `${g.name ? `"${g.name}"` : 'the artifact'} ${g.from} to ${g.to} bytes, +${g.delta}`).join('; ')
-    return `GREW EVERY ROUND — ${what}. Each gap may have been real and each fix may have addressed it; an artifact that only ever gets bigger is usually losing anyway. Check whether the builder is answering absences by appending.`
+    // BYTES CANNOT TELL BEHAVIOUR FROM BLOAT — issue #30. On source a file that
+    // doubles may have gained three subsystems or three copies of one; on prose
+    // the same. This note used to say "an artifact that only ever gets bigger is
+    // usually losing anyway" over a run whose OTHER instrument — the regression
+    // check, one fresh critic per built round asking whether the new version is
+    // closer to the goal than the copy it replaced — had preferred the new version
+    // three times out of three. The verdict contradicted itself across two fields.
+    // So the reading is DERIVED from the regression verdicts of the growing pieces'
+    // built rounds, and asserted from bytes only when no round was checked.
+    const judged = { newer: 0, previous: 0, unchecked: 0 }
+    for (const g of growers) {
+      for (const h of history) {
+        if ((h.piece || null) !== g.name || !h.built) continue
+        if (h.regression && h.regression.prefers === 'new') judged.newer++
+        else if (h.regression && h.regression.prefers === 'previous') judged.previous++
+        else judged.unchecked++
+      }
+    }
+    const built = judged.newer + judged.previous + judged.unchecked
+    const reading = judged.previous > 0
+      ? `${judged.previous} of those round(s) were judged WORSE than what they replaced by a fresh critic — growth that lost, which is the builder answering an absence by appending`
+      : judged.newer > 0
+        ? `a fresh critic preferred the new version in every one of the ${judged.newer} checked round(s)${judged.unchecked ? ` (${judged.unchecked} unchecked)` : ''} — read the growth as additions a critic accepted, not as appending; bytes alone would have called this bloat`
+        : `none of the ${built} built round(s) was checked against the version it replaced, so whether this growth is behaviour or bloat is undetermined — check whether the builder is answering absences by appending`
+    return `GREW EVERY ROUND — ${what}. Bytes cannot tell behaviour from bloat; the regression check can, one round at a time: ${reading}.`
   })(),
 
   goal_coupling: fitted

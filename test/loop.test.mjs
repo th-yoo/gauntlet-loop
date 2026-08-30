@@ -2892,3 +2892,39 @@ console.log('loop: args.critics is validated OK')
   eq(r.labels.filter(l => /:ab/.test(l)), [], 'no critic was spawned')
   console.log('loop: the reserve is sized to the widest line the lead asked for OK')
 }
+
+// BYTES CANNOT TELL BEHAVIOUR FROM BLOAT — issue #30. The Tetris verdict said
+// "GREW EVERY ROUND ... an artifact that only ever gets bigger is usually losing anyway"
+// while its own regression check had preferred the new version 3/3. The note now reads
+// the regression verdicts of the growing piece's built rounds, and the anchor is the
+// history the test itself drove: the counts in the note must equal what history holds.
+{
+  const grow = async regressionCheck => (await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: rd => rd <= 4,
+    rounds: [],
+    sizes: round => 1000 + round * 500,
+    builder: round => ({ changed: 'c', where: 'w', snapshot: `${CANDIDATE}.prev-${round}` }),
+    regressionCheck,
+  })).result
+  // Every growth accepted by a fresh critic.
+  const accepted = await grow(() => ({ prefers: 'new' }))
+  const nNew = accepted.history.filter(h => h.built && h.regression && h.regression.prefers === 'new').length
+  ok(nNew >= 3, `the run built and checked at least three rounds — got ${nNew}`)
+  ok(/GREW EVERY ROUND/.test(accepted.size_note), 'the growth is still reported')
+  ok(new RegExp(`preferred the new version in every one of the ${nNew} checked round\\(s\\)`).test(accepted.size_note),
+     `the note counts the rounds a critic accepted, from history — got: ${accepted.size_note}`)
+  ok(/not as appending/.test(accepted.size_note) && !/usually losing/.test(accepted.size_note),
+     'and growth every critic accepted is not called losing')
+  // One growth judged worse than what it replaced.
+  const lost = await grow(round => ({ prefers: round === 2 ? 'previous' : 'new' }))
+  const nPrev = lost.history.filter(h => h.built && h.regression && h.regression.prefers === 'previous').length
+  eq(nPrev, 1, 'exactly one round regressed in this fixture')
+  ok(/1 of those round\(s\) were judged WORSE/.test(lost.size_note) && /appending/.test(lost.size_note),
+     `a growth a critic judged worse is named as appending — got: ${lost.size_note}`)
+  // No regression check at all: bytes alone, and the note says it cannot decide.
+  const unchecked = await grow(undefined)
+  ok(/undetermined/.test(unchecked.size_note) && /none of the \d+ built round\(s\) was checked/.test(unchecked.size_note),
+     `with no regression verdicts the note says the growth is undetermined — got: ${unchecked.size_note}`)
+  console.log('loop: growth is read through the regression verdicts, not asserted from bytes (#30) OK')
+}
