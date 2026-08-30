@@ -83,8 +83,21 @@ function report() {
     console.log('              accumulate, the independent-judge model is wrong and q is not defined by d at all.')
   }
   console.log(`split-ledger: critics needed for a <=${pct(e.target)} false exit — ${e.N_at_low} at the low end of the interval, ${e.N_at_point} at the point estimate, ${e.N_at_high} at the high end`)
-  if (e.N_at_low === 1) console.log('              At the low end a single critic already clears the bar, so the line buys nothing.')
-  if (!Number.isFinite(e.N_at_high) || e.N_at_high > 10) console.log('              At the high end no affordable N reaches it, which falsifies the composition rather than tuning it.')
+  // ISSUE 21'S TWO FALSIFIERS, COMPUTED FROM THE ENDS OF THE INTERVAL. "Splits
+  // converging on near-unanimity" is the HIGH end needing one critic: even the
+  // pessimistic reading says the line buys nothing, and #20's composition should
+  // close. "Splits staying near 50/50" is the LOW end: the cheapest line the data
+  // allows, which is a cost the operator judges — no number here decides what is
+  // affordable. Anything else is an interval this many panels does not decide.
+  //
+  // This used to print "no affordable N reaches it, which falsifies the
+  // composition" whenever the HIGH end exceeded 10 — a hand-picked cutoff applied
+  // to the wrong end, so two panels with a wide interval read as a falsification.
+  // A wide interval falsifies nothing; it says the panels are few.
+  const verdict = e.N_at_high === 1
+    ? 'FALSIFIER 1 MET: even the high end of the interval needs one critic — the splits have converged on unanimity, the line buys nothing, and the composition in #20 is unjustified by this data'
+    : `neither falsifier decided: the interval spans ${e.N_at_low} to ${e.N_at_high} critics. The cheapest line this data allows is ${e.N_at_low}${e.N_at_low === 1 ? ' — at the low end a single critic already clears the bar' : ''}; whether ${e.N_at_low} per round is affordable is the operator's cost to judge, and a low end that stays unaffordable as panels accumulate is falsifier 2 (the blind A/B is the wrong terminator, not an under-parameterised one)`
+  console.log(`split-ledger: ${verdict}`)
   console.log('split-ledger: position breakdown (candidate wins / judgements, by the side it was on)')
   for (const [side, s] of Object.entries(e.by_side)) {
     console.log(`              side ${side}: ${s.candidate_wins}/${s.judgements}${s.judgements ? ` = ${pct(s.candidate_wins / s.judgements)}` : ''}`)

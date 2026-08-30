@@ -79,6 +79,48 @@ console.log('split-ledger: an empty ledger still refuses to read as a low rate')
   ok(/never a low disagreement rate/.test(out), 'and the sentence that stops it being read as evidence')
 }
 
+console.log('split-ledger: issue 21\'s falsifiers are read off the ENDS of the interval, in both directions')
+{
+  // FALSIFIER 1 — unanimity. Forty panels of two, every pair concordant: d = 0 with an
+  // interval whose high end is small enough that even it needs one critic. The
+  // report must say the line buys nothing and the composition is unjustified.
+  const unanimous = []
+  for (let i = 0; i < 40; i++) unanimous.push(trial(i, 1, 1, 1, 1, false))
+  const a = report(unanimous)
+  ok(/FALSIFIER 1 MET/.test(a) && /line buys nothing/.test(a), `forty unanimous panels must read as falsifier 1 — got:\n${a}`)
+  ok(!/falsifies the composition/.test(a), 'and the old high-end sentence is gone')
+
+  // THE OTHER DIRECTION — two panels, both split. The interval is wide because
+  // the panels are few, and a wide interval decides nothing. This is the exact
+  // ledger the Tetris run produced, and the old line printed "falsifies the
+  // composition" on it.
+  const two = [trial(1, 1, 1, 0, 1, true), trial(2, 0, 1, 1, 1, true)]
+  const b = report(two)
+  ok(/neither falsifier decided/.test(b), `two split panels must decide neither falsifier — got:\n${b}`)
+  ok(!/FALSIFIER 1 MET/.test(b) && !/falsifies the composition/.test(b), 'and must not claim either')
+  ok(/cheapest line this data allows is \d+/.test(b) && /operator's cost to judge/.test(b), 'the low end is reported as a cost the operator judges, not thresholded here')
+
+  // THE CASE THAT SEPARATES THE ENDS. Six unanimous panels: d = 0, so the LOW end
+  // needs one critic — but six panels leave the high end wide enough to need more.
+  // A verdict read off the low end calls this unanimity; the right reading is
+  // "neither, and at the low end one already clears the bar". The first version of
+  // this test lacked it, and the sweep reported the end-swap NOT CAUGHT.
+  const six = []
+  for (let i = 0; i < 6; i++) six.push(trial(i, 1, 1, 1, 1, false))
+  const c = report(six)
+  const endsC = c.match(/(\d+) at the low end of the interval, \d+ at the point estimate, (\d+) at the high end/)
+  ok(endsC && Number(endsC[1]) === 1 && Number(endsC[2]) > 1, `six unanimous panels must have low end 1 and high end above 1 for this case to separate the ends — got ${endsC && endsC.slice(1).join('/')}`)
+  ok(/neither falsifier decided/.test(c) && /a single critic already clears the bar/.test(c), `six unanimous panels read as "neither", with the low end noted — got:\n${c}`)
+  ok(!/FALSIFIER 1 MET/.test(c), 'and NOT as falsifier 1 — that needs the HIGH end at one')
+
+  // AND THE KEY IS COMPUTED: the verdict must follow N_at_high, which the test reads
+  // back from the same report rather than restating impliedN.
+  const ends = b.match(/(\d+) at the low end of the interval, \d+ at the point estimate, (\d+) at the high end/)
+  ok(ends && Number(ends[2]) > 1, `the wide case's high end must need more than one critic for "neither" to be the right reading — got ${ends && ends[2]}`)
+  const endsA = a.match(/(\d+) at the low end of the interval, \d+ at the point estimate, (\d+) at the high end/)
+  ok(endsA && Number(endsA[2]) === 1, `the unanimous case's high end must be 1 for falsifier 1 — got ${endsA && endsA[2]}`)
+}
+
 rmSync(TMP, { recursive: true, force: true })
 
 console.log('split-ledger: stating what this cannot establish')

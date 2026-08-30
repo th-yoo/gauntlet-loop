@@ -82,6 +82,7 @@ export const PROPERTIES = [
   ['q is the root below one half', SE, '  return (1 - Math.sqrt(1 - 2 * d)) / 2', '  return (1 + Math.sqrt(1 - 2 * d)) / 2'],
   ['a row without both counts is not a panel', SE, "  const usable = trials.filter(t => Number.isInteger(t.for_candidate) && Number.isInteger(t.against_candidate) && t.for_candidate + t.against_candidate >= 2)", '  const usable = trials.slice()'],
   ['the position claim follows the interval rather than being asserted', SL, '    const overlap = aLo <= bHi && bLo <= aHi', '    const overlap = true'],
+  ['the falsifier is read off the high end of the interval', SL, '  const verdict = e.N_at_high === 1\n', '  const verdict = e.N_at_low === 1\n'],
   // --- the constructed oracle's role derivation ---------------------------------
   // Added with issue 33's second goal. Both mutations were APPLIED and the suite
   // watched to go red before being pinned here. Note the rest of
