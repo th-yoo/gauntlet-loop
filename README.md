@@ -177,6 +177,12 @@ deleted.
   verdicts of the rounds that grew, and only calls growth bloat when a critic judged a
   round worse than the version it replaced. One run is one run; nothing here says the loop
   converges on code.
+- **No options mode.** Issue 8 asked for a run output that presents options with their
+  trade-offs and each one's falsifier when the evidence does not settle a decision. The
+  configuration that would produce it went with the judge lane; the shape is this
+  repository's decision-record convention instead (`docs/decisions/`, four records), and
+  `test/decisions.test.mjs` fails any record that lacks its question, its decision, its
+  declined alternatives, or what would reopen it. Decision 0004 says why.
 - **k critics on one piece is ours, not his.** Both source texts say one critic
   per piece, singular. It is disclosed in every run rather than presented as
   fidelity.
@@ -187,7 +193,7 @@ deleted.
 node test/run-all.mjs
 ```
 
-That globs every `test/*.test.mjs` — 38 suites, and it is what CI runs. It covers the
+That globs every `test/*.test.mjs` — 39 suites, and it is what CI runs. It covers the
 drift guard, the offline loop harness, and every measurement instrument above.
 
 The loop suite runs `loop.js` against a stubbed agent runtime, so it proves the control

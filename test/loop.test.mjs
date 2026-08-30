@@ -2928,3 +2928,28 @@ console.log('loop: args.critics is validated OK')
      `with no regression verdicts the note says the growth is undetermined — got: ${unchecked.size_note}`)
   console.log('loop: growth is read through the regression verdicts, not asserted from bytes (#30) OK')
 }
+
+// DISAGREEMENT IS THE CONTENT, NOT NOISE — issue 8's constraint, applied to the one
+// decision the loop makes. When two critics split, both readings must survive into the
+// record with their reasons, the dissenter's gap must be what is built on, and the rule
+// that chose it must be named. Averaging, or keeping only the winner's reading, would
+// be a manufactured verdict.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 2 },
+    critic: (round, s) => (s.criticIndex === 1
+      ? { winner: s.candidateSide, why: 'first: the candidate reads cleaner', gap: 'FIRST-GAP about the reference', inspected: 'i' }
+      : { winner: s.referenceSide, why: 'second: the candidate drops a section', gap: 'SECOND-GAP the dropped section', inspected: 'i' }),
+    breaker: n => n <= 1,
+  })
+  const h = r.result.history[0]
+  eq(h.split.positions.length, 2, 'both critics are on record')
+  eq(h.split.positions.map(p => p.candidateWon), [true, false], 'one for the candidate, one against')
+  ok(h.split.positions.every(p => p.why && p.gap), 'each position keeps its own why and gap — the losing reading is not discarded')
+  eq(h.candidateWon, false, 'a split is a loss')
+  eq(h.gap, 'SECOND-GAP the dropped section', 'the round\'s gap is the dissenter\'s, not the first critic\'s')
+  eq(h.gapSelection && h.gapSelection.method, 'first-by-spawn-order', 'and the rule that chose it is named')
+  const build = r.prompts.find(p => p.label === 'round-1:build')
+  ok(build && build.prompt.includes('SECOND-GAP'), 'the builder is handed the dissent')
+  console.log('loop: a split keeps both readings and builds on the dissent — disagreement is the content (#8) OK')
+}
