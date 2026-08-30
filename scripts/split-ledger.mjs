@@ -66,7 +66,10 @@ function report() {
     return
   }
   const pct = x => `${(x * 100).toFixed(0)}%`
-  console.log(`split-ledger: disagreement p = ${e.disagreements}/${e.trials} = ${pct(e.p)}   Wilson 95% CI ${pct(e.wilson[0])}–${pct(e.wilson[1])}`)
+  // THE UNITS ARE IN THE LINE, because printing "2/2" over trials while the
+  // arithmetic below consumes a per-judge rate is how #70 read as a result.
+  console.log(`split-ledger: dissent p = ${e.disagreements}/${e.judges} JUDGES = ${pct(e.p)}   Wilson 95% CI ${pct(e.wilson[0])}–${pct(e.wilson[1])}`)
+  console.log(`split-ledger: over ${e.trials} trial(s), of which ${e.split_panels} panel(s) split`)
   console.log(`split-ledger: critics needed for a <=${pct(e.target)} false exit — ${e.N_at_low} at the low end of the interval, ${e.N_at_point} at the point estimate, ${e.N_at_high} at the high end`)
   if (e.N_at_low === 1) console.log('              At the low end a single critic already clears the bar, so the line buys nothing.')
   if (!Number.isFinite(e.N_at_high) || e.N_at_high > 10) console.log('              At the high end no affordable N reaches it, which falsifies the composition rather than tuning it.')

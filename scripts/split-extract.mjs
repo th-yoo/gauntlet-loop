@@ -152,8 +152,24 @@ export function impliedN(p, target = 0.05) {
 }
 
 export function estimate(trials, target = 0.05) {
-  const n = trials.length
-  const k = trials.filter(t => t.disagreed).length
+  // THE UNIT IS A JUDGE, because that is the unit impliedN consumes: p^N is the
+  // chance N judges all err independently. This counted disagreeing PANELS over
+  // panels (#70), and the two are not the same number — the first real ingest this
+  // repository did was two panels of two, split 1-1, which reads 2/2 = 100% and
+  // Infinity critics as a panel rate and 2/4 = 50% and five critics as a judge
+  // rate. It printed the first, under the headline that no affordable N reaches
+  // the bar.
+  //
+  // It survived because the test beside it built five trials of five judges and
+  // asserted 0.4, calling that "#20's 2/5" — 2 panels over 5 panels prints the same
+  // digits as 2 judges over 5 judges, and the coincidence made the wrong unit look
+  // right.
+  //
+  // A unanimous panel contributes its judges to the denominator and nothing to the
+  // numerator; dropping it would be the same defect one level in.
+  const nTrials = trials.length
+  const n = trials.reduce((s, t) => s + (t.judges || 0), 0)
+  const k = trials.reduce((s, t) => s + (t.minority || 0), 0)
   const p = n ? k / n : null
   const [lo, hi] = wilson(k, n)
   // POSITION BIAS, SEPARATED. Every trial puts judges on both sides — arm-confirm
@@ -169,7 +185,12 @@ export function estimate(trials, target = 0.05) {
     }
   }
   return {
-    trials: n,
+    trials: nTrials,
+    judges: n,
+    // KEPT SEPARATE from `disagreements`, which is now a judge count. A reader
+    // comparing runs needs to see how many panels split as well as how many judges
+    // dissented, and collapsing the two is what produced #70.
+    split_panels: trials.filter(t => t.disagreed).length,
     disagreements: k,
     p,
     wilson: n ? [lo, hi] : null,

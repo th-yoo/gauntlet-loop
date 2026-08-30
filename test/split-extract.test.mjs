@@ -161,23 +161,59 @@ console.log('split-extract: N is DERIVED from p, never tabulated')
   eq(impliedN(1), Infinity, 'a judge that always dissents is never safe at any N')
 }
 
+console.log('split-extract: p counts JUDGES, not panels')
+{
+  // THE REPRODUCIBLE for issue 70. The case beside this one builds five trials of
+  // five judges and asserts p === 0.4, calling it "2/5, which is what #20
+  // measured". Those digits agree by coincidence: 2 disagreeing PANELS over 5
+  // panels prints the same as #20's 2 minority JUDGES over 5 judges, and that
+  // coincidence is why nothing noticed the estimator was counting the wrong unit.
+  //
+  // Here the two readings cannot coincide. Two trials, two judges each, split 1-1:
+  //   per-panel  2/2 = 100%  -> impliedN = Infinity
+  //   per-judge  2/4 =  50%  -> impliedN = 5
+  // The first is what the ledger printed on the first real ingest this repository
+  // ever did, under the headline "no affordable N reaches it, which falsifies the
+  // composition rather than tuning it".
+  const split = n => Array.from({ length: n }, (_, i) => ({
+    run: 'r', kind: 'within-round', rounds: [i], judges: 2, minority: 1, disagreed: true,
+    sides: ['A', 'B'], candidate_wins_by_side: { A: 1, B: 0 }, judgements_by_side: { A: 1, B: 1 },
+  }))
+  const e = estimate(split(2))
+  eq(e.trials, 2, 'two trials were recorded')
+  eq(e.p, 0.5, 'p must be minority judges over judges (2/4), which is the quantity impliedN consumes — not split panels over panels (2/2)')
+  eq(e.N_at_point, 5, 'and N follows from that p rather than from Infinity')
+  // A panel that is unanimous contributes judges to the denominator and none to
+  // the numerator. Without this, "count judges" could be satisfied by counting
+  // only the judges of panels that split, which is the same defect one level in.
+  const mixed = [...split(1), { run: 'r', kind: 'within-round', rounds: [9], judges: 2, minority: 0,
+    disagreed: false, sides: ['A', 'B'], candidate_wins_by_side: { A: 1, B: 1 }, judgements_by_side: { A: 1, B: 1 } }]
+  eq(estimate(mixed).p, 0.25, 'a unanimous panel still contributes its judges to the denominator (1 minority of 4)')
+}
+
 console.log('split-extract: the estimate reports the SPAN, not a point')
 {
-  const trials = []
-  for (let i = 0; i < 5; i++) trials.push({ run: 'r', kind: 'within-round', rounds: [i], judges: 5,
-    minority: i < 2 ? 2 : 0, disagreed: i < 2, sides: ['A', 'B'],
-    candidate_wins_by_side: { A: 1, B: 0 }, judgements_by_side: { A: 1, B: 1 } })
+  // REBUILT so it reconstructs #20 LITERALLY rather than by coincidence. It used to
+  // build five trials of five judges with two panels splitting, assert 0.4 and call
+  // that "#20's 2/5" — but 2 panels over 5 panels only prints the same digits as 2
+  // judges over 5 judges. That coincidence is what hid #70 in the fixture written to
+  // catch it. #20 was ONE panel: five judges on one unchanged pair, split 3-2.
+  const trials = [{ run: 'r', kind: 'within-round', rounds: [1], judges: 5, minority: 2,
+    disagreed: true, sides: ['A', 'B'],
+    candidate_wins_by_side: { A: 5, B: 0 }, judgements_by_side: { A: 5, B: 5 } }]
   const e = estimate(trials)
-  eq(e.trials, 5, 'five trials')
-  eq(e.disagreements, 2, 'two disagreed')
-  eq(e.p, 0.4, 'p is 2/5, which is what #20 measured')
+  eq(e.trials, 1, 'one trial — #20 was a single panel of five')
+  eq(e.judges, 5, 'and five judges in it')
+  eq(e.disagreements, 2, 'two of the five landed on the minority side')
+  eq(e.split_panels, 1, 'and that panel is recorded as split, kept separate from the judge count')
+  eq(e.p, 0.4, 'p is 2/5 JUDGES, which is the quantity #20 measured and impliedN consumes')
   ok(e.wilson[0] < 0.2 && e.wilson[1] > 0.7,
      `the interval on 2/5 should still be wide (got ${e.wilson.map(x => x.toFixed(2)).join('-')}) — issue 21 is about the SPAN, and a narrow one here would mean the arithmetic is wrong`)
   ok(e.N_at_low < e.N_at_point && e.N_at_point < e.N_at_high,
      `N must increase with p across the interval — got ${e.N_at_low}, ${e.N_at_point}, ${e.N_at_high}`)
   // POSITION BIAS, separated rather than assumed absent.
   ok(e.by_side.A && e.by_side.B, 'both sides are reported')
-  eq(e.by_side.A.candidate_wins, 5, 'the candidate won every time it was on A in this fixture')
+  eq(e.by_side.A.candidate_wins, 5, 'the candidate won every judgement it had on A in this fixture')
   eq(e.by_side.B.candidate_wins, 0, 'and never when it was on B — which is what a position-biased set looks like')
 }
 
@@ -230,7 +266,12 @@ console.log('split-ledger: accumulation across runs, deduped by unit')
   eq(after, before, `re-ingesting the same runs changed the ledger from ${before} to ${after} rows — the denominator counts reads rather than trials`)
 
   const rep = cli('--report').stdout
-  ok(/disagreement p = /.test(rep), 'the report states p once there are trials')
+  // THE UNITS MUST BE IN THE LINE. "disagreement p = 2/2" over trials, with the
+  // arithmetic below consuming a per-judge rate, is exactly how #70 read as a
+  // result rather than as a category error.
+  ok(/dissent p = \d+\/\d+ JUDGES = /.test(rep),
+     `the report must state p over JUDGES and say so — got: ${(rep.match(/split-ledger: .*p = .*/) || ['(no p line)'])[0]}`)
+  ok(/panel\(s\) split/.test(rep), 'and must still report how many panels split, which is a different number')
   ok(/Wilson 95% CI/.test(rep), 'with an interval, because issue 21 is about the span rather than the point')
   ok(/critics needed/.test(rep), 'and the implied N at both ends of that interval')
   ok(/position breakdown/.test(rep), 'and the position breakdown, which is what separates side bias from judge variance')
