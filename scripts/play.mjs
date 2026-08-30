@@ -71,7 +71,20 @@ const server = createServer((req, res) => {
 await new Promise(r => server.listen(0, '127.0.0.1', r))
 const httpPort = server.address().port
 const profile = mkdtempSync(join(tmpdir(), 'play-'))
-const CHROME = process.env.PLAY_CHROME || 'google-chrome'
+// PLAY_CHROME still wins. Without it, the first installed path from a short per-platform
+// list, falling back to the Linux binary name. `google-chrome` is not on PATH on darwin —
+// Chrome lives inside an .app bundle — so test/play.test.mjs was red on every Mac, and a
+// probe that cannot start reports "the page never loaded" against whichever artifact it
+// was pointed at. Discovered, not assumed: each candidate is checked with existsSync, and
+// a bare name is left for PATH to resolve.
+const CHROME_CANDIDATES = [
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Chromium.app/Contents/MacOS/Chromium',
+  '/usr/bin/google-chrome', '/usr/bin/chromium', '/usr/bin/chromium-browser',
+]
+const CHROME = process.env.PLAY_CHROME
+  || CHROME_CANDIDATES.find(p => existsSync(p))
+  || 'google-chrome'
 // The binary is caller-supplied, so test/containment.test.mjs cannot read what runs
 // here and requires the barrier every such site carries: the value is checked for a
 // model runner before it is spawned. A browser is inert; a PLAY_CHROME naming an
@@ -87,7 +100,13 @@ const chrome = spawn(CHROME, [
 chrome.on('error', e => { server.close(); console.error(`play: cannot start ${CHROME} (${e.code || e.message}) — install it or set PLAY_CHROME`); process.exit(2) })
 let port = null
 chrome.stderr.on('data', d => { const m = /ws:\/\/127\.0\.0\.1:(\d+)\//.exec(String(d)); if (m && !port) port = m[1] })
-for (let i = 0; i < 100 && !port; i++) await sleep(100)
+// SIXTY SECONDS, NOT TEN, and the reason is the one this file already documents twice.
+// Chrome's FIRST launch on a host takes longer than ten and every launch after it takes
+// two; test/play.test.mjs starts six concurrently. A probe that gives up reports nothing,
+// and nothing is read as "the page never loaded" against whichever artifact it happened to
+// be pointed at — a difference invented by the harness, exactly like the file:// block and
+// the favicon 404 above it.
+for (let i = 0; i < 600 && !port; i++) await sleep(100)
 if (!port) { chrome.kill(); console.error('play: chrome never announced a debugging port'); process.exit(1) }
 
 const targets = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json()

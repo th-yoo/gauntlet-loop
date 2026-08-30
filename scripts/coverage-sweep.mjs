@@ -50,6 +50,9 @@ export const PROPERTIES = [
   ['the split check only judges what the pieces edited', L, 'const PIECES_EDIT_THE_WHOLE = PIECES.every(p => (p.candidate || CANDIDATE) === CANDIDATE)', 'const PIECES_EDIT_THE_WHOLE = true'],
   ['a cancel after rounds is not reported as a bad token path', L, '        : history.length === 0', '        : round === 1'],
   ['a silent breaker is not reported as an absent token', L, '      why: breakerSilent !== null', '      why: false'],
+  // The twin. `why` was pinned and ROUND_COUNT_CLAIM was not, so the same false sentence
+  // survived one field over with the sweep green. Pinned per FIELD, not per property.
+  ['no other verdict field reports an absent token either', L, '    return breakerSilent !== null', '    return false'],
   // --- issue 68's class: agents/ changed, version not ---------------------------------
   // Both applied and the suite watched to go red before being pinned. The first blinds the
   // check to the one case `git diff <commit>` cannot see; the second is the verdict itself.

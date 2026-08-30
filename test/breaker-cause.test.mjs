@@ -60,7 +60,11 @@ console.log('breaker-cause: `why` names the breaker, not the token  (fixed at 90
 console.log('breaker-cause: and NO OTHER FIELD claims the token was absent either')
 {
   const claims = [...(silent.enforced || []), ...(silent.not_enforced || [])]
-  const offender = claims.find(c => /token .*(was absent|already absent)/i.test(String(c)))
+  // THE PROPERTY, NOT THE OLD WORDING. This first matched the exact sentence the defect
+  // shipped with, so a mutation that fell through to a DIFFERENT false sentence about the
+  // token passed it. When the breaker was silent the run observed nothing about the token,
+  // so no line may mention the token and absence together, however it is phrased.
+  const offender = claims.map(String).find(c => /token/i.test(c) && /absent/i.test(c))
   ok(!offender,
      `the breaker never answered and a field other than \`why\` still asserts the token was absent. It sits in enforced/not_enforced, where a reader takes it for something the run established, and it contradicts \`why\` in the same verdict. Got: ${JSON.stringify(offender)}`)
 }
@@ -69,9 +73,14 @@ console.log('breaker-cause: a breaker that DID report ABSENT still says so, ever
 {
   const why = String(absent.outcome && absent.outcome.why)
   ok(/token/i.test(why), `the token really was gone and \`why\` no longer says so: ${JSON.stringify(why)}`)
-  const claims = [...(absent.enforced || []), ...(absent.not_enforced || [])].join('\n')
-  ok(/token/i.test(claims),
-     'the breaker reported ABSENT and no enforced/not_enforced line mentions the token — the fix deleted the claim instead of conditioning it')
+  // SPECIFIC, because the loose version was satisfied by the wrong line. Asking only
+  // whether SOME enforced line mentions the token passed while ROUND_COUNT_CLAIM had been
+  // mutated away entirely — the interruptibility line names the token path too, so the
+  // check could not tell a conditioned claim from a deleted one. Verified by mutation:
+  // replacing the branch with a constant now fails here by name.
+  const claims = [...(absent.enforced || []), ...(absent.not_enforced || [])].map(String)
+  ok(claims.some(c => /no round cap existed/i.test(c) && /token/i.test(c)),
+     `the breaker reported ABSENT and the round-count claim no longer says the token was the reason — the fix deleted the claim instead of conditioning it. Lines seen: ${JSON.stringify(claims.filter(c => /no round cap/i.test(c)))}`)
 }
 
 if (failures) {

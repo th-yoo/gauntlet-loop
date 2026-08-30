@@ -2100,8 +2100,15 @@ const ROUND_COUNT_CLAIM = (() => {
     return `no round cap existed and none was needed — the loop ran ${outcome.round} round(s) and stopped on the candidate winning the blind A/B`
   }
   if (outcome.status === 'CANCELLED') {
-    return history.length === 0
-      ? `no round cap existed; the run never started a round because the token at ${TOKEN} was absent at the first check`
+    // Conditioned on the same evidence as `why`, and for the same reason. This is the
+    // half 90bd4b3 left: it fixed `why` and this kept asserting the token was absent
+    // from inside `enforced`, where a reader takes a line for something the run
+    // established. Two fields of one verdict disagreeing is worse than one being wrong,
+    // because a reader who cross-checks is told the run agrees with itself.
+    return breakerSilent !== null
+      ? `no round cap existed; the run never started a round because its breaker could not be read, so whether the token at ${TOKEN} was present is unknown`
+      : history.length === 0
+      ? `no round cap existed; the run never started a round because the breaker reported the token at ${TOKEN} absent at the first check`
       : `no round cap existed — the loop ran ${history.length} round(s) and stopped because the OPERATOR removed the run token, which is the source's own second terminator ("until our output wins or I stop the run"). The candidate had not won when it stopped`
   }
   if (outcome.status === 'BUDGET') {
