@@ -5,8 +5,10 @@
 //
 //   node scripts/play.mjs <file.html> <out.png> [keySequence]
 //
-// keySequence is comma-separated CDP key names, default a short left/right/rotate/drop
-// run. No npm dependencies: Node 22 has fetch and WebSocket built in. PLAY_WARMUP
+// keySequence is comma-separated key names: any letter (z or KeyZ), any digit (5 or
+// Digit5), the arrows, Space, Enter, Shift(Left/Right), Escape. An unknown name is
+// REFUSED before anything is pressed, never skipped. Default a short
+// left/right/rotate/drop run. No npm dependencies: Node 22 has fetch and WebSocket built in. PLAY_WARMUP
 // overrides the keys pressed before the measured sequence (default Enter,Space; empty
 // disables); PLAY_CHROME names the browser binary (default google-chrome).
 //
@@ -44,6 +46,43 @@ const CODES = {
   ArrowDown:  { key: 'ArrowDown',  code: 'ArrowDown',  keyCode: 40, windowsVirtualKeyCode: 40 },
   Space:      { key: ' ',          code: 'Space',      keyCode: 32, windowsVirtualKeyCode: 32, text: ' ' },
   Enter:      { key: 'Enter',      code: 'Enter',      keyCode: 13, windowsVirtualKeyCode: 13, text: '\r' },
+  Shift:      { key: 'Shift',      code: 'ShiftLeft',  keyCode: 16, windowsVirtualKeyCode: 16 },
+  ShiftLeft:  { key: 'Shift',      code: 'ShiftLeft',  keyCode: 16, windowsVirtualKeyCode: 16 },
+  ShiftRight: { key: 'Shift',      code: 'ShiftRight', keyCode: 16, windowsVirtualKeyCode: 16 },
+  Escape:     { key: 'Escape',     code: 'Escape',     keyCode: 27, windowsVirtualKeyCode: 27 },
+}
+
+// ANY LETTER OR DIGIT IS DERIVED, NOT LOOKED UP — issue #72. The Tetris candidate
+// bound rotation to Z, its on-screen text said so, and the binding was dead under a
+// non-Latin input source; no round of any run could have found that, because this
+// table held six names and none were letters. Every letter-bound control in both
+// artifacts was unreachable by the only tool the critics were told to use. A list
+// of names is the registry shape #55 closed for spawn detection: key, code and
+// keyCode are all derivable for letters and digits, so they are derived. The named
+// table keeps only what has no derivation.
+function keyEventFor(name) {
+  const n = name.trim()
+  if (CODES[n]) return CODES[n]
+  if (/^[a-zA-Z]$/.test(n)) return { key: n, code: 'Key' + n.toUpperCase(), keyCode: n.toUpperCase().charCodeAt(0), windowsVirtualKeyCode: n.toUpperCase().charCodeAt(0), text: n }
+  if (/^Key[A-Z]$/.test(n)) return { key: n[3].toLowerCase(), code: n, keyCode: n.charCodeAt(3), windowsVirtualKeyCode: n.charCodeAt(3), text: n[3].toLowerCase() }
+  if (/^[0-9]$/.test(n)) return { key: n, code: 'Digit' + n, keyCode: 48 + Number(n), windowsVirtualKeyCode: 48 + Number(n), text: n }
+  if (/^Digit[0-9]$/.test(n)) return { key: n[5], code: n, keyCode: 48 + Number(n[5]), windowsVirtualKeyCode: 48 + Number(n[5]), text: n[5] }
+  return null
+}
+
+// AN UNKNOWN KEY IS REFUSED BEFORE ANYTHING IS PRESSED. The old loops skipped it
+// silently, so a critic passing 'KeyZ' got no key press and no complaint — a
+// screenshot identical to one where the key was pressed and the game ignored it.
+// The probe then cannot distinguish "this build does not respond to Z" from "I did
+// not press Z", which is a null result wearing a measurement's clothes. Checked
+// here, over both sequences, before the browser even starts.
+const WARMUP = (process.env.PLAY_WARMUP ?? 'Enter,Space').split(',').filter(Boolean)
+{
+  const bad = [...KEYS, ...WARMUP].map(k => k.trim()).filter(k => k && !keyEventFor(k))
+  if (bad.length) {
+    console.error(`play: refusing — unknown key name(s): ${[...new Set(bad)].join(', ')}. A skipped key produces the same screenshot as a pressed key the page ignored, so an unknown name stops the run before anything is pressed rather than being silently dropped. Dispatchable: any letter (z or KeyZ), any digit (5 or Digit5), and ${Object.keys(CODES).join(', ')}.`)
+    process.exit(2)
+  }
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
@@ -142,14 +181,12 @@ await sleep(1500)
 // So the warm-up runs on BOTH artifacts and is REPORTED rather than hidden: a page
 // with no gate is unchanged by it, and one with a gate is dismissed by it. The
 // screenshot comparison is what makes it a measurement instead of a guess.
-const WARMUP = (process.env.PLAY_WARMUP ?? 'Enter,Space').split(',').filter(Boolean)
 const shotNow = async () => (await send('Page.captureScreenshot', { format: 'png' })).result.data
 let gate = 'not probed'
 if (WARMUP.length) {
   const before = await shotNow()
   for (const k of WARMUP) {
-    const c = CODES[k.trim()]
-    if (!c) continue
+    const c = keyEventFor(k)
     await send('Input.dispatchKeyEvent', { type: 'keyDown', ...c })
     await send('Input.dispatchKeyEvent', { type: 'keyUp', ...c })
     await sleep(250)
@@ -169,8 +206,7 @@ if (WARMUP.length) {
 }
 
 for (const k of KEYS) {
-  const c = CODES[k.trim()]
-  if (!c) continue
+  const c = keyEventFor(k)
   await send('Input.dispatchKeyEvent', { type: 'keyDown', ...c })
   await send('Input.dispatchKeyEvent', { type: 'keyUp', ...c })
   await sleep(220)
@@ -185,6 +221,13 @@ writeFileSync(out, Buffer.from(shot.result.data, 'base64'))
 const title = await send('Runtime.evaluate', { expression: 'String(document.title)', returnByValue: true })
 console.log(`play: wrote ${out} after ${KEYS.length} key(s)`)
 console.log(`play: title ${JSON.stringify((title.result && title.result.result && title.result.result.value) || '')}`)
+// The page's visible text, whitespace-collapsed. An artifact that states its controls
+// on screen states them HERE, where a reader needs no pixels — which is what turns
+// "the instructions promise Z and Z does nothing" into a findable gap: read the line,
+// press the key it names, watch the title not move. The probe still interprets none
+// of it; deciding what the text promises is the critic's judgement, not this file's.
+const bodyText = await send('Runtime.evaluate', { expression: 'String((document.body && document.body.innerText) || "").replace(/\\s+/g, " ").trim().slice(0, 400)', returnByValue: true })
+console.log(`play: on-screen text ${JSON.stringify((bodyText.result && bodyText.result.result && bodyText.result.result.value) || '')}`)
 console.log(`play: warm-up ${WARMUP.join(',')} ran BEFORE the measured keys, on this and every artifact: ${gate}`)
 console.log('play: NOTE — a warm-up press can consume the first piece in a game that has no start screen. Both sides get the same warm-up, so the comparison is level; a single artifact read in isolation is one piece further on than a human would be.')
 console.log(errors.length ? `play: ${errors.length} page error(s):\n  ${errors.slice(0, 5).join('\n  ')}` : 'play: no page errors')

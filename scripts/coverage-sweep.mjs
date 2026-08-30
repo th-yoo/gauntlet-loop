@@ -64,6 +64,9 @@ export const PROPERTIES = [
   ['an absent favicon is not charged as a page error', PL, "  if (rel === 'favicon.ico' && !existsSync(join(root, rel))) { res.writeHead(204); return res.end() }", ''],
   ['the warm-up runs before the measured keys', PL, 'if (WARMUP.length) {', 'if (false) {'],
   ['the warm-up line reports the observation', PL, '  gate = before === after\n', '  gate = true\n'],
+  // --- issue 72: letters are derived and an unknown key stops the probe ---------------
+  ['a letter key is derived, not looked up in a table', PL, "  if (/^[a-zA-Z]$/.test(n)) return { key: n, code: 'Key' + n.toUpperCase(), keyCode: n.toUpperCase().charCodeAt(0), windowsVirtualKeyCode: n.toUpperCase().charCodeAt(0), text: n }", '  if (/^[a-zA-Z]$/.test(n)) return null'],
+  ['an unknown key is refused before anything is pressed', PL, '  if (bad.length) {', '  if (false) {'],
   // --- issue 67: the goal's clauses, and which the pieces never reached -----------------
   ['a clause no piece cited is reported as uncovered', L, '  const uncovered = clauses.filter(c => coveredBy(c.n).length === 0).map(c => c.n)', '  const uncovered = []'],
   ['a clause cited only by pieces that never ran is reported', L, '    .filter(x => x.pieces.length && x.pieces.every(name => !ran.has(name)))', '    .filter(x => false)'],

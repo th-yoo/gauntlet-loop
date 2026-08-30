@@ -149,3 +149,38 @@ console.log('          a game answers in pixels, and reading those is the critic
 
 if (failures) { console.error(`\nplay: ${failures} FAILURE(S)`); process.exit(1) }
 console.log('\nplay: OK — five pages built to break the probe, six runs in parallel, every count read from the page.')
+
+// LETTERS AND DIGITS ARE PRESSABLE, AND AN UNKNOWN KEY REFUSES — issue #72. The Tetris
+// candidate's Z-rotation was dead and its own screen said "Z rotates CCW"; the probe
+// could not press Z, and a key it did not know was skipped without a word, so "I did
+// not press it" and "the page ignored it" produced the same picture. The fixture
+// counts by e.code AND by e.key, so the derived events must carry both faithfully;
+// the refusal cases must stop before any key lands, naming the key.
+{
+  const dir = mkdtempSync(join(tmpdir(), 'play-letters-'))
+  writeFileSync(join(dir, 'index.html'), `<!doctype html><title>codes:0 keys:0 digits:0</title><body style="margin:0"><div style="font:32px monospace;padding:40px">Z rotates CCW, X rotates CW, 5 selects level</div><script>let c=0,k=0,d=0;addEventListener('keydown',e=>{if(e.code==='KeyZ')c++;if(e.key==='x')k++;if(e.code==='Digit5')d++;document.title='codes:'+c+' keys:'+k+' digits:'+d})</script></body>`)
+  const png = join(dir, 'out.png')
+  const play = (keys, env2) => new Promise(resolve => {
+    const p = spawn(process.execPath, [PLAY, join(dir, 'index.html'), png, keys], { env: { ...process.env, ...env2 } })
+    let out = ''
+    p.stdout.on('data', x => { out += x }); p.stderr.on('data', x => { out += x })
+    const t = setTimeout(() => p.kill('SIGKILL'), 60_000)
+    p.on('close', status => { clearTimeout(t); resolve({ status, out }) })
+  })
+  const r = await play('z,KeyZ,x,5,Shift')
+  ok(r.status === 0, `letters, digits and Shift dispatch — exit ${r.status}:\n${r.out}`)
+  ok(/play: title "codes:2 keys:1 digits:1"/.test(r.out),
+     `the derived events carry code and key faithfully: 'z' and 'KeyZ' both land as code KeyZ, 'x' lands as key x, '5' as Digit5 — got: ${(r.out.match(/play: title.*/) || [])[0]}`)
+  ok(/play: on-screen text "Z rotates CCW, X rotates CW, 5 selects level"/.test(r.out),
+     'the page\'s own control claims are in the output, pixel-free — the line a critic reads before pressing what it names')
+
+  const bad = await play('z,NoSuchKey,Wheee')
+  ok(bad.status === 2, `an unknown key exits 2 before anything is pressed — got ${bad.status}:\n${bad.out}`)
+  ok(/refusing — unknown key name\(s\): NoSuchKey, Wheee/.test(bad.out), 'and names every unknown key, so a critic learns its sequence was wrong rather than reading a silent no-op as the page ignoring keys')
+  ok(!/play: wrote/.test(bad.out), 'and no screenshot is produced — a refusal is not a measurement')
+
+  const badWarm = await play('z', { PLAY_WARMUP: 'Enter,Bogus' })
+  ok(badWarm.status === 2 && /Bogus/.test(badWarm.out), `an unknown WARM-UP key is refused the same way — got ${badWarm.status}`)
+  rmSync(dir, { recursive: true, force: true })
+  console.log('play: letters and digits are derived and pressable, and an unknown key refuses by name (#72) OK')
+}
