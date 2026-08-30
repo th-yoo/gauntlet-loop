@@ -52,6 +52,23 @@ It reports what it observed rather than what it concluded: the warm-up line says
 tell a dismissed start screen from keys simply playing the game, because a hard drop changes
 the screen exactly as a closing menu does.
 
+## The verdict
+
+`verdict.json` is the run's own output, as emitted. `outcome.status` is `CANCELLED` — the
+operator removed the token and the loop stopped at the round-4 boundary after 3 rounds,
+which is the circuit breaker working rather than a failure. It is kept because the split
+ledger's trials are derived from it and nothing else can regenerate them:
+
+```bash
+node scripts/split-ledger.mjs --ingest docs/runs/2026-08-29-tetris/verdict.json --run <any-token-string>
+node scripts/split-ledger.mjs --report
+```
+
+That yields two `within-round` trials, both 1-1 splits of two critics on the same bytes.
+`runs/splits.jsonl` is deliberately NOT committed while issue 71 stands: the rates it pools
+depend on k, so a ledger mixing runs at different critic counts reports one number over
+incomparable samples.
+
 ## What the run answered, of issue 30's three
 
 - **The lead DOES split a code artifact — but not where issue 30 predicted.** That issue says

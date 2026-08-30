@@ -1,0 +1,2 @@
+{"run":"/tmp/gauntlet-loop/1788008249.token","kind":"within-round","rounds":[2],"piece":"movement-and-rotation","judges":2,"minority":1,"disagreed":true,"sides":["A","B"],"candidate_wins_by_side":{"A":1,"B":0},"judgements_by_side":{"A":1,"B":1}}
+{"run":"/tmp/gauntlet-loop/1788008249.token","kind":"within-round","rounds":[3],"piece":"movement-and-rotation","judges":2,"minority":1,"disagreed":true,"sides":["B","A"],"candidate_wins_by_side":{"B":1,"A":0},"judgements_by_side":{"B":1,"A":1}}
