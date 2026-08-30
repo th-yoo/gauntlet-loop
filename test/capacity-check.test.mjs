@@ -113,13 +113,25 @@ console.log('capacity-check: the adjudications say what the constant COSTS, not 
   }
 }
 
-console.log('capacity-check: the residual is stated on the passing branch')
+console.log('capacity-check: the residual is stated on the passing branch, and it is THE residual')
 {
   const r = run()
   ok(/NOT ESTABLISHED/.test(r.out),
      'the check prints no residual when it passes — a limitation printed only on failure is printed exactly when it does not matter')
   ok(/OBSERVED/.test(r.out),
      'and it does not distinguish observed capacity from design capacity, which is the half of issue 50 it cannot close')
+  // PINNED BY SENTENCE, not by the section heading — issue 50's pre-run half is held
+  // by these words and nothing else, so a residual paragraph that kept its header and
+  // lost its content would still pass a /NOT ESTABLISHED/ match. The claims, each its
+  // own anchor: pre-run capacity is undecidable from a description; the author's own
+  // capacity claim is the thing under suspicion; and variation does not make a claim
+  // sound, it only makes unfalsifiable-by-construction less likely.
+  ok(/Whether a design COULD have disagreed is not decidable from a design/.test(r.out),
+     'the pre-run half is stated: capacity before the run is not decidable from the design description')
+  ok(/written by the design's author is the/.test(r.out),
+     'and why a stated capacity sentence cannot close it: the author\'s claim is the thing under suspicion')
+  ok(/does not make a claim sound/.test(r.out),
+     'and the varied-field caveat: variation is necessary for falsification, never sufficient for soundness')
 }
 
 console.log('capacity-check: stating what this cannot establish')

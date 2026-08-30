@@ -40,6 +40,7 @@ const SL = 'scripts/split-ledger.mjs'
 const SE = 'scripts/split-extract.mjs'
 const PV = 'scripts/plugin-version-check.mjs'
 const PL = 'scripts/play.mjs'
+const CC = 'scripts/capacity-check.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -215,6 +216,7 @@ export const PROPERTIES = [
 
   ['a generator row without its emission is refused', OA, '  if (!emissions.length) {', '  if (false) {'],
   ['a constructed row is grounded by re-deriving its role', OP, "      if (d.role !== row.expected_role) ungrounded.push(", "      if (false) ungrounded.push("],
+  ['the pre-run half of issue 50 cannot be deleted from the residual', CC, "console.log('                Whether a design COULD have disagreed is not decidable from a design')", "console.log('')"],
   ['the selection-bias residual cannot be deleted from the report', OP, "console.log('  - Selection bias is not corrected. The corpus is whatever its builder chose to add;')", "console.log('')"],
   ['a disputed row is excluded from any rate', OP, '    const a = all.filter(r => !r.disputed)', '    const a = all'],
 
