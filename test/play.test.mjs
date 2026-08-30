@@ -142,14 +142,6 @@ try {
   for (const d of dirs) rmSync(d, { recursive: true, force: true })
 }
 
-console.log('play: stating what this cannot establish')
-console.log('          NOT MEASURED: whether a real artifact binds the keys this probe presses, or whether the')
-console.log('          screenshot a critic reads is the one that matters. The fixtures answer in their title;')
-console.log('          a game answers in pixels, and reading those is the critic\'s job, not this file\'s.')
-
-if (failures) { console.error(`\nplay: ${failures} FAILURE(S)`); process.exit(1) }
-console.log('\nplay: OK — five pages built to break the probe, six runs in parallel, every count read from the page.')
-
 // LETTERS AND DIGITS ARE PRESSABLE, AND AN UNKNOWN KEY REFUSES — issue #72. The Tetris
 // candidate's Z-rotation was dead and its own screen said "Z rotates CCW"; the probe
 // could not press Z, and a key it did not know was skipped without a word, so "I did
@@ -182,5 +174,13 @@ console.log('\nplay: OK — five pages built to break the probe, six runs in par
   const badWarm = await play('z', { PLAY_WARMUP: 'Enter,Bogus' })
   ok(badWarm.status === 2 && /Bogus/.test(badWarm.out), `an unknown WARM-UP key is refused the same way — got ${badWarm.status}`)
   rmSync(dir, { recursive: true, force: true })
-  console.log('play: letters and digits are derived and pressable, and an unknown key refuses by name (#72) OK')
+  console.log('play: letters and digits are derived and pressable, and an unknown key refuses by name (#72)')
 }
+
+console.log('play: stating what this cannot establish')
+console.log('          NOT MEASURED: whether a real artifact binds the keys this probe presses, or whether the')
+console.log('          screenshot a critic reads is the one that matters. The fixtures answer in their title;')
+console.log('          a game answers in pixels, and reading those is the critic\'s job, not this file\'s.')
+
+if (failures) { console.error(`\nplay: ${failures} FAILURE(S)`); process.exit(1) }
+console.log('\nplay: OK — five pages built to break the probe, six runs in parallel, every count read from the page.')
