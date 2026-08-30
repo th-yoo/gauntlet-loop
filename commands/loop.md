@@ -192,10 +192,12 @@ every piece has beaten the reference. Where it refuses to split — which is the
 right answer for most prose, specs and decisions — the artifact runs whole. You
 do not configure this; the lead decides and the run reports what it decided.
 
-**Choose `critics` deliberately — it is the exit rule, not a knob.** The
+**Choose `critics` deliberately — it is the exit rule's FLOOR, not a knob.** The
 candidate must get past every one of them in a single round, so k sets how
-demanding the standard is. Ask the operator if they have a preference; decide
-yourself if they do not, and say which you chose and why in the same turn.
+demanding the standard is at minimum. The lead may raise a piece's line above it
+with a recorded reason and can never lower it — every piece runs at
+max(`critics`, the lead's number). Ask the operator if they have a preference;
+decide yourself if they do not, and say which you chose and why in the same turn.
 
 - **1** — the literal reading of "a separate sub-agent", and the default. It
   also means the source's stop condition ("until EACH sub-agent is utterly

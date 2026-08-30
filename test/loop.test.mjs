@@ -2818,3 +2818,77 @@ console.log('loop: args.critics is validated OK')
   ok(/ran whole/.test(gc.note) && /gaps_in_order/.test(gc.note), 'the note says every clause was in every critic\'s scope and points at the only record of what was looked at')
   console.log('loop: an undecomposed run reports coverage as not applicable, not as complete OK')
 }
+
+// WHO SETS k — issue #63. args.critics is a FLOOR. The lead may raise a piece's line
+// with a reason and can never lower it: each piece runs at max(floor, asked), in code.
+// That is the answer to "the build lane would be setting its own exit rule" — it can
+// make its own exit harder and not easier. Both numbers are recorded per piece.
+//
+// The anchors are the spawn labels (how many critics a round actually bought) and the
+// numbers the test itself chose; nothing here re-derives max().
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },   // floor defaults to 1
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'feel', observable: 'play it', critics: 3, critics_why: 'responsiveness is a judgement call' },
+      { name: 'score', observable: 'count it' },
+    ] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+    whole: { candidateWins: true, margin: 'clear' },
+  })
+  eq(r.result.outcome.status, 'WON', 'both pieces won')
+  const feel1 = r.labels.filter(l => /^feel-round-1:ab/.test(l))
+  const score1 = r.labels.filter(l => /^score-round-1:ab/.test(l))
+  eq(feel1, ['feel-round-1:ab:1', 'feel-round-1:ab:2', 'feel-round-1:ab:3'], 'the raised piece bought a line of 3 on its winning round')
+  eq(score1, ['score-round-1:ab'], 'the piece the lead said nothing about ran at the floor of 1')
+  const byName = Object.fromEntries(r.result.decomposition.pieces.map(p => [p.name, p.critics]))
+  eq(byName.feel, { floor: 1, asked: 3, why: 'responsiveness is a judgement call', used: 3 }, 'the raise is recorded with its reason, beside the floor')
+  eq(byName.score, { floor: 1, asked: null, why: null, used: 1 }, 'a piece that asked for nothing records null, not the floor, as what it asked')
+  eq(r.result.history.filter(h => h.piece === 'feel').map(h => h.critics), [3, 3], 'each round records the line it ran at')
+  const enforced = r.result.enforced.join('\n')
+  ok(/cannot lower it/.test(enforced) && /raised 1 piece\(s\)/.test(enforced), `the enforced list states the max() and counts the raise — got: ${enforced.slice(0, 300)}`)
+  const ne = r.result.not_enforced.join('\n')
+  ok(/WHO SETS k IS NOT SETTLED BY MEASUREMENT/.test(ne), 'the ownership question is disclosed as unsettled, not decided')
+  ok(/raised "feel" to 3 \(responsiveness is a judgement call\)/.test(ne), 'and the disclosure names the raise and its reason')
+  ok(/UNANIMITY OVER 3 JUDGES/.test(ne) && !/SINGLE JUDGEMENT/.test(ne), 'the exit disclosure follows the line actually applied, not the floor')
+  const lead = r.prompts.find(p => p.label === 'decompose')
+  ok(/floor is 1 critic\(s\)/.test(lead.prompt) && /cannot lower it/.test(lead.prompt), 'the lead is told the floor and that it can only raise')
+  console.log('loop: the lead raised one piece\'s line, the raise ran, and both numbers are on record (#63) OK')
+}
+
+// A lead asking for LESS than the floor changes nothing but the record.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 2 },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'easy', observable: 'look', critics: 1, critics_why: 'one judge is plenty here' },
+      { name: 'other', observable: 'look again' },
+    ] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i' }),
+    whole: { candidateWins: true, margin: 'clear' },
+  })
+  eq(r.labels.filter(l => /^easy-round-1:ab/.test(l)), ['easy-round-1:ab:1', 'easy-round-1:ab:2'], 'the piece the lead tried to lower still ran at the floor of 2')
+  const easy = r.result.decomposition.pieces.find(p => p.name === 'easy').critics
+  eq(easy, { floor: 2, asked: 1, why: 'one judge is plenty here', used: 2 }, 'the ask is recorded as asked and the floor as used — the lowering is visible and ineffective')
+  ok(/raised none this run/.test(r.result.enforced.join('\n')), 'a lowering is not a raise')
+  console.log('loop: a lead cannot lower a piece below the floor, and the attempt is on record OK')
+}
+
+// The budget reserves for the line a raised piece will actually buy, before it starts.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'wide', observable: 'o', critics: 3 },
+      { name: 'narrow', observable: 'p' },
+    ] },
+    // 200k left: enough for a floor round (60k build + 60k critic) and not for a
+    // round with a line of 3 (60k + 180k). A reserve sized to the floor would start.
+    budget: { total: 1000000, remaining: () => 200000 },
+    critic: (round, s) => ({ winner: s.referenceSide, why: 'w', gap: 'g', inspected: 'i' }),
+    runawayGuard: 6,
+  })
+  eq(r.result.outcome.status, 'BUDGET', 'the run stopped on budget before spending on a line it could not finish')
+  eq(r.labels.filter(l => /:ab/.test(l)), [], 'no critic was spawned')
+  console.log('loop: the reserve is sized to the widest line the lead asked for OK')
+}

@@ -72,6 +72,17 @@ Return **at most as many pieces as genuinely have separate observables**. Two is
 a decomposition. One is not — say it does not decompose. Fewer, larger, real
 pieces beat more, smaller, invented ones.
 
+## The line
+
+A piece ends only when every one of its critics picks the candidate in a single
+round. The run has a floor — how many critics that is at minimum — and you may
+**raise** it for a piece whose observable is the kind one judge reads differently
+from another: a feel, a look, a judgement call rather than a measurement. Say why
+in `critics_why`; the number and the reason are recorded in the verdict beside
+the piece. You cannot lower it: a number below the floor is recorded and ignored,
+because a lead that could ease its own exit would be the build lane grading
+itself. Most pieces need no number at all.
+
 State your split criterion in one sentence: what property of the artifacts made
 these the seams. If your sentence is really "these are the parts I judged weak",
 throw it away and start again — that is a split chosen from the answer, and it

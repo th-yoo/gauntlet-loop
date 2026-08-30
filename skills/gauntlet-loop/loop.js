@@ -247,11 +247,27 @@ if (!TOKEN) throw new Error(
 // decompose it honestly, so k>1 restores the source's PROPERTY (every judge
 // satisfied) by a mechanism the source does not describe. That is an addition,
 // and the verdict says so rather than claiming precedent.
+//
+// WHO SETS IT — issue #63. `args.critics` is a FLOOR, not the number. Three
+// candidate owners were on the table: the operator (unsourced — no text supports a
+// prescribed count), the lead (source-faithful: the source says not to prescribe
+// the fan-out, and the lead has read both artifacts), and the split ledger
+// (structurally blocked while #71 stands: both rates it computes move with k, so a
+// k derived from them runs away from its evidence). The objection to the lead was
+// that it sits in the build lane, and a lead choosing how many judges must be
+// satisfied would be the build lane setting its own exit rule. That objection is
+// removed by construction rather than by argument: the lead may RAISE the line for
+// a piece, with a stated reason, and can never lower it — each piece runs at
+// max(args.critics, what the lead asked), so the lead can only make its own exit
+// harder. What is not settled, and the verdict says so, is whether the lead's
+// raises are any better than a fixed number; both numbers are recorded per piece
+// so a crossing could one day compare them.
 const CRITICS = (args && args.critics !== undefined) ? args.critics : 1
 if (!Number.isInteger(CRITICS) || CRITICS < 1) throw new Error(
-  'args.critics must be a positive integer — the number of fresh blind critics the candidate ' +
+  'args.critics must be a positive integer — the FEWEST fresh blind critics the candidate ' +
   'must get past in a single round. Default 1. It is the exit rule, not a maximum: the round ' +
-  'spawns one and escalates to the rest only when that one lets the candidate through.'
+  'spawns one and escalates to the rest only when that one lets the candidate through, and ' +
+  'the lead may raise it for a piece (never lower it).'
 )
 
 // ---------------------------------------------------------------------------
@@ -310,7 +326,9 @@ if (!SIDES_LOOK_ALIKE) {
 // k=1 this is the literal 120000 the file carried before.
 const BUILD_RESERVE = 60000
 const CRITIC_RESERVE = 60000
-const ROUND_RESERVE = BUILD_RESERVE + CRITICS * CRITIC_RESERVE
+// Reassigned once the pieces are known: a lead may raise the line for a piece, and a
+// reserve sized to the floor would let a raised round start on money it cannot finish.
+let ROUND_RESERVE = BUILD_RESERVE + CRITICS * CRITIC_RESERVE
 
 // Rounds currently BETWEEN their budget check and their last spawn, across every
 // piece. The pool is shared and the DAG runs independent pieces at once, so a
@@ -1078,6 +1096,8 @@ const PIECE_SCHEMA = {
           focus: { type: 'string', description: 'when the piece is not a separate file: what a critic should attend to, and what it should ignore' },
           depends_on: { type: 'array', items: { type: 'string' }, description: 'names of pieces that must WIN before this one can be judged — only where judging this piece is meaningless until that one exists. Not "related to". An empty list is the common and correct answer.' },
           covers: { type: 'array', items: { type: 'integer' }, description: 'the numbered goal clauses THIS piece is responsible for. A clause no piece cites is reported as uncovered in the verdict — that is a disclosure, not a defect, but it is one the operator reads.' },
+          critics: { type: 'integer', description: 'how many fresh blind critics this piece must get past in ONE round, when that should be MORE than the run\'s floor. You can raise the line for a piece; you cannot lower it — a number below the floor is recorded and ignored. Omit to keep the floor.' },
+          critics_why: { type: 'string', description: 'when critics is set: what about this piece\'s observable makes one judge\'s reading likely to split from another\'s. Recorded in the verdict beside the number.' },
         },
       },
     },
@@ -1122,7 +1142,14 @@ is there.
 
 Also state your split criterion in one sentence. If that sentence is really "these are the
 parts I think are weak", discard it and look again: a split drawn around known weaknesses
-hides exactly those weaknesses, because every piece can pass while the whole is worse.`,
+hides exactly those weaknesses, because every piece can pass while the whole is worse.
+
+THE LINE. A piece ends only when every one of its critics picks the candidate in one round.
+This run's floor is ${CRITICS} critic(s) per round. Where a piece's observable is the kind one
+judge reads differently from another — a feel, a look, a judgement call rather than a
+measurement — you may RAISE that piece's line in \`critics\`, and say why in \`critics_why\`.
+You cannot lower it: a number below the floor is recorded and ignored. Most pieces need no
+number at all.`,
     { label: 'decompose', phase: 'Loop', schema: PIECE_SCHEMA, agentType: 'gauntlet-loop:gauntlet-lead' }
   ).catch(e => {
     // Also awaited at top level. Refusing to split is already a correct answer,
@@ -1156,6 +1183,13 @@ hides exactly those weaknesses, because every piece can pass while the whole is 
   // Citations are checked HERE, in code. A number that names no clause is dropped and
   // recorded against the piece; a piece that cited nothing is recorded as having said
   // nothing, which is not the same as covering nothing. Both reach the verdict.
+  // The line the lead asked for is recorded as asked; what RUNS is max(floor, asked),
+  // decided in runPiece. So a lead asking for fewer than the floor changes nothing but
+  // the record, and the record shows it asked.
+  for (const p of kept) {
+    p.critics_asked = Number.isInteger(p.critics) && p.critics >= 1 ? p.critics : null
+    p.critics_why = typeof p.critics_why === 'string' && p.critics_why.trim() ? p.critics_why.trim() : null
+  }
   for (const p of kept) {
     if (!Array.isArray(p.covers)) { p.covers = null; p.invalid_citations = []; continue }
     const valid = new Set(GOAL_CLAUSES.map(c => c.n))
@@ -1353,12 +1387,21 @@ if (decomposition && decomposition.refused) {
 // every label and every prompt is byte-identical to the undecomposed run.
 const PIECES = (decomposition && decomposition.pieces) || [{ name: null, candidate: CANDIDATE, reference: REFERENCE }]
 
+// THE LINE EACH PIECE RUNS AT: the floor, or the lead's number where it is higher.
+// max(), not the lead's number — that is the whole of the answer to "the build lane
+// sets its own exit rule": it can raise the bar for itself and cannot lower it.
+const lineFor = piece => Math.max(CRITICS, (piece && piece.critics_asked) || 0)
+const K_MAX = PIECES.reduce((m, p) => Math.max(m, lineFor(p)), CRITICS)
+const LEAD_RAISED = PIECES.filter(p => lineFor(p) > CRITICS)
+ROUND_RESERVE = BUILD_RESERVE + K_MAX * CRITIC_RESERVE
+
 const history = []
 let outcome = null
 let lastWon = null
 
 
 async function runPiece(piece) {
+  const K = lineFor(piece)
   const PC = piece.candidate || CANDIDATE
   const PR = piece.reference || REFERENCE
   let round = 0
@@ -1458,7 +1501,7 @@ async function runPiece(piece) {
     const v = await spawn(
       criticPrompt(s, piece),
       {
-        label: CRITICS === 1 ? `${TAG}:ab` : `${TAG}:ab:${i + 1}`,
+        label: K === 1 ? `${TAG}:ab` : `${TAG}:ab:${i + 1}`,
         phase: 'Loop',
         schema: AB_SCHEMA,
         agentType: 'gauntlet-loop:gauntlet-ab-critic',
@@ -1480,9 +1523,9 @@ async function runPiece(piece) {
   const firstVerdict = await spawnCritic(0)
   if (firstVerdict) positions.push(firstVerdict)
 
-  if (firstVerdict && firstVerdict.candidateWon && CRITICS > 1) {
+  if (firstVerdict && firstVerdict.candidateWon && K > 1) {
     const rest = await parallel(
-      Array.from({ length: CRITICS - 1 }, (_, n) => () => spawnCritic(n + 1))
+      Array.from({ length: K - 1 }, (_, n) => () => spawnCritic(n + 1))
     )
     // A null here is a critic that THREW, not one that returned nothing:
     // parallel() converts a throw per the runtime contract, so it never reached
@@ -1498,9 +1541,9 @@ async function runPiece(piece) {
   if (critic_died || positions.length === 0) {
     pieceOutcome = {
       status: 'ERROR',
-      why: (CRITICS === 1
+      why: (K === 1
         ? `critic returned nothing at round ${round}`
-        : `a critic returned nothing at round ${round} — a round is not decided on a partial line of ${CRITICS}`) +
+        : `a critic returned nothing at round ${round} — a round is not decided on a partial line of ${K}`) +
         silenceNote('gauntlet-loop:gauntlet-ab-critic'),
     }
     break
@@ -1539,7 +1582,7 @@ async function runPiece(piece) {
   const entry = {
     round,
     piece: piece.name,
-    critics: CRITICS,
+    critics: K,
     candidateSide: primary.side,
     winner: primary.winner,
     candidateWon,
@@ -1592,9 +1635,9 @@ async function runPiece(piece) {
     }
     pieceOutcome = {
       status: 'WON',
-      why: CRITICS === 1
+      why: K === 1
         ? `the candidate beat the reference in two consecutive blind A/Bs, at rounds ${armedAt} and ${round}, judged by two separately spawned critics with the candidate on opposite sides and the artifact unchanged between them`
-        : `all ${CRITICS} critics picked the candidate in two consecutive rounds, ${armedAt} and ${round}, with the artifact unchanged between them`,
+        : `all ${K} critics picked the candidate in two consecutive rounds, ${armedAt} and ${round}, with the artifact unchanged between them`,
       round,
       armed_at: armedAt,
       confirmed_at: round,
@@ -2200,7 +2243,7 @@ return {
     : null,
 
   decomposition: decomposition && decomposition.pieces
-    ? { split_criterion: decomposition.split_criterion, pieces: decomposition.pieces.map(p => ({ name: p.name, observable: p.observable })), dropped_for_no_observable: decomposition.dropped || 0, lead_spawns: leadSpawns }
+    ? { split_criterion: decomposition.split_criterion, pieces: decomposition.pieces.map(p => ({ name: p.name, observable: p.observable, critics: { floor: CRITICS, asked: p.critics_asked, why: p.critics_why, used: lineFor(p) } })), dropped_for_no_observable: decomposition.dropped || 0, lead_spawns: leadSpawns }
     : {
         split_criterion: null,
         pieces: [],
@@ -2225,9 +2268,10 @@ return {
     decomposition && decomposition.pieces
       ? `the run ended only when EVERY one of the ${decomposition.pieces.length} piece(s) beat the reference, each with its own rounds, its own builder and its own critics, with pieces that edit the SAME path never running at once${split_check.ran ? ', AND the whole artifact then beat the whole reference in one further blind A/B — every piece winning was not sufficient on its own' : ' (the whole-artifact check that would also have been required did not run: ' + split_check.why_not + ')'}`
       : 'the artifact was judged whole — one piece, so "every piece satisfied" is one judgment, not a set',
-    CRITICS === 1
+    K_MAX === 1
       ? 'the exit was ONE critic picking the candidate in one round — a line of one, which satisfies "every judge" vacuously (args.critics defaults to 1)'
-      : `the exit required ALL ${CRITICS} critics in a single round to pick the candidate, each spawned fresh, with positions split across the line by (round + index) parity`,
+      : `the exit required ALL ${K_MAX} critics in a single round to pick the candidate${LEAD_RAISED.length ? ` on the piece(s) the lead raised (${LEAD_RAISED.map(p => `${p.name}: ${lineFor(p)}`).join(', ')}) and all ${CRITICS} on the rest` : ''}, each spawned fresh, with positions split across the line by (round + index) parity`,
+    `the lead can RAISE a piece's line and cannot lower it: every piece runs at max(args.critics=${CRITICS}, what the lead asked) in code, so the build lane can make its own exit harder and never easier${LEAD_RAISED.length ? ` — it raised ${LEAD_RAISED.length} piece(s) this run` : ' — it raised none this run'}`,
     `a FRESH critic every round (${criticSpawns} separate critic spawn(s); ${recordedVerdicts} produced a recorded verdict), so none defended its own prior verdict`,
     `${regressionCheckSpawns} further critic spawn(s) answered the REGRESSION CHECK — this round's version against the copy taken before it — counted separately because it is a different question from the blind A/B above`,
     'the critic ran as an agent type whose tool allowlist has no Write or Edit — it could not use those TOOLS to alter either artifact (it still holds Bash; see not_enforced)',
@@ -2289,10 +2333,10 @@ return {
       : `this run's args.reference/args.candidate pair was not a comparable filesystem path pair (reference read as ${shapeOf(REFERENCE)}, candidate as ${shapeOf(CANDIDATE)}). The two ARTIFACT lines rendered in visibly different shapes, so this run's A/B was NOT blind — the loop's own formatting gave away which side was the candidate before the critic looked at either one.`,
     'The critic is instructed to be a really harsh critic — the source says it "should be a really harsh critic", its one requirement on the judge — in both its standing agent definition and the round prompt. Nothing verifies that a harsh INSTRUCTION produced a harsh CRITIC. A lenient verdict and an exacting one are indistinguishable from here: no calibration trial ran, and the loop reads only the letter that came back.',
     'THERE IS NO RATCHET; REGRESSIONS ARE MEASURED AND NOT REVERTED (issue #18). A ratchet keeps the best version and restores it — nothing here does that, and the field is called `regression` rather than `ratchet` so a record cannot imply otherwise. Each built round asks one fresh critic which is closer to the goal — the version this round produced, or the copy taken before it — and the answer is recorded per round as `regression`, with `regressed: true` on any round the critic judged worse than what it replaced. Nothing is rolled back, and the reason has changed since this sentence was first written: the detection rate behind it was one observation, and is now 12/15 with a 95% interval of 55%-93% (docs/runs/2026-08-27-detection-rate/verdict.md). What remains is that the interval is wide, the trials differ by one mechanical transform, and every miss was a defect of 3 bytes or fewer - so an automatic revert would act on a judgement measured on nothing like the case it would decide. A wrong revert is also quieter than a wrong refusal, which at least stops the run loudly. The previous version is named in the record, so a regression is recoverable by hand. What this still cannot do: VERIFY the snapshot — a Workflow script has no filesystem, so the copy is the builder\'s word, exactly as sizes are the breaker\'s — and tell an improvement from a lateral move, since one judge on one day is the whole of the comparison. A round whose builder reported no snapshot says so in `regression_why_not` rather than reading as a round that was checked and found fine.',
-    CRITICS === 1
+    K_MAX === 1
       ? 'Position bias is averaged across rounds by alternation, not eliminated within a round.'
       : 'Position bias is split across the line within each round, which measures it rather than eliminating it. It is not removed.',
-    `The ${CRITICS} critic(s) share a model family and prompt, so their verdicts are not independent judgments; k copies resample one model's habits. Nothing here measures how much independence the line actually supplies, and no arithmetic over k should be read as if it did.`,
+    `The ${K_MAX === 1 ? '1' : `up to ${K_MAX}`} critic(s) share a model family and prompt, so their verdicts are not independent judgments; k copies resample one model's habits. Nothing here measures how much independence the line actually supplies, and no arithmetic over k should be read as if it did.`,
     decomposition && decomposition.pieces
       ? (split_check.ran
           ? `THE SPLIT IS CHECKED ONE WAY ONLY. A lead agent chose these ${decomposition.pieces.length} piece(s) on the criterion "${decomposition.split_criterion}", and after every piece won, one blind A/B judged the WHOLE candidate against the WHOLE reference — it ${split_check.candidateWon ? 'also picked the candidate' : 'picked the reference, and this run is SPLIT_UNSOUND'}. That check is asymmetric by design: a loss is a positive detection, a win is consistency and NOT proof the seam was correct. One whole-artifact critic agreeing with the pieces does not establish that a defect spanning them would have been caught, and nothing here measures how often it would be. The whole-artifact round is also an ADDITION — neither primary text describes one; the source stops when every sub-agent is wowed, which is what the piece verdicts already are.`
@@ -2319,9 +2363,10 @@ return {
     // provenance and stops there, so an operator reading it learns k is ours and
     // nothing about whether to use it. The reason is a measurement, and at k=1 the
     // run is executing the arrangement that measurement found wanting.
-    CRITICS === 1
+    (K_MAX === 1
       ? 'AT k=1 THE EXIT IS A SINGLE JUDGEMENT, and that arrangement is the one a measurement found wanting: five judges on one unchanged near-boundary pair split 3-2 (scripts/split-extract.mjs), so a fresh judge picks the minority side often enough that one win can be a coin flip rather than a verdict. k>1 exists for that reason and no other. At k=1 this is one comparer looping over two artifacts, and every round ends on one opinion.'
-      : `AT k=${CRITICS} THE EXIT IS UNANIMITY OVER ${CRITICS} JUDGES, bought because five judges on one unchanged near-boundary pair split 3-2 (scripts/split-extract.mjs) and a single win can therefore be a coin flip. What k cannot fix is a bias every judge shares: they are spawned from one model family against one prompt, so unanimity narrows variance and not common-mode error.`,
+      : `AT k=${K_MAX} THE EXIT IS UNANIMITY OVER ${K_MAX} JUDGES${LEAD_RAISED.length ? ` on the piece(s) the lead raised, and over ${CRITICS} elsewhere` : ''}, bought because five judges on one unchanged near-boundary pair split 3-2 (scripts/split-extract.mjs) and a single win can therefore be a coin flip. What k cannot fix is a bias every judge shares: they are spawned from one model family against one prompt, so unanimity narrows variance and not common-mode error.`) +
+      ` WHO SETS k IS NOT SETTLED BY MEASUREMENT (issue #63): the floor is the operator's — args.critics=${CRITICS}${CRITICS === 1 ? ' — the source\'s own arrangement, "a separate critic with fresh context", singular' : ' — a number the source never gives; its one requirement on the judge is "a separate critic with fresh context"'} — and above it only the lead, per piece, with a recorded reason, and only upward; the split ledger cannot set it while both rates it computes move with k (issue #71). ${LEAD_RAISED.length ? `The lead raised ${LEAD_RAISED.map(p => `"${p.name}" to ${lineFor(p)} (${p.critics_why || 'no reason given'})`).join('; ')}. ` : 'The lead raised no piece this run. '}Whether a lead's raise is any better than a fixed number is unmeasured; both numbers are in decomposition.pieces[].critics so a crossing could compare them.`,
     // The self-calibrating half of that design was built and never connected. If
     // this line goes, the loop keeps producing the trials and keeps discarding
     // them, and the parameter stays a matter of argument for good.

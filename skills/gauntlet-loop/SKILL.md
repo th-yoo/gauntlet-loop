@@ -58,7 +58,7 @@ Arguments the script takes:
 | `goal` | what you are trying to produce, as a NEED — not your intended solution |
 | `candidate` | absolute path to your artifact. It must ALREADY EXIST — the loop has no filesystem and cannot create it, and an absent path is refused as `unreadable` before anything spawns. Write a first version, however rough: the method compares what you have against something better |
 | `reference` | absolute path to the real thing it is judged against |
-| `critics` | how many judges must ALL pick yours to end the run. Default 1 |
+| `critics` | the FLOOR: how many judges must ALL pick yours to end a piece's run, at minimum. Default 1. The lead may raise it for a piece and never lower it; the verdict records both numbers per piece |
 | `token` | the run token; its existence means "keep going" |
 | `inspect` | optional — how to look at them: a command to run, a thing to open |
 | `on_refusal` | optional — `refuse` (default) or `warn`. `warn` proceeds past the GENERATOR verdict and records that it did. Never downgrades an unopenable artifact |
@@ -95,7 +95,9 @@ directory"; its sequential pass was a later, targeted move on "coupled
 concerns", not the mode it worked in.
 
 Where pieces exist you rarely need `critics` above 1: width comes from the split,
-which is where the source gets it.
+which is where the source gets it. The lead can raise the line for one piece whose
+observable is a judgement call — and only raise it, so the build lane can make its
+own exit harder and never easier.
 
 **A split that wins is checked once more, whole.** After every piece has beaten
 the reference, one more blind A/B judges the WHOLE candidate against the WHOLE
@@ -214,8 +216,10 @@ Beyond `outcome` and `history`, the fields worth knowing before you read one:
 
 ## Choosing the line length
 
-`critics` is the exit rule, not a ceiling. The source names no number — "a
-separate sub-agent", singular — so this is your call, not his.
+`critics` is the exit rule's floor, not a ceiling. The source names no number — "a
+separate sub-agent", singular — so this is your call, not his, and it is only the
+minimum: the lead may raise a piece above it (never below), with a recorded reason.
+Who should set k is not settled by any measurement (issue 63); the verdict says so.
 
 - **1** — the literal reading, and the default. It also makes the stop condition
   vacuous: "every judge is satisfied" is satisfied by one judge on one round.

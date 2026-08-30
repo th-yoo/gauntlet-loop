@@ -63,6 +63,9 @@ export const PROPERTIES = [
   // --- issue 67: the goal's clauses, and which the pieces never reached -----------------
   ['a clause no piece cited is reported as uncovered', L, '  const uncovered = clauses.filter(c => coveredBy(c.n).length === 0).map(c => c.n)', '  const uncovered = []'],
   ['a clause cited only by pieces that never ran is reported', L, '    .filter(x => x.pieces.length && x.pieces.every(name => !ran.has(name)))', '    .filter(x => false)'],
+  // --- issue 63: the lead can raise a piece's line and cannot lower it ------------------
+  ['the lead cannot lower the line below the floor', L, "const lineFor = piece => Math.max(CRITICS, (piece && piece.critics_asked) || 0)", "const lineFor = piece => (piece && piece.critics_asked) || CRITICS"],
+  ['a lead-raised line is reserved for before the round starts', L, 'ROUND_RESERVE = BUILD_RESERVE + K_MAX * CRITIC_RESERVE\n', ''],
   ['a citation naming no clause is dropped in code', L, "    p.invalid_citations = p.covers.filter(n => !valid.has(n))\n    p.covers = [...new Set(p.covers.filter(n => valid.has(n)))].sort((a, b) => a - b)", "    p.invalid_citations = []\n    p.covers = [...new Set(p.covers)].sort((a, b) => a - b)"],
   ['size growth is measured per piece', L, '      const k = x.piece || null', '      const k = null'],
   ['an empty artifact is a measurement, not a failure', L, 'Number.isFinite(m.bytes) && m.bytes >= 0', 'Number.isFinite(m.bytes) && m.bytes > 0'],
@@ -144,7 +147,7 @@ export const PROPERTIES = [
   ['a piece cannot depend on itself', L, 'const ok = byName.has(d) && d !== piece.name', 'const ok = byName.has(d)'],
   ['a dependency that did not WIN releases nothing', L, "if (!r || r.status !== 'WON') {", 'if (false) {'],
   ['coupled pieces never overlap on one path', L, '    const prior = pathLock.get(key) || Promise.resolve()', '    const prior = Promise.resolve()'],
-  ['the escalation line is only bought on a winning round', L, 'if (firstVerdict && firstVerdict.candidateWon && CRITICS > 1) {', 'if (firstVerdict && CRITICS > 1) {'],
+  ['the escalation line is only bought on a winning round', L, 'if (firstVerdict && firstVerdict.candidateWon && K > 1) {', 'if (firstVerdict && K > 1) {'],
   ['the exit requires every critic, not most', L, 'const candidateWon = dissenters.length === 0', 'const candidateWon = dissenters.length < positions.length'],
 
 
