@@ -1,0 +1,43 @@
+{
+  "source": "README.md, section 'Terminal compatibility list'",
+  "works": [
+    "crosh (instructions (https://github.com/tonsky/FiraCode/wiki/ChromeOS-Terminal))",
+    "Ghostty",
+    "Hyper (see #3607 (https://github.com/vercel/hyper/issues/3607))",
+    "iTerm 2",
+    "Kitty",
+    "Konsole",
+    "Mintty",
+    "QTerminal",
+    "st (patch (https://st.suckless.org/patches/ligatures/))",
+    "Tabby",
+    "Terminal.app",
+    "Termux",
+    "Token2Shell",
+    "Wez’s terminal",
+    "Windows Terminal",
+    "ZOC (macOS)"
+  ],
+  "doesnt_work": [
+    "Alacritty",
+    "Asbru Connection Manager",
+    "Cmder",
+    "ConEmu",
+    "GNOME Terminal (ticket (https://gitlab.gnome.org/GNOME/vte/-/issues/192))",
+    "gtkterm (ticket (https://gitlab.gnome.org/GNOME/vte/-/issues/1661))",
+    "guake (ticket (https://gitlab.gnome.org/GNOME/vte/-/issues/1661))",
+    "LXTerminal (ticket (https://gitlab.gnome.org/GNOME/vte/-/issues/1661))",
+    "mate-terminal",
+    "PuTTY",
+    "rxvt",
+    "sakura (ticket (https://gitlab.gnome.org/GNOME/vte/-/issues/1661))",
+    "SecureCRT",
+    "Terminator (ticket (https://gitlab.gnome.org/GNOME/vte/-/issues/1661))",
+    "terminology",
+    "Tilix",
+    "Windows Console",
+    "xfce4-terminal (ticket (https://gitlab.gnome.org/GNOME/vte/-/issues/1661))",
+    "xterm",
+    "ZOC (Windows)"
+  ]
+}

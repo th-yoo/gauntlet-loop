@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flutter — beautiful, fast apps for mobile and beyond</title>
+<meta name="description" content="Flutter is Google's SDK for crafting beautiful, fast user experiences for mobile, web, and desktop from a single codebase. Free and open source.">
+<style>
+  :root {
+    --flutter-blue: #0175C2;
+    --flutter-dark: #02569B;
+    --ink: #1a1a1a;
+    --paper: #ffffff;
+    --muted: #5f6b76;
+    --panel: #f4f8fb;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    line-height: 1.6;
+  }
+  header.hero {
+    background: linear-gradient(135deg, var(--flutter-dark), var(--flutter-blue));
+    color: #fff;
+    padding: 4rem 1.5rem 3rem;
+    text-align: center;
+  }
+  header.hero h1 {
+    margin: 0 0 0.5rem;
+    font-size: 2.25rem;
+  }
+  header.hero p.tagline {
+    max-width: 640px;
+    margin: 0 auto;
+    font-size: 1.15rem;
+    opacity: 0.95;
+  }
+  nav.badges {
+    margin-top: 1.5rem;
+    font-size: 0.85rem;
+    opacity: 0.85;
+  }
+  nav.badges a { color: #fff; margin: 0 0.5rem; text-decoration: underline; }
+  main { max-width: 880px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+  section.pillars {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.25rem;
+    margin: 2rem 0 3rem;
+  }
+  .pillar {
+    background: var(--panel);
+    border-radius: 10px;
+    padding: 1.25rem 1.4rem;
+    border: 1px solid #e1ecf3;
+  }
+  .pillar h3 { margin-top: 0; color: var(--flutter-dark); }
+  h2 { color: var(--flutter-dark); border-bottom: 2px solid var(--panel); padding-bottom: 0.4rem; }
+  .platforms { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0 2rem; }
+  .platforms span {
+    background: var(--flutter-blue);
+    color: #fff;
+    padding: 0.3rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.85rem;
+  }
+  ul.doclinks { padding-left: 1.1rem; }
+  ul.doclinks li { margin-bottom: 0.4rem; }
+  footer {
+    margin-top: 3rem;
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+    border-top: 1px solid #eee;
+  }
+  code { background: var(--panel); padding: 0.1rem 0.35rem; border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <h1>Flutter</h1>
+  <p class="tagline">
+    Flutter makes it easy and fast to build beautiful apps for mobile and
+    beyond &mdash; Google's SDK for crafting beautiful, fast user experiences
+    for mobile, web, and desktop from a single codebase. Free and open source.
+  </p>
+  <nav class="badges">
+    <a href="https://flutter-dashboard.appspot.com/#/build?repo=flutter">CI Status</a>
+    <a href="https://bsky.app/profile/flutter.dev">BlueSky</a>
+    <a href="https://twitter.com/intent/follow?screen_name=flutterdev">Twitter/X</a>
+    <a href="https://insights.linuxfoundation.org/project/flutter">LFX Health Score</a>
+    <a href="https://bestpractices.coreinfrastructure.org/projects/5631">CII Best Practices</a>
+    <a href="https://slsa.dev">SLSA 1</a>
+  </nav>
+</header>
+
+<main>
+
+  <section id="platforms">
+    <h2>One codebase, every screen</h2>
+    <p>Flutter works with existing code and targets:</p>
+    <div class="platforms">
+      <span>iOS</span><span>Android</span><span>Web</span>
+      <span>Windows</span><span>macOS</span><span>Linux</span>
+      <span>Embedded / custom platforms</span>
+    </div>
+  </section>
+
+  <section class="pillars" id="why">
+    <div class="pillar">
+      <h3>Beautiful user experiences</h3>
+      <p>A <a href="https://docs.flutter.dev/resources/inside-flutter">layered architecture</a>
+      gives control over every pixel, with compositing that overlays and animates
+      graphics, video, text, and controls without limitation. A full
+      <a href="https://docs.flutter.dev/ui/widgets">widget catalog</a> covers
+      <a href="https://docs.flutter.dev/ui/widgets/cupertino">Cupertino</a> (iOS) and
+      <a href="https://docs.flutter.dev/ui/widgets/material">Material</a> (everywhere else).</p>
+    </div>
+    <div class="pillar">
+      <h3>Fast results</h3>
+      <p>Hardware-accelerated 2D graphics via <a href="https://skia.org/">Skia</a>
+      and <a href="https://docs.flutter.dev/perf/impeller">Impeller</a> deliver
+      glitch-free, jank-free graphics at native device speed. The
+      <a href="https://dart.dev/">Dart</a> language compiles to ARM machine code
+      (iOS/Android), JavaScript and WebAssembly (web), and Intel x64/ARM (desktop).</p>
+    </div>
+    <div class="pillar">
+      <h3>Productive development</h3>
+      <p><a href="https://docs.flutter.dev/tools/hot-reload">Stateful hot reload</a>
+      lets you change code and see results instantly &mdash; no restart, no lost state.</p>
+    </div>
+    <div class="pillar">
+      <h3>Extensible and open model</h3>
+      <p>Works with any dev tool (or none), with plug-ins for
+      <a href="https://marketplace.visualstudio.com/items?itemName=Dart-Code.flutter">Visual Studio Code</a>
+      and <a href="https://plugins.jetbrains.com/plugin/9212-flutter">IntelliJ / Android Studio</a>.
+      Tens of thousands of <a href="https://pub.dev/flutter">packages</a>, plus native
+      interop via FFI and
+      <a href="https://docs.flutter.dev/platform-integration/platform-channels">platform channels</a>.
+      Fully open source.</p>
+    </div>
+  </section>
+
+  <section id="get-started">
+    <h2>Documentation</h2>
+    <ul class="doclinks">
+      <li><a href="https://docs.flutter.dev/get-started">Install Flutter</a></li>
+      <li><a href="https://docs.flutter.dev">Flutter documentation</a></li>
+      <li><a href="./docs/README.md">Development wiki</a></li>
+      <li><a href="https://github.com/flutter/flutter/blob/main/CONTRIBUTING.md">Contributing to Flutter</a></li>
+      <li>Announcements: <a href="https://groups.google.com/g/flutter-announce">flutter-announce mailing list</a></li>
+      <li><a href="https://docs.flutter.dev/release/breaking-changes">Breaking changes</a> across releases</li>
+    </ul>
+  </section>
+
+  <section id="terms">
+    <h2>Terms of service</h2>
+    <p>The Flutter tool may occasionally download resources from Google servers.
+    By downloading or using the Flutter SDK, you agree to the
+    <a href="https://policies.google.com/terms">Google Terms of Service</a>.
+    For example, when installed from GitHub (rather than a prepackaged archive),
+    the <code>flutter</code> tool downloads the Dart SDK from Google servers
+    immediately on first run, and again when upgrading (<code>flutter upgrade</code>).</p>
+  </section>
+
+</main>
+
+<footer>
+  Built solely from the text of <code>README.md</code> in this fixture directory.
+  No network resources were fetched to produce this page; external links are
+  reproduced as text/URLs only, copied verbatim from the source README.
+</footer>
+
+</body>
+</html>

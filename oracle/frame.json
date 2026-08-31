@@ -1,0 +1,2010 @@
+{
+ "frame_id": "gh-stars5000-pushed2026-n200-2026-08-31",
+ "query": "stars:>=5000 pushed:>2026-01-01",
+ "enumerated": "2026-08-31T00:44:03.042Z",
+ "order": "github search sort=stars order=desc, first pages, as returned on the enumeration date",
+ "n": 200,
+ "authored": "the query, the cutoff, the order and N are choices; membership within them is not",
+ "members": [
+  {
+   "full_name": "codecrafters-io/build-your-own-x",
+   "default_branch": "master",
+   "head_sha": "aa17439b62f384511a5561ce308e9598b94d8989",
+   "stars": 544095,
+   "description": "Master programming by recreating your favorite technologies from scratch.",
+   "readme_path": "README.md",
+   "readme_sha": "9a553c729b29bc69296d7092fc1c314c2c811bad",
+   "readme_size": 46683
+  },
+  {
+   "full_name": "sindresorhus/awesome",
+   "default_branch": "main",
+   "head_sha": "d35bcd9c5c83f2652b0d2b5f91a320009c8f29a3",
+   "stars": 501463,
+   "description": "😎 Awesome lists about all kinds of interesting topics [NOTE: Pull requests are temporarily disabled until I have a chance to catch up with the existing ones]",
+   "readme_path": "readme.md",
+   "readme_sha": "ed7fb1bf7344e1e268c171eb532149c36ded92fa",
+   "readme_size": 78803
+  },
+  {
+   "full_name": "public-apis/public-apis",
+   "default_branch": "master",
+   "head_sha": "9dfcbcaab75aecf1f7081e98dd968800fb5bd912",
+   "stars": 473313,
+   "description": "A collective list of free APIs",
+   "readme_path": "README.md",
+   "readme_sha": "fdcd6e784c77d9427369cafe8d17ec51b3bf3562",
+   "readme_size": 241124
+  },
+  {
+   "full_name": "freeCodeCamp/freeCodeCamp",
+   "default_branch": "main",
+   "head_sha": "1b7c804844874d8dbd3d70fc4445997ea84a2562",
+   "stars": 454735,
+   "description": "freeCodeCamp.org's open-source codebase and curriculum. Learn math, programming, and computer science for free.",
+   "readme_path": "README.md",
+   "readme_sha": "c82f1a4976d0a58963641054598aebeb4e3f124f",
+   "readme_size": 6567
+  },
+  {
+   "full_name": "EbookFoundation/free-programming-books",
+   "default_branch": "main",
+   "head_sha": "3cb11b03534f27498c03a8680a7bcde1e4220b12",
+   "stars": 395596,
+   "description": ":books: Freely available programming books",
+   "readme_path": "README.md",
+   "readme_sha": "8f0dbeae6419706aeeffda712ca32992cf491776",
+   "readme_size": 15856
+  },
+  {
+   "full_name": "openclaw/openclaw",
+   "default_branch": "main",
+   "head_sha": "6b646744d145a17dc16e903166abb263d4e7f436",
+   "stars": 388093,
+   "description": "Your own personal AI assistant. Any OS. Any Platform. The lobster way. 🦞 ",
+   "readme_path": "README.md",
+   "readme_sha": "0b7cac9b022b0b397c3306b40d04eda72147dfcb",
+   "readme_size": 111839
+  },
+  {
+   "full_name": "donnemartin/system-design-primer",
+   "default_branch": "master",
+   "head_sha": "ae9bbd7b02d90b9866215de185217d33f39ab733",
+   "stars": 366871,
+   "description": "Learn how to design large-scale systems. Prep for the system design interview.  Includes Anki flashcards.",
+   "readme_path": "README.md",
+   "readme_sha": "9e2cdb88dec86c34c9b49b657f5629a1866c6976",
+   "readme_size": 109830
+  },
+  {
+   "full_name": "nilbuild/developer-roadmap",
+   "default_branch": "master",
+   "head_sha": "9a38345ec29629224e40131ecfaba7a82abdf979",
+   "stars": 365901,
+   "description": "Interactive roadmaps, guides and other educational content to help developers grow in their careers.",
+   "readme_path": "readme.md",
+   "readme_sha": "3964b576fffbdb6a68569e1c8fc66baf15251660",
+   "readme_size": 9693
+  },
+  {
+   "full_name": "vinta/awesome-python",
+   "default_branch": "master",
+   "head_sha": "15b057c832a55b8d42d3b64e12677ecd631b0474",
+   "stars": 317204,
+   "description": "The definitive list that answers \"I want to do X in Python, which tool should I use?\"",
+   "readme_path": "README.md",
+   "readme_sha": "c123552aee53cda5611fad031396d1ed9ba6ed17",
+   "readme_size": 74271
+  },
+  {
+   "full_name": "awesome-selfhosted/awesome-selfhosted",
+   "default_branch": "master",
+   "head_sha": "35b6ed006c1c5e4f9f4c839ba1be43ef5dcbfcf7",
+   "stars": 316205,
+   "description": "A list of Free Software network services and web applications which can be hosted on your own servers",
+   "readme_path": "README.md",
+   "readme_sha": "164b3b3d3e86f2f9ed3f35e1bfe5f24e8fe5fc7e",
+   "readme_size": 327801
+  },
+  {
+   "full_name": "practical-tutorials/project-based-learning",
+   "default_branch": "master",
+   "head_sha": "c22f8183bc7f346bd660ca8680e75421029b9e41",
+   "stars": 281397,
+   "description": "Curated list of project-based tutorials",
+   "readme_path": "README.md",
+   "readme_sha": "b5906c7ef98aa98401f51d10469da76eaa288091",
+   "readme_size": 52344
+  },
+  {
+   "full_name": "obra/superpowers",
+   "default_branch": "main",
+   "head_sha": "b36e0829c6d0140e93cfef2ca599b1b07d4a7797",
+   "stars": 279676,
+   "description": "An agentic skills framework & software development methodology that works.",
+   "readme_path": "README.md",
+   "readme_sha": "09a91c6d03cfa3d874c5c33b6f8cc3d0b2d89645",
+   "readme_size": 12137
+  },
+  {
+   "full_name": "react/react",
+   "default_branch": "main",
+   "head_sha": "2dc7da790d6388b95b83198ca9b588b2ad5f5c0b",
+   "stars": 248330,
+   "description": "The library for web and native user interfaces.",
+   "readme_path": "README.md",
+   "readme_sha": "88f8e827b0255cf639043c83833c7a0c40ec0991",
+   "readme_size": 5317
+  },
+  {
+   "full_name": "torvalds/linux",
+   "default_branch": "master",
+   "head_sha": "cee9395acd8043be0644b25c34bfa86623f2b935",
+   "stars": 245329,
+   "description": "Linux kernel source tree",
+   "readme_path": "README",
+   "readme_sha": "010c587224224ba1254657b42b091a6c62c39e92",
+   "readme_size": 6034
+  },
+  {
+   "full_name": "affaan-m/ECC",
+   "default_branch": "main",
+   "head_sha": "005eff40fd4a4ac005da7a70e713459175385516",
+   "stars": 244721,
+   "description": "The agent harness performance optimization system. Skills, instincts, memory, security, and research-first development for Claude Code, Codex, Opencode, Cursor and beyond.",
+   "readme_path": "README.md",
+   "readme_sha": "00d3a8ca7e6a9d602085fe9f9eebaa37e23513af",
+   "readme_size": 118549
+  },
+  {
+   "full_name": "mattpocock/skills",
+   "default_branch": "main",
+   "head_sha": "6654f6b60cd9d5be8b54c6fafe44346dabeb3b76",
+   "stars": 241859,
+   "description": "Skills for Real Engineers. Straight from my .agents directory.",
+   "readme_path": "README.md",
+   "readme_sha": "ff9b797a342d3a64b52f9f5a83d9fc4ce28709dc",
+   "readme_size": 15587
+  },
+  {
+   "full_name": "NousResearch/hermes-agent",
+   "default_branch": "main",
+   "head_sha": "4f22543509d1b91dc45bcb369447126c5eb14fb7",
+   "stars": 238499,
+   "description": "The agent that grows with you",
+   "readme_path": "README.md",
+   "readme_sha": "c05112266746ff99a3326a62c38c33fbc08ecd23",
+   "readme_size": 17688
+  },
+  {
+   "full_name": "TheAlgorithms/Python",
+   "default_branch": "master",
+   "head_sha": "310bb4cadc2411612aa774aaa1743ef63de8b33b",
+   "stars": 224135,
+   "description": "All Algorithms implemented in Python",
+   "readme_path": "README.md",
+   "readme_sha": "182d36a8d905f304511bc40ac413ea96918f367d",
+   "readme_size": 2807
+  },
+  {
+   "full_name": "multica-ai/andrej-karpathy-skills",
+   "default_branch": "main",
+   "head_sha": "2c606141936f1eeef17fa3043a72095b4765b9c2",
+   "stars": 208889,
+   "description": "A single CLAUDE.md file to improve Claude Code behavior, derived from Andrej Karpathy's observations on LLM coding pitfalls.",
+   "readme_path": "README.md",
+   "readme_sha": "7cf07a786532bebe01c65179c8e2c3a98cc0a09b",
+   "readme_size": 6198
+  },
+  {
+   "full_name": "ossu/computer-science",
+   "default_branch": "master",
+   "head_sha": "33d44a44e3526ede8e862bf1ad50ae5ae7a2f112",
+   "stars": 208553,
+   "description": "🎓 Path to a free self-taught education in Computer Science!",
+   "readme_path": "README.md",
+   "readme_sha": "ae69b33e2c93d27a893d9ff8e79fe2e88e591ff9",
+   "readme_size": 29250
+  },
+  {
+   "full_name": "deepseek-ai/deepseek-harness",
+   "default_branch": "master",
+   "head_sha": "0a53fb55bea101816fa226bb964ae2bed71c343b",
+   "stars": 204705,
+   "description": "DeepSeek Harness: Everything is a Plugin.",
+   "readme_path": "README.md",
+   "readme_sha": "9f89db3d4502dea4a0d181799164f304d4976740",
+   "readme_size": 2201
+  },
+  {
+   "full_name": "n8n-io/n8n",
+   "default_branch": "master",
+   "head_sha": "021cdf26dce3316d2bae6d077f7b8bd257ef765a",
+   "stars": 202888,
+   "description": "Fair-code workflow automation platform with native AI capabilities. Combine visual building with custom code, self-host or cloud, 400+ integrations.",
+   "readme_path": "README.md",
+   "readme_sha": "21909fae00cbad4f18af84d2948752445051a915",
+   "readme_size": 4023
+  },
+  {
+   "full_name": "anomalyco/opencode",
+   "default_branch": "dev",
+   "head_sha": "10765ff2a9da8c3b88e4de873aa383a49c318912",
+   "stars": 202596,
+   "description": "The open source coding agent.",
+   "readme_path": "README.md",
+   "readme_sha": "b5a4c8ddd9794e8c20bd287603bfa0c336522796",
+   "readme_size": 5402
+  },
+  {
+   "full_name": "tensorflow/tensorflow",
+   "default_branch": "master",
+   "head_sha": "9794b52cf8e167fdee4570c63791fdaac2f12d38",
+   "stars": 198072,
+   "description": "An Open Source Machine Learning Framework for Everyone",
+   "readme_path": "README.md",
+   "readme_sha": "24ce6ff362b00e77474edcbf67b49689889765c2",
+   "readme_size": 9790
+  },
+  {
+   "full_name": "DigitalPlatDev/FreeDomain",
+   "default_branch": "main",
+   "head_sha": "9c7c54110705760267b07b6e6a6d406d1172a1bf",
+   "stars": 196654,
+   "description": "Free domain registration and practical DNS learning resources for everyone.",
+   "readme_path": "README.md",
+   "readme_sha": "2c2a240dae197318630d8424cd9f410b52f9fa4b",
+   "readme_size": 3986
+  },
+  {
+   "full_name": "trekhleb/javascript-algorithms",
+   "default_branch": "master",
+   "head_sha": "85293e3e2b88f4d2ce330d956b139cf628aa1e82",
+   "stars": 196580,
+   "description": "📝 Algorithms and data structures implemented in JavaScript with explanations and links to further readings",
+   "readme_path": "README.md",
+   "readme_sha": "0eef20119a77bd3c9f533908409be8b4d57fd409",
+   "readme_size": 25792
+  },
+  {
+   "full_name": "ultraworkers/claw-code",
+   "default_branch": "main",
+   "head_sha": "08106b0c3771ef5b4a5aa176acccd460e88b7325",
+   "stars": 195163,
+   "description": "An agent-managed museum exhibit, built in Rust with Gajae-Code / LazyCodex — developed and maintained with no human intervention.",
+   "readme_path": "README.md",
+   "readme_sha": "8f41d4ffafd0fc0ff15aea54a665dfc6af5a8dbc",
+   "readme_size": 14152
+  },
+  {
+   "full_name": "microsoft/vscode",
+   "default_branch": "main",
+   "head_sha": "23f50094841f222bdd0e609fca3d72718048d297",
+   "stars": 190067,
+   "description": "Visual Studio Code",
+   "readme_path": "README.md",
+   "readme_sha": "b7770cecdd10433d6e7f072a3e2adf2f41bbedc2",
+   "readme_size": 6728
+  },
+  {
+   "full_name": "ohmyzsh/ohmyzsh",
+   "default_branch": "master",
+   "head_sha": "a5ecff7560b2e26f612032c632a12c75a3048bd0",
+   "stars": 189458,
+   "description": "🙃   A delightful community-driven (with 2,500+ contributors) framework for managing your zsh configuration. Includes 300+ optional plugins (rails, git, macOS, hub, docker, homebrew, node, php, python, etc), 140+ themes to spice up your morning, and an auto-update tool that makes it easy to keep up with the latest updates from the community.",
+   "readme_path": "README.md",
+   "readme_sha": "d7f1433970f7f36a6740c78baa2037c4ccc92afa",
+   "readme_size": 21153
+  },
+  {
+   "full_name": "massgravel/Microsoft-Activation-Scripts",
+   "default_branch": "master",
+   "head_sha": "6401d2f36975dc07bcb6d22ea823a8498a75ec01",
+   "stars": 188779,
+   "description": "Open-source Windows and Office activator featuring HWID, Ohook, TSforge, and Online KMS activation methods, along with advanced troubleshooting.",
+   "readme_path": "README.md",
+   "readme_sha": "c4731fbece9b7470d1fdb1aaeadd7311fdfe4226",
+   "readme_size": 3559
+  },
+  {
+   "full_name": "yt-dlp/yt-dlp",
+   "default_branch": "master",
+   "head_sha": "bbc809a1161d3bfca51fa36f59dda35556ee85a0",
+   "stars": 187951,
+   "description": "A feature-rich command-line audio/video downloader",
+   "readme_path": "README.md",
+   "readme_sha": "d15d9a96829bcd7c16afddc7244e2a9f95a53403",
+   "readme_size": 179196
+  },
+  {
+   "full_name": "Significant-Gravitas/AutoGPT",
+   "default_branch": "master",
+   "head_sha": "32a43d005c0c42079ceba68d9a49c28e0eeaa6c7",
+   "stars": 187020,
+   "description": "AutoGPT is the vision of accessible AI for everyone, to use and to build on. Our mission is to provide the tools, so that you can focus on what matters.",
+   "readme_path": "README.md",
+   "readme_sha": "f668ac876dc8eac73517febb8f6264ac9294dc05",
+   "readme_size": 10768
+  },
+  {
+   "full_name": "jackfrued/Python-100-Days",
+   "default_branch": "master",
+   "head_sha": "44b2575bf42a02d0a38d9dada3f60335c95c5ec2",
+   "stars": 185746,
+   "description": "Python - 100天从新手到大师",
+   "readme_path": "README.md",
+   "readme_sha": "fb70b9aad51e1ae6217d676f41399215e4473399",
+   "readme_size": 31347
+  },
+  {
+   "full_name": "getify/You-Dont-Know-JS",
+   "default_branch": "2nd-ed",
+   "head_sha": "044120ef55564939cd35f5ddaf3f6c0a45d7b02c",
+   "stars": 184757,
+   "description": "A book series (2 published editions) on the JS language.",
+   "readme_path": "README.md",
+   "readme_sha": "31843390204ab7d658e7911acb52a32730e36be0",
+   "readme_size": 4213
+  },
+  {
+   "full_name": "avelino/awesome-go",
+   "default_branch": "main",
+   "head_sha": "25b3336b830020afb568007104a3f6d53bf49581",
+   "stars": 182736,
+   "description": "A curated list of awesome Go frameworks, libraries and software",
+   "readme_path": "README.md",
+   "readme_sha": "9caa8911b1d94dfae1c4e3ced0278d02d140a56f",
+   "readme_size": 410460
+  },
+  {
+   "full_name": "ollama/ollama",
+   "default_branch": "main",
+   "head_sha": "f96e7aa0513b9973a0ccc71be414c2ecb9d65b1a",
+   "stars": 179796,
+   "description": "Get up and running with Kimi-K2.6, GLM-5.2, MiniMax, DeepSeek, gpt-oss, Qwen, Gemma and other models.",
+   "readme_path": "README.md",
+   "readme_sha": "e511fbe3fd3e73fc6d7cfb5393d827cf70f0a2f6",
+   "readme_size": 19225
+  },
+  {
+   "full_name": "flutter/flutter",
+   "default_branch": "master",
+   "head_sha": "c97838627ff5c275e9788839d427ab03eb1dfa01",
+   "stars": 178723,
+   "description": "Flutter makes it easy and fast to build beautiful apps for mobile and beyond",
+   "readme_path": "README.md",
+   "readme_sha": "9c228ee1873122526e38667afb09771cb4ac013e",
+   "readme_size": 6828
+  },
+  {
+   "full_name": "microsoft/markitdown",
+   "default_branch": "main",
+   "head_sha": "9dc0d6579b8739c9d0671ff205e071e3053c7df1",
+   "stars": 177204,
+   "description": "Python tool for converting files and office documents to Markdown.",
+   "readme_path": "README.md",
+   "readme_sha": "37be2d1d0121206cc533b6de3679b021eff0fe49",
+   "readme_size": 15755
+  },
+  {
+   "full_name": "github/gitignore",
+   "default_branch": "main",
+   "head_sha": "32652622a46d7588a40b155ad309da6a7d6f9690",
+   "stars": 175511,
+   "description": "A collection of useful .gitignore templates",
+   "readme_path": "README.md",
+   "readme_sha": "7a65379954ac0ec62aa6b504c8cdf5fdba2724a3",
+   "readme_size": 5624
+  },
+  {
+   "full_name": "twbs/bootstrap",
+   "default_branch": "main",
+   "head_sha": "b66d3437bdb8a1a19ca7bcfee285a34ce7d960cd",
+   "stars": 174678,
+   "description": "The most popular HTML, CSS, and JavaScript framework for developing responsive, mobile first projects on the web.",
+   "readme_path": "README.md",
+   "readme_sha": "24ecdaf9b13ef8df459631248dbd144ba3e0106c",
+   "readme_size": 13660
+  },
+  {
+   "full_name": "firecrawl/firecrawl",
+   "default_branch": "main",
+   "head_sha": "9bf1242b9562cfc710b85cd74127f2628561737a",
+   "stars": 174458,
+   "description": "The context API to search, scrape, and interact with the web at scale. 🔥",
+   "readme_path": "README.md",
+   "readme_sha": "6260269c0e9b88b735c4a78abed81b57d9e5b8e1",
+   "readme_size": 25495
+  },
+  {
+   "full_name": "521xueweihan/HelloGitHub",
+   "default_branch": "master",
+   "head_sha": "75c87e759278c36c479849d65eae8e2a08bb9c33",
+   "stars": 173774,
+   "description": ":octocat: 分享 GitHub 上有趣、入门级的开源项目。Share interesting, entry-level open source projects on GitHub.",
+   "readme_path": "README.md",
+   "readme_sha": "5634c07f0fec959f8b5dd3c4add8b680cbd74fca",
+   "readme_size": 6407
+  },
+  {
+   "full_name": "anthropics/skills",
+   "default_branch": "main",
+   "head_sha": "3b3fad96af16a10759d930941b4520ba0c40edae",
+   "stars": 172646,
+   "description": "Public repository for Agent Skills",
+   "readme_path": "README.md",
+   "readme_sha": "eb54ee8b92f2d40b4b26569be0772be3c1e23156",
+   "readme_size": 5552
+  },
+  {
+   "full_name": "f/prompts.chat",
+   "default_branch": "main",
+   "head_sha": "0b203286dd11711ff856e71b1ef78b7a957f13fe",
+   "stars": 168241,
+   "description": "f.k.a. Awesome ChatGPT Prompts. Share, discover, and collect prompts from the community. Free and open source — self-host for your organization with complete privacy.",
+   "readme_path": "README.md",
+   "readme_sha": "2ef16acadbac7599287913d2e8cc6a39e0def3b5",
+   "readme_size": 11382
+  },
+  {
+   "full_name": "AUTOMATIC1111/stable-diffusion-webui",
+   "default_branch": "master",
+   "head_sha": "82a973c04367123ae98bd9abdf80d9eda9b910e2",
+   "stars": 164746,
+   "description": "Stable Diffusion web UI",
+   "readme_path": "README.md",
+   "readme_sha": "bc62945c0c566f85c30434fd482fde9ee6116c26",
+   "readme_size": 12924
+  },
+  {
+   "full_name": "huggingface/transformers",
+   "default_branch": "main",
+   "head_sha": "42ca97014c85d71a88ad60d55f08cb9fb4d26e2c",
+   "stars": 164640,
+   "description": "🤗 Transformers: the model-definition framework for state-of-the-art machine learning models in text, vision, audio, and multimodal models, for both inference and training. ",
+   "readme_path": "README.md",
+   "readme_sha": "730084a5a55486821a1d600d8084beb9069f805b",
+   "readme_size": 17182
+  },
+  {
+   "full_name": "Snailclimb/JavaGuide",
+   "default_branch": "main",
+   "head_sha": "82bb2b64bbd5dc3feed3051a22609786d0d1ae0b",
+   "stars": 158131,
+   "description": "Java 面试 & 后端通用面试指南，覆盖计算机基础、数据库、分布式、高并发、系统设计与 AI 应用开发",
+   "readme_path": "README.md",
+   "readme_sha": "4811de7f679c59ec6ef2bc2fa83352e3c9bb4e81",
+   "readme_size": 26244
+  },
+  {
+   "full_name": "langflow-ai/langflow",
+   "default_branch": "main",
+   "head_sha": "da3d5050e83e55f885e0627245676933a867d06b",
+   "stars": 153921,
+   "description": "Langflow is a powerful tool for building and deploying AI-powered agents and workflows.",
+   "readme_path": "README.md",
+   "readme_sha": "ccba723089429cedfa4a3bbbb11a897a57eb11e6",
+   "readme_size": 4729
+  },
+  {
+   "full_name": "langgenius/dify",
+   "default_branch": "main",
+   "head_sha": "bf64390d7cd4818a84346f6a193611f60ad9699a",
+   "stars": 153918,
+   "description": "Build Agentic workflows, RAG pipelines, with rich AI model and tool support on one collaborative workspace. Deploy on cloud, VPC, or self-hosted, so teams move from prototype to production without rebuilding the stack.",
+   "readme_path": "README.md",
+   "readme_sha": "c3f68564c8508b45187958696257a57859c9fdb4",
+   "readme_size": 11950
+  },
+  {
+   "full_name": "open-webui/open-webui",
+   "default_branch": "main",
+   "head_sha": "d3e8bf3405e848cfba377814d0aa7ba7290e414d",
+   "stars": 150435,
+   "description": "User-friendly AI Interface (Supports Ollama, OpenAI API, ...)",
+   "readme_path": "README.md",
+   "readme_sha": "1342c8d8380e62460794599f0ee502eeb074c012",
+   "readme_size": 17885
+  },
+  {
+   "full_name": "msitarzewski/agency-agents",
+   "default_branch": "main",
+   "head_sha": "3c9588880b7cafaec325a104899fd8bbe27e7d72",
+   "stars": 149051,
+   "description": "A complete AI agency at your fingertips - From frontend wizards to Reddit community ninjas, from whimsy injectors to reality checkers. Each agent is a specialized expert with personality, processes, and proven deliverables.",
+   "readme_path": "README.md",
+   "readme_sha": "06b03b7032dd8e36efc0329666f9a629df93067b",
+   "readme_size": 82556
+  },
+  {
+   "full_name": "Genymobile/scrcpy",
+   "default_branch": "master",
+   "head_sha": "2926c06c5dc3064ae6d8db706f1a98a37cfcf3f0",
+   "stars": 148579,
+   "description": "Display and control your Android device",
+   "readme_path": "README.md",
+   "readme_sha": "54aa707f237b5939f904c9eab0b6208b59812401",
+   "readme_size": 8139
+  },
+  {
+   "full_name": "airbnb/javascript",
+   "default_branch": "master",
+   "head_sha": "8ed19247bef145e3cc41b24a02dd1fe6d9b5e681",
+   "stars": 148138,
+   "description": "JavaScript Style Guide",
+   "readme_path": "README.md",
+   "readme_sha": "bd91faf2ea5a751f9f9c3b72e5e44477a2846465",
+   "readme_size": 129525
+  },
+  {
+   "full_name": "langchain-ai/langchain",
+   "default_branch": "master",
+   "head_sha": "e92c8a08bf382121cc1e95f7e75ddc8cb9c01ab0",
+   "stars": 145297,
+   "description": "The agent engineering platform.",
+   "readme_path": "README.md",
+   "readme_sha": "de6af66fd644a38d7eb288676ad38e738f94ee7d",
+   "readme_size": 5933
+  },
+  {
+   "full_name": "anthropics/claude-code",
+   "default_branch": "main",
+   "head_sha": "f1af9b1f4b1fd4c776135381606edada82ef638e",
+   "stars": 143474,
+   "description": "Claude Code is an agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster by executing routine tasks, explaining complex code, and handling git workflows - all through natural language commands.",
+   "readme_path": "README.md",
+   "readme_sha": "80aa75edf74a5f9e1269811b4e8b5852be91e66e",
+   "readme_size": 2873
+  },
+  {
+   "full_name": "x1xhlol/system-prompts-and-models-of-ai-tools",
+   "default_branch": "main",
+   "head_sha": "1e4203a7d88873c1b37ab2d1c07074fea498c274",
+   "stars": 143243,
+   "description": "FULL Augment Code, Claude Code, Cluely, CodeBuddy, Comet, Cursor, Devin AI, Junie, Kiro, Leap.new, Lovable, Manus, NotionAI, Orchids.app, Perplexity, Poke, Qoder, Replit, Same.dev, Trae, Traycer AI, VSCode Agent, Warp.dev, Windsurf, Xcode, Z.ai Code, Dia & v0. (And other Open Sourced) System Prompts, Internal Tools & AI Models",
+   "readme_path": "README.md",
+   "readme_sha": "0818aad79d047048f3be277623e876b1aa230cb0",
+   "readme_size": 2052
+  },
+  {
+   "full_name": "yangshun/tech-interview-handbook",
+   "default_branch": "main",
+   "head_sha": "e1d28e8886c0b6ff3e50da991ce0e895134ddc59",
+   "stars": 142320,
+   "description": "Curated coding interview preparation materials for busy software engineers",
+   "readme_path": "README.md",
+   "readme_sha": "fd6916d7b061a112b3e0698c7e6ebdb4d2d3d763",
+   "readme_size": 10615
+  },
+  {
+   "full_name": "vercel/next.js",
+   "default_branch": "canary",
+   "head_sha": "2fe6f962a1982594bdda96a7de16c594677266d2",
+   "stars": 142021,
+   "description": "The React Framework",
+   "readme_path": "readme.md",
+   "readme_sha": "58e152b8b2f0a5b442f990e78ed791bceb23da3b",
+   "readme_size": 3213
+  },
+  {
+   "full_name": "clash-verge-rev/clash-verge-rev",
+   "default_branch": "dev",
+   "head_sha": "8611fdc34f6da5dc97fa1f03ab334558084b17e5",
+   "stars": 141157,
+   "description": "A modern GUI client based on Tauri, designed to run in Windows, macOS and Linux for tailored proxy experience",
+   "readme_path": "README.md",
+   "readme_sha": "28407616c92771a0f0d54bf832c7620fef44a00f",
+   "readme_size": 5940
+  },
+  {
+   "full_name": "ytdl-org/youtube-dl",
+   "default_branch": "master",
+   "head_sha": "956b8c585591b401a543e409accb163eeaaa1193",
+   "stars": 141064,
+   "description": "Command-line program to download videos from YouTube.com and other video sites",
+   "readme_path": "README.md",
+   "readme_sha": "47e686f845c5b28aced9878debf0eaef19d5d5cc",
+   "readme_size": 101042
+  },
+  {
+   "full_name": "microsoft/PowerToys",
+   "default_branch": "main",
+   "head_sha": "ade0003fb0bd8d7c0a455490ea0274e9f0405ede",
+   "stars": 138229,
+   "description": "Microsoft PowerToys is a collection of utilities that supercharge productivity and customization on Windows",
+   "readme_path": "README.md",
+   "readme_sha": "941bf5b99505730c274efa1a0c7a08e1912e602c",
+   "readme_size": 9950
+  },
+  {
+   "full_name": "iptv-org/iptv",
+   "default_branch": "master",
+   "head_sha": "8b84d0585d67c3a1c321f385ecbd52449186713a",
+   "stars": 137107,
+   "description": "Collection of publicly available IPTV channels from all over the world",
+   "readme_path": "README.md",
+   "readme_sha": "79407f2048531750e7f549e370b9e2987a136d32",
+   "readme_size": 3662
+  },
+  {
+   "full_name": "golang/go",
+   "default_branch": "master",
+   "head_sha": "603439a1c6f2d37c7f02e246342847056ed04c21",
+   "stars": 136841,
+   "description": "The Go programming language",
+   "readme_path": "README.md",
+   "readme_sha": "71c9d1dc2993880f38d227085d1b48c4070d1e85",
+   "readme_size": 1454
+  },
+  {
+   "full_name": "ripienaar/free-for-dev",
+   "default_branch": "master",
+   "head_sha": "40b332b89c287b0d201eb02a8e5fdd5b34fa6292",
+   "stars": 135990,
+   "description": "A list of SaaS, PaaS and IaaS offerings that have free tiers of interest to devops and infradev",
+   "readme_path": "README.md",
+   "readme_sha": "fde554cf899815faf7d5c258e96ce12a17a0ccdb",
+   "readme_size": 255427
+  },
+  {
+   "full_name": "labuladong/fucking-algorithm",
+   "default_branch": "master",
+   "head_sha": "b1f23cb9605f6146ff78bafad71e795176439b99",
+   "stars": 135506,
+   "description": "Crack LeetCode, not only how, but also why. ",
+   "readme_path": "README.md",
+   "readme_sha": "4b5116573e0a4aad38f243de52ed4950750f9f62",
+   "readme_size": 39156
+  },
+  {
+   "full_name": "Shubhamsaboo/awesome-llm-apps",
+   "default_branch": "main",
+   "head_sha": "c55b274e5fdd82dabc360c13c3ccefc6e1f0ea88",
+   "stars": 135292,
+   "description": "100+ AI Agents, Agent Skills and RAG Apps - Free and Open Source.",
+   "readme_path": "README.md",
+   "readme_sha": "62a3497c3ce958da49bcb5220ee1da456ec6f02e",
+   "readme_size": 24800
+  },
+  {
+   "full_name": "github/spec-kit",
+   "default_branch": "main",
+   "head_sha": "51e52be6c3b26fed3ff5424c671f4a559519a759",
+   "stars": 132354,
+   "description": "💫 Toolkit to help you get started with Spec-Driven Development",
+   "readme_path": "README.md",
+   "readme_sha": "b9b3243520cac52182c8ea89c4354ec36fa57cd5",
+   "readme_size": 26652
+  },
+  {
+   "full_name": "excalidraw/excalidraw",
+   "default_branch": "master",
+   "head_sha": "e1bb9ff8f8931e783c11d104abb8967ac6605c9a",
+   "stars": 130825,
+   "description": "Virtual whiteboard for sketching hand-drawn like diagrams",
+   "readme_path": "README.md",
+   "readme_sha": "48b9d1de9fbb1c74406407e89e2471a01b1f28de",
+   "readme_size": 7774
+  },
+  {
+   "full_name": "Comfy-Org/ComfyUI",
+   "default_branch": "master",
+   "head_sha": "f938505952476e48a12687eac696cdc94d48a3fe",
+   "stars": 130752,
+   "description": "The most powerful and modular diffusion model GUI, api and backend with a graph/nodes interface.",
+   "readme_path": "README.md",
+   "readme_sha": "84b62ddec0151ddc43a11ebc50e80f6f9681d17d",
+   "readme_size": 28022
+  },
+  {
+   "full_name": "garrytan/gstack",
+   "default_branch": "main",
+   "head_sha": "07b59e396c6be5a86619a43151cb9ed62a15ae69",
+   "stars": 130479,
+   "description": "Use Garry Tan's exact Claude Code setup: 23 opinionated tools that serve as CEO, Designer, Eng Manager, Release Manager, Doc Engineer, and QA",
+   "readme_path": "README.md",
+   "readme_sha": "cb76f65a84767ff1e98f41b1dd10b6e486be0aa7",
+   "readme_size": 53424
+  },
+  {
+   "full_name": "farion1231/cc-switch",
+   "default_branch": "main",
+   "head_sha": "d8065cc628fcd373d00c4363d718095f19e78c9e",
+   "stars": 130222,
+   "description": "A cross-platform desktop All-in-One assistant for Claude Code, Codex, OpenCode, OpenClaw, Grok Build & Hermes Agent. Only official website: ccswitch.io",
+   "readme_path": "README.md",
+   "readme_sha": "a2f6956b67a029ad00a4cb9c2b09a069b8aa7581",
+   "readme_size": 46978
+  },
+  {
+   "full_name": "krahets/hello-algo",
+   "default_branch": "main",
+   "head_sha": "28c1e74c1d3594fca7cc41b78a6bd18b700c5ce9",
+   "stars": 129680,
+   "description": "《Hello 算法》：动画图解、一键运行的数据结构与算法教程。支持简中、繁中、English、日本語，提供 Python, Java, C++, C, C#, JS, Go, Swift, Rust, Ruby, Kotlin, TS, Dart 等代码实现",
+   "readme_path": "README.md",
+   "readme_sha": "0f56398cef39c1c66f2e86dbbc10d5a298640f36",
+   "readme_size": 4866
+  },
+  {
+   "full_name": "Chalarangelo/30-seconds-of-code",
+   "default_branch": "master",
+   "head_sha": "f1b2d5a65c32432a877de94a749be40a396ebed2",
+   "stars": 128859,
+   "description": "Coding articles to level up your development skills",
+   "readme_path": "README.md",
+   "readme_sha": "ee297cc3bdced7bb73ee3ee24bc90a4a2b4d1a5a",
+   "readme_size": 1540
+  },
+  {
+   "full_name": "react/react-native",
+   "default_branch": "main",
+   "head_sha": "2fa055f6a70bba26391cb42cd4b37923724e44b8",
+   "stars": 126457,
+   "description": "A framework for building native applications using React",
+   "readme_path": "README.md",
+   "readme_sha": "299f449a06cd730673cf7bb62f8e793274a5853a",
+   "readme_size": 6204
+  },
+  {
+   "full_name": "ggml-org/llama.cpp",
+   "default_branch": "master",
+   "head_sha": "9723942adc518b43c4b95dc4dce6906903eb5e09",
+   "stars": 126408,
+   "description": "LLM inference in C/C++",
+   "readme_path": "README.md",
+   "readme_sha": "0b5598c6e5bd9a8130136ee5009cbc500729c953",
+   "readme_size": 7295
+  },
+  {
+   "full_name": "kubernetes/kubernetes",
+   "default_branch": "master",
+   "head_sha": "3375cb24a5f4bd42c80777231f7d364553a59e70",
+   "stars": 125584,
+   "description": "Production-Grade Container Scheduling and Management",
+   "readme_path": "README.md",
+   "readme_sha": "831bf0164f8e625d70c35a99ae23fd3522870f52",
+   "readme_size": 4236
+  },
+  {
+   "full_name": "nextlevelbuilder/ui-ux-pro-max-skill",
+   "default_branch": "main",
+   "head_sha": "8bd29e775453ebcae52b6e6514fbf134df0c5770",
+   "stars": 123226,
+   "description": "An AI skill that provides design intelligence for building professional UI/UX across multiple platforms.",
+   "readme_path": "README.md",
+   "readme_sha": "6b71633819b925db6a9d849abcdf6622769d5c6d",
+   "readme_size": 34198
+  },
+  {
+   "full_name": "electron/electron",
+   "default_branch": "main",
+   "head_sha": "af2dcbc7f042e44f42359bef1fa786745a297afe",
+   "stars": 122809,
+   "description": ":electron: Build cross-platform desktop apps with JavaScript, HTML, and CSS",
+   "readme_path": "README.md",
+   "readme_sha": "128071b9bc690c361f62a12b180824f195832c7d",
+   "readme_size": 4753
+  },
+  {
+   "full_name": "shadcn-ui/ui",
+   "default_branch": "main",
+   "head_sha": "b4a618b97e35f5dadf3a00d51f410c84a2567d4d",
+   "stars": 122580,
+   "description": "A set of beautifully-designed, accessible components and a code distribution platform. Works with your favorite frameworks. Open Source. Open Code.",
+   "readme_path": "README.md",
+   "readme_sha": "35657b37e0ef00aa7b477896d51a8fd0d5af8f49",
+   "readme_size": 467
+  },
+  {
+   "full_name": "rustdesk/rustdesk",
+   "default_branch": "master",
+   "head_sha": "03a7fc5992069cc5bc9f7c36b872483dddf4f472",
+   "stars": 122174,
+   "description": "An open-source remote desktop application designed for self-hosting, as an alternative to TeamViewer.",
+   "readme_path": "README.md",
+   "readme_sha": "a593a191faa55defe64f415bef98ffd42c8c81b4",
+   "readme_size": 9765
+  },
+  {
+   "full_name": "openai/codex",
+   "default_branch": "main",
+   "head_sha": "b7cd519c767c8fd4bc3581d9bc92fbab37a768c1",
+   "stars": 120095,
+   "description": "Lightweight coding agent that runs in your terminal",
+   "readme_path": "README.md",
+   "readme_sha": "06b02fced7db972084bf0188cb03f60375b51c1c",
+   "readme_size": 3334
+  },
+  {
+   "full_name": "nodejs/node",
+   "default_branch": "main",
+   "head_sha": "12e8e0b8d327549c719b5b09e462c4884f1fcaba",
+   "stars": 119959,
+   "description": "Node.js JavaScript runtime ✨🐢🚀✨",
+   "readme_path": "README.md",
+   "readme_sha": "3827556a44fbc206d108d01998033517ea3ceb32",
+   "readme_size": 41791
+  },
+  {
+   "full_name": "Hack-with-Github/Awesome-Hacking",
+   "default_branch": "master",
+   "head_sha": "b2bb13aa69b4f568a1bab0cbb17b7a00a350dc36",
+   "stars": 119384,
+   "description": "A collection of various awesome lists for hackers, pentesters and security researchers",
+   "readme_path": "README.md",
+   "readme_sha": "130e88ae8067b586c96a703c29cfcb8e9d82964f",
+   "readme_size": 12303
+  },
+  {
+   "full_name": "harry0703/MoneyPrinterTurbo",
+   "default_branch": "main",
+   "head_sha": "6c15b42bd4435d28b280225d21f47a057a274b81",
+   "stars": 118832,
+   "description": "利用 AI 大模型和自动化工作流，根据主题或关键词一键生成高清短视频。Generate HD short videos from a topic or keyword with an automated AI workflow.",
+   "readme_path": "README.md",
+   "readme_sha": "ccd6fba99c5f1ed5717248e41a6e214319cab69c",
+   "readme_size": 32379
+  },
+  {
+   "full_name": "microsoft/generative-ai-for-beginners",
+   "default_branch": "main",
+   "head_sha": "645f932514e9f22f688c8feb3e49a7a7f2eb6f1b",
+   "stars": 118823,
+   "description": "21 Lessons, Get Started Building with Generative AI ",
+   "readme_path": "README.md",
+   "readme_sha": "ccea2ec6e66cd880ff69a10d145ea144ee46caa7",
+   "readme_size": 24587
+  },
+  {
+   "full_name": "justjavac/free-programming-books-zh_CN",
+   "default_branch": "main",
+   "head_sha": "cc1108ac90f53a1fd4f773b61f5c6b91b91389ca",
+   "stars": 118568,
+   "description": ":books: 免费的计算机编程类中文书籍，欢迎投稿",
+   "readme_path": "README.md",
+   "readme_sha": "f4d15e290ddc5d2ba5b5221c4620624c19012f30",
+   "readme_size": 46287
+  },
+  {
+   "full_name": "DietrichGebert/ponytail",
+   "default_branch": "main",
+   "head_sha": "2ed6c52c9d7e5e56942508591085fd45dea277d3",
+   "stars": 117177,
+   "description": "Makes your AI agent think like the laziest senior dev in the room. The best code is the code you never wrote.",
+   "readme_path": "README.md",
+   "readme_sha": "c57811a01bcc35d103ef9532378cd22fc3005133",
+   "readme_size": 20888
+  },
+  {
+   "full_name": "rust-lang/rust",
+   "default_branch": "main",
+   "head_sha": "4b7e3a76d8df78960dc7c65cad43f5da1dac8ade",
+   "stars": 116668,
+   "description": "Empowering everyone to build reliable and efficient software.",
+   "readme_path": "README.md",
+   "readme_sha": "ed35016eb3a238614741e5922a06b9bf83f9780e",
+   "readme_size": 3304
+  },
+  {
+   "full_name": "godotengine/godot",
+   "default_branch": "master",
+   "head_sha": "5ec4857b340b6284a18b49b2eda462bd250f219a",
+   "stars": 116398,
+   "description": "Godot Engine – Multi-platform 2D and 3D game engine",
+   "readme_path": "README.md",
+   "readme_sha": "68947d32efdaf9733e303f23801c6eb5f3f130b2",
+   "readme_size": 3764
+  },
+  {
+   "full_name": "2dust/v2rayN",
+   "default_branch": "master",
+   "head_sha": "521230c40d5c180bc0727cf4003907edfae5a3e0",
+   "stars": 115005,
+   "description": "A GUI client for Windows, Linux and macOS, support Xray and sing-box and others",
+   "readme_path": "README.md",
+   "readme_sha": "859167410b1dbedb1c46a24d596a9270221c806e",
+   "readme_size": 2924
+  },
+  {
+   "full_name": "mrdoob/three.js",
+   "default_branch": "dev",
+   "head_sha": "9d31c7536c1f1fe4422adf5da2aadd135f7cf10c",
+   "stars": 114946,
+   "description": "JavaScript 3D Library.",
+   "readme_path": "README.md",
+   "readme_sha": "7237aa514f305d2e3011a984673c07921076e2b6",
+   "readme_size": 2969
+  },
+  {
+   "full_name": "d3/d3",
+   "default_branch": "main",
+   "head_sha": "ca958d45217b4c15332d971b935451a6d4c978f4",
+   "stars": 113582,
+   "description": "Bring data to life with SVG, Canvas and HTML. :bar_chart::chart_with_upwards_trend::tada:",
+   "readme_path": "README.md",
+   "readme_sha": "cf409a546f5af0b535d2413069ba4bb5ee238592",
+   "readme_size": 1216
+  },
+  {
+   "full_name": "immich-app/immich",
+   "default_branch": "main",
+   "head_sha": "1fd3d8749218e8176cd1d9a5c73254faeb5c33ab",
+   "stars": 113016,
+   "description": "High performance self-hosted photo and video management solution.",
+   "readme_path": "README.md",
+   "readme_sha": "02ae01857e52955e07cdb4d83a3d8f1d45e29e53",
+   "readme_size": 6058
+  },
+  {
+   "full_name": "Graphify-Labs/graphify",
+   "default_branch": "v8",
+   "head_sha": "33362d969292b57eda82f3fbd9eb5f3f5bc9bbc2",
+   "stars": 112653,
+   "description": "Turn any codebase, with its docs, SQL schemas, configs, and PDFs, into a queryable knowledge graph. A /graphify skill for Claude Code, Cursor, Codex, and Gemini CLI: local deterministic AST parsing, every edge explained, no vector store.",
+   "readme_path": "README.md",
+   "readme_sha": "d83ea76c0c2d6b9331a41735f763da2fffe217fd",
+   "readme_size": 62662
+  },
+  {
+   "full_name": "jaywcjlove/awesome-mac",
+   "default_branch": "master",
+   "head_sha": "72b13cf68eae66ea26241cd74f45ee8431cf17d7",
+   "stars": 112152,
+   "description": " This project is dedicated to collecting high-quality macOS software and organizing them systematically by different categories for easy search and use.",
+   "readme_path": "README.md",
+   "readme_sha": "6b7d162c142eae1f00ffe1662f4806448b5f023e",
+   "readme_size": 257802
+  },
+  {
+   "full_name": "browser-use/browser-use",
+   "default_branch": "main",
+   "head_sha": "5def56e6c0d47638c0fd2fd09e879a0fe842ea7d",
+   "stars": 111740,
+   "description": "🌐 Make websites accessible for AI agents. Automate tasks online with ease.",
+   "readme_path": "README.md",
+   "readme_sha": "8535f304bb43cd1d4d5cbe4310325727610c1b15",
+   "readme_size": 13127
+  },
+  {
+   "full_name": "VoltAgent/awesome-design-md",
+   "default_branch": "main",
+   "head_sha": "8147538b4226ae41e2487a9179e3bcc1f68e8554",
+   "stars": 111609,
+   "description": "A collection of DESIGN.md files analysis by popular brand design systems. Drop one into your project and let coding agents generate a matching UI.",
+   "readme_path": "README.md",
+   "readme_sha": "3e989b4971ae2692190ae25119e7f8e0d63a558e",
+   "readme_size": 16023
+  },
+  {
+   "full_name": "microsoft/TypeScript",
+   "default_branch": "main",
+   "head_sha": "9a8581c393a38961489cc8409ae4dfbe97fc25ec",
+   "stars": 110792,
+   "description": "TypeScript is a superset of JavaScript that compiles to clean JavaScript output.",
+   "readme_path": "README.md",
+   "readme_sha": "79adc1b165e396ac026a8e88da02e693b4a5afae",
+   "readme_size": 2741
+  },
+  {
+   "full_name": "tauri-apps/tauri",
+   "default_branch": "dev",
+   "head_sha": "dd6befda925845fc74ca595d6d42de6c49580dd8",
+   "stars": 110690,
+   "description": "Build smaller, faster, and more secure desktop and mobile applications with a web frontend.",
+   "readme_path": "README.md",
+   "readme_sha": "80556b42f74ede3cd1a246f339c4d22e8d4be6ef",
+   "readme_size": 6055
+  },
+  {
+   "full_name": "papers-we-love/papers-we-love",
+   "default_branch": "main",
+   "head_sha": "bc99936905310223b0df07d17e6a0b627f77ece1",
+   "stars": 109280,
+   "description": "Papers from the computer science community to read and discuss.",
+   "readme_path": "README.md",
+   "readme_sha": "9764cc9f03173b2cb62632c537abaa5c1426dd0b",
+   "readme_size": 5313
+  },
+  {
+   "full_name": "axios/axios",
+   "default_branch": "v1.x",
+   "head_sha": "fede1d1562e308077da7994305d63fb7722b66ac",
+   "stars": 109194,
+   "description": "Promise based HTTP client for the browser and node.js",
+   "readme_path": "README.md",
+   "readme_sha": "b0e0511d411cf3f6d770ebdb7c3e5b4e2c4e3b22",
+   "readme_size": 107633
+  },
+  {
+   "full_name": "fatedier/frp",
+   "default_branch": "dev",
+   "head_sha": "832df8dff66d1b0caa0d776c450418f982756df1",
+   "stars": 109105,
+   "description": "A fast reverse proxy to help you expose a local server behind a NAT or firewall to the internet.",
+   "readme_path": "README.md",
+   "readme_sha": "cf0e0d4ce327335697adfba55eea1c6df3af0b76",
+   "readme_size": 44536
+  },
+  {
+   "full_name": "supabase/supabase",
+   "default_branch": "master",
+   "head_sha": "8439b0c77eccb3e6a8a07997e0fd66baacd6ab3e",
+   "stars": 108619,
+   "description": "The Postgres development platform. Supabase gives you a dedicated Postgres database to build your web, mobile, and AI applications.",
+   "readme_path": "README.md",
+   "readme_sha": "0b5a5e6f4556ca4e99f0980192cc15587083c3c6",
+   "readme_size": 16633
+  },
+  {
+   "full_name": "denoland/deno",
+   "default_branch": "main",
+   "head_sha": "1aa88c0388ba56970ec1bc7e8196bf688cb22ac9",
+   "stars": 108347,
+   "description": "A modern runtime for JavaScript and TypeScript.",
+   "readme_path": "README.md",
+   "readme_sha": "8173eb951062916cc112a8fb7c0e120b1c945975",
+   "readme_size": 3807
+  },
+  {
+   "full_name": "openai/whisper",
+   "default_branch": "main",
+   "head_sha": "5f86d1d86363843179951550570367b37c5d6f78",
+   "stars": 108164,
+   "description": "Robust Speech Recognition via Large-Scale Weak Supervision",
+   "readme_path": "README.md",
+   "readme_sha": "196b48f62d3b6f0b77bac2b7dbc2df5e4cfb070b",
+   "readme_size": 8246
+  },
+  {
+   "full_name": "google-gemini/gemini-cli",
+   "default_branch": "main",
+   "head_sha": "0bd1d439751478771c45d3d0895a6a9760554bf4",
+   "stars": 106753,
+   "description": "An open-source AI agent that brings the power of Gemini directly into your terminal.",
+   "readme_path": "README.md",
+   "readme_sha": "20813de3eb3e5db49a6345e969f08c32b57e76c9",
+   "readme_size": 13489
+  },
+  {
+   "full_name": "goldbergyoni/nodebestpractices",
+   "default_branch": "master",
+   "head_sha": "dc3d60c29d5483d9ea99cf261bbd6203516a2ba7",
+   "stars": 105599,
+   "description": "✅ The Node.js best practices list (July 2026)",
+   "readme_path": "README.md",
+   "readme_sha": "550b0f8238a3e48ed390567465a2466acbf321c5",
+   "readme_size": 201064
+  },
+  {
+   "full_name": "microsoft/terminal",
+   "default_branch": "main",
+   "head_sha": "079d1cc423336c89c1e220701c94b320cecb603a",
+   "stars": 104746,
+   "description": "The new Windows Terminal and the original Windows console host, all in the same place!",
+   "readme_path": "README.md",
+   "readme_sha": "2bd2aa24a9210265cbdb34c8fbdfb110b521277f",
+   "readme_size": 18794
+  },
+  {
+   "full_name": "rasbt/LLMs-from-scratch",
+   "default_branch": "main",
+   "head_sha": "0233b7a2890e5712e48ece4aa02f3c10f598b14f",
+   "stars": 104064,
+   "description": "Implement a ChatGPT-like LLM in PyTorch from scratch, step by step",
+   "readme_path": "README.md",
+   "readme_sha": "15aab7947813d052aff6817966f94661c899f430",
+   "readme_size": 18927
+  },
+  {
+   "full_name": "pytorch/pytorch",
+   "default_branch": "main",
+   "head_sha": "c9fded8194d3b089ed610b586eb746a6e74c6616",
+   "stars": 102686,
+   "description": "Tensors and Dynamic neural networks in Python with strong GPU acceleration",
+   "readme_path": "README.md",
+   "readme_sha": "938c15dba315963266102bcfeaf935306b24a165",
+   "readme_size": 30083
+  },
+  {
+   "full_name": "neovim/neovim",
+   "default_branch": "master",
+   "head_sha": "b542f3a8f8689a9a033411456fb1c6576916c66b",
+   "stars": 102027,
+   "description": "Vim-fork focused on extensibility and usability",
+   "readme_path": "README.md",
+   "readme_sha": "e92d0961d7307a7e539b68d5b5ba840727000e00",
+   "readme_size": 5261
+  },
+  {
+   "full_name": "Anduin2017/HowToCook",
+   "default_branch": "master",
+   "head_sha": "c694a5c457d45e6e012ae6cd9a7724aab86e320b",
+   "stars": 102010,
+   "description": "Programmer's guide about how to cook at home.",
+   "readme_path": "README.md",
+   "readme_sha": "e4ec04341687ef0994d5b8fd4a6a0a486c7631e4",
+   "readme_size": 26797
+  },
+  {
+   "full_name": "fastapi/fastapi",
+   "default_branch": "master",
+   "head_sha": "49033471594ea5d99a80abdf1043231b7791ee49",
+   "stars": 101941,
+   "description": "FastAPI framework, high performance, easy to learn, fast to code, ready for production",
+   "readme_path": "README.md",
+   "readme_sha": "bd7e9e96b015b92f219c596710c96a89068488c8",
+   "readme_size": 22780
+  },
+  {
+   "full_name": "JuliusBrussee/caveman",
+   "default_branch": "main",
+   "head_sha": "df2ccd85c94ec3c8289cb62ac020d241ccfb0c60",
+   "stars": 101878,
+   "description": "🪨 why use many token when few token do trick — Claude Code skill that cuts 65% of tokens by talking like caveman",
+   "readme_path": "README.md",
+   "readme_sha": "e1aee37e12d6a15ac8e7e1a07b84ebf11eb22d36",
+   "readme_size": 18620
+  },
+  {
+   "full_name": "TauricResearch/TradingAgents",
+   "default_branch": "main",
+   "head_sha": "a33fd4c0f134485a43553a2c23a63cb14adbd88f",
+   "stars": 101876,
+   "description": "TradingAgents: Multi-Agents LLM Financial Trading Framework",
+   "readme_path": "README.md",
+   "readme_sha": "def85acbef5601d1a6dbc299b4a4fe3904799d28",
+   "readme_size": 17337
+  },
+  {
+   "full_name": "ruanyf/weekly",
+   "default_branch": "master",
+   "head_sha": "5bf5b332f38e8cea674be227c87f9ce10a1d860d",
+   "stars": 101625,
+   "description": "科技爱好者周刊，每周五发布",
+   "readme_path": "README.md",
+   "readme_sha": "4b8829506f03ce6f67d0bfd9c0ebe1a51f584af9",
+   "readme_size": 28984
+  },
+  {
+   "full_name": "angular/angular",
+   "default_branch": "main",
+   "head_sha": "563850e860bd887820b6ddea4638017dd8ef2293",
+   "stars": 101015,
+   "description": "Deliver web apps with confidence 🚀",
+   "readme_path": "README.md",
+   "readme_sha": "c1528944d08b5be8e2997e46a842b35fd998a11f",
+   "readme_size": 4680
+  },
+  {
+   "full_name": "earendil-works/pi",
+   "default_branch": "main",
+   "head_sha": "853a80d26c90a14c1886f0ebb8ffaae133ca2185",
+   "stars": 99416,
+   "description": "AI agent toolkit: unified LLM API, agent loop, TUI, coding agent CLI",
+   "readme_path": "README.md",
+   "readme_sha": "e68f9385df7e2bf7e8f1e8bca1257a20260b0281",
+   "readme_size": 6762
+  },
+  {
+   "full_name": "ant-design/ant-design",
+   "default_branch": "master",
+   "head_sha": "c99d71d06cf35e73747ac8aca1eab2a1a5de2a7b",
+   "stars": 99293,
+   "description": "An enterprise-class UI design language and React UI library",
+   "readme_path": "README.md",
+   "readme_sha": "fcb30914bd448cfdd7dbacadbc041509be1fe4f6",
+   "readme_size": 11917
+  },
+  {
+   "full_name": "mui/material-ui",
+   "default_branch": "master",
+   "head_sha": "fc3a3a0a8b7c8f20274eca4758ea07a33e25c1b4",
+   "stars": 98976,
+   "description": "Material UI: Comprehensive React component library that implements Google's Material Design. Free forever.",
+   "readme_path": "README.md",
+   "readme_sha": "d7638faea14492fdd2d72458b327687e23235b35",
+   "readme_size": 8234
+  },
+  {
+   "full_name": "tailwindlabs/tailwindcss",
+   "default_branch": "main",
+   "head_sha": "90f8ff41c8e2a4d17bc76921e23e9d672123da76",
+   "stars": 97398,
+   "description": "A utility-first CSS framework for rapid UI development.",
+   "readme_path": "README.md",
+   "readme_sha": "5f532607d00a72faf633c2c1d613c9369fe27c35",
+   "readme_size": 1838
+  },
+  {
+   "full_name": "microsoft/Web-Dev-For-Beginners",
+   "default_branch": "main",
+   "head_sha": "5f220217d35499881cfff61a5b4c2dab033ab228",
+   "stars": 96509,
+   "description": "24 Lessons, 12 Weeks, Get Started as a Web Developer",
+   "readme_path": "README.md",
+   "readme_sha": "7290bff1d6056334c48afd3ad73eec9f2e363fba",
+   "readme_size": 32809
+  },
+  {
+   "full_name": "hacksider/Deep-Live-Cam",
+   "default_branch": "main",
+   "head_sha": "bc48ba430837cd7f733346deeafda4c9217d11f1",
+   "stars": 96204,
+   "description": "real time face swap and one-click video deepfake with only a single image",
+   "readme_path": "README.md",
+   "readme_sha": "afc08d29fd8b40ce5d5d0eca1268fae2c7da7ab7",
+   "readme_size": 17494
+  },
+  {
+   "full_name": "oven-sh/bun",
+   "default_branch": "main",
+   "head_sha": "16a30126f67f5f2405f89b43b4bec5f0c19517a6",
+   "stars": 95815,
+   "description": "Incredibly fast JavaScript runtime, bundler, test runner, and package manager – all in one",
+   "readme_path": "README.md",
+   "readme_sha": "c507cc5dec62f46701657ed856bd69d5c3529607",
+   "readme_size": 26195
+  },
+  {
+   "full_name": "puppeteer/puppeteer",
+   "default_branch": "main",
+   "head_sha": "5ecc6947cd52a9017c4c73b97dfd979714636d68",
+   "stars": 95527,
+   "description": "JavaScript API for Chrome and Firefox",
+   "readme_path": "README.md",
+   "readme_sha": "2424293b5688dbec4f2407a3326fb54d086b6527",
+   "readme_size": 3013
+  },
+  {
+   "full_name": "microsoft/playwright",
+   "default_branch": "main",
+   "head_sha": "de214f440b7e34937fe4886f046b78b757136087",
+   "stars": 95393,
+   "description": "Playwright is a framework for Web Testing and Automation. It allows testing Chromium, Firefox and WebKit with a single API. ",
+   "readme_path": "README.md",
+   "readme_sha": "86ff83c2c3e38aa0652613ad0cd50070c48d7662",
+   "readme_size": 11282
+  },
+  {
+   "full_name": "karpathy/autoresearch",
+   "default_branch": "master",
+   "head_sha": "228791fb499afffb54b46200aca536f79142f117",
+   "stars": 94958,
+   "description": "AI agents running research on single-GPU nanochat training automatically",
+   "readme_path": "README.md",
+   "readme_sha": "953ea55d5599c45c1be7dad93ec03e47dfa7df9d",
+   "readme_size": 8039
+  },
+  {
+   "full_name": "nvm-sh/nvm",
+   "default_branch": "master",
+   "head_sha": "6798d1dbc99e879f36a7d2eb2231104dc7e78e77",
+   "stars": 94789,
+   "description": "Node Version Manager - POSIX-compliant bash script to manage multiple active node.js versions. $nvm: 3ArcxqLtXMmBnWbbtfwQgVL3MNnDsggzgGDtXMnjpump",
+   "readme_path": "README.md",
+   "readme_sha": "0e05e05a940e4d367ce7c15d7f9f14977e6dcbd0",
+   "readme_size": 54875
+  },
+  {
+   "full_name": "iluwatar/java-design-patterns",
+   "default_branch": "master",
+   "head_sha": "41625d8d354cdf6b6f10a82e29c2392b3efd5d20",
+   "stars": 94637,
+   "description": "Design patterns implemented in Java",
+   "readme_path": "README.md",
+   "readme_sha": "ec9db107b2eaff37475eb79a7b25575c5099571a",
+   "readme_size": 157133
+  },
+  {
+   "full_name": "punkpeye/awesome-mcp-servers",
+   "default_branch": "main",
+   "head_sha": "8dc03837219136b92eb7a4a5d0713806109a9f1a",
+   "stars": 93315,
+   "description": "A collection of MCP servers.",
+   "readme_path": "README.md",
+   "readme_sha": "e7c0269070237d08f7b3ece9c4601b3164f58a01",
+   "readme_size": 1401923
+  },
+  {
+   "full_name": "nexu-io/open-design",
+   "default_branch": "main",
+   "head_sha": "df84ae5b9ebfb4d3cee43ed3037667503bcafe36",
+   "stars": 92837,
+   "description": "🎨 Best DeepSeek Harness Design Plugin. The open-source Claude Design alternative. 🖥️ Local-first desktop app. 🖼️ Your coding agent becomes the design engine: prototypes, landing pages, dashboards, slides, images & video — real files, HTML/PDF/PPTX/MP4 export. 🤖 Claude Code / Codex / Cursor / DeepSeek Harness / OpenCode & 20+ CLIs via BYOK.",
+   "readme_path": "README.md",
+   "readme_sha": "fd5b7154b8067af3872576c442a2ef2ad9e60595",
+   "readme_size": 58757
+  },
+  {
+   "full_name": "thedotmack/claude-mem",
+   "default_branch": "main",
+   "head_sha": "fa6a1e9ec12d23f98326a9b26e243acb0819e105",
+   "stars": 92663,
+   "description": "Persistent Context Across Sessions for Every Agent –  Captures everything your agent does during sessions, compresses it with AI, and injects relevant context back into future sessions. Works with Claude Code, OpenClaw, Codex, Gemini, Hermes, Copilot, OpenCode + More",
+   "readme_path": "README.md",
+   "readme_sha": "2d875948bc65c033e252753f6ad324cb8301b090",
+   "readme_size": 17179
+  },
+  {
+   "full_name": "3b1b/manim",
+   "default_branch": "master",
+   "head_sha": "9d57bcf9edea2486f214e190931de2a5537f23c1",
+   "stars": 92264,
+   "description": "Animation engine for explanatory math videos",
+   "readme_path": "README.md",
+   "readme_sha": "fdbcfd7d98b9a9d99a885a24c1f8755d9ef17898",
+   "readme_size": 8330
+  },
+  {
+   "full_name": "ruvnet/RuView",
+   "default_branch": "main",
+   "head_sha": "27f5540663d5eb21753f9d9c0ec6c3f348b710eb",
+   "stars": 92114,
+   "description": "π RuView turns commodity WiFi signals into real-time spatial intelligence, vital sign monitoring, and presence detection — all without a single pixel of video.",
+   "readme_path": "README.md",
+   "readme_sha": "5a16412d37313295478304d66c8103f850ba1fcb",
+   "readme_size": 69743
+  },
+  {
+   "full_name": "Stirling-Tools/Stirling-PDF",
+   "default_branch": "main",
+   "head_sha": "e539eb1ab12f0e4616169175709e979723152adb",
+   "stars": 90992,
+   "description": "#1 PDF Application on GitHub that lets you edit PDFs on any device anywhere",
+   "readme_path": "README.md",
+   "readme_sha": "c6777f103259cd4e07a2b045bcc7013c69615642",
+   "readme_size": 3163
+  },
+  {
+   "full_name": "storybookjs/storybook",
+   "default_branch": "next",
+   "head_sha": "8256cee6c95cf35dc8113cf179c9b7bea487f327",
+   "stars": 90968,
+   "description": "Storybook is the industry standard workshop for building, documenting, and testing UI components in isolation",
+   "readme_path": "README.md",
+   "readme_sha": "8ace0570510613dc100f8cfbb9aa629ac8371024",
+   "readme_size": 21923
+  },
+  {
+   "full_name": "addyosmani/agent-skills",
+   "default_branch": "main",
+   "head_sha": "d2c37ef6225dd8726cdd369a8030307f48592d26",
+   "stars": 90935,
+   "description": "Production-grade engineering skills for AI coding agents.",
+   "readme_path": "README.md",
+   "readme_sha": "4307eeed48e12e912196341274d1ac157be954b6",
+   "readme_size": 25223
+  },
+  {
+   "full_name": "louislam/uptime-kuma",
+   "default_branch": "master",
+   "head_sha": "013c381fc2a9553573558673748fc56126f61928",
+   "stars": 90780,
+   "description": "A fancy self-hosted monitoring tool",
+   "readme_path": "README.md",
+   "readme_sha": "2164469bdce97e97abb9da7df99006b3402d34d8",
+   "readme_size": 7840
+  },
+  {
+   "full_name": "sherlock-project/sherlock",
+   "default_branch": "master",
+   "head_sha": "9100f9d40a3274bd46f4ce903c5c6fee6f3745bc",
+   "stars": 90661,
+   "description": "Hunt down social media accounts by username across social networks",
+   "readme_path": "docs/README.md",
+   "readme_sha": "0c8e52b5089b4bf3706c88b656545534a5a75337",
+   "readme_size": 5457
+  },
+  {
+   "full_name": "opencv/opencv",
+   "default_branch": "5.x",
+   "head_sha": "390c4fdcb9fea6e58fb635bf88277f2a51e8d4b3",
+   "stars": 90649,
+   "description": "Open Source Computer Vision Library",
+   "readme_path": "README.md",
+   "readme_sha": "9952c4db01fcc394ebce8bed98abfd39df2a55e7",
+   "readme_size": 1705
+  },
+  {
+   "full_name": "vllm-project/vllm",
+   "default_branch": "main",
+   "head_sha": "c92b29a1d40644da710209f862b1be0ebd5c2e74",
+   "stars": 90516,
+   "description": "A high-throughput and memory-efficient inference and serving engine for LLMs",
+   "readme_path": "README.md",
+   "readme_sha": "ca31a8cce94d828b38dbb9d206c12e4c69a92052",
+   "readme_size": 5708
+  },
+  {
+   "full_name": "home-assistant/core",
+   "default_branch": "dev",
+   "head_sha": "6ad726ba56d517e56536cdd6fa2ba9f358bbc0ef",
+   "stars": 90190,
+   "description": ":house_with_garden: Open source home automation that puts local control and privacy first.",
+   "readme_path": "README.rst",
+   "readme_sha": "85c632f7eb1d1861911c735077699c29840ff728",
+   "readme_size": 1964
+  },
+  {
+   "full_name": "bitcoin/bitcoin",
+   "default_branch": "master",
+   "head_sha": "ca7162cde58e69214a3309c17fac6d666b5f055a",
+   "stars": 90051,
+   "description": "Bitcoin Core integration/staging tree",
+   "readme_path": "README.md",
+   "readme_sha": "cfabb7f6723b0fb1cc30db62c776875b868f42a1",
+   "readme_size": 3489
+  },
+  {
+   "full_name": "mermaid-js/mermaid",
+   "default_branch": "develop",
+   "head_sha": "a8bff7b01acf24b080ecce973b940373eea79aac",
+   "stars": 89995,
+   "description": "Generation of diagrams like flowcharts or sequence diagrams from text in a similar manner as markdown",
+   "readme_path": "README.md",
+   "readme_sha": "9d9f6d1b63073067e2432f7fcb3a732babc47d9f",
+   "readme_size": 24999
+  },
+  {
+   "full_name": "modelcontextprotocol/servers",
+   "default_branch": "main",
+   "head_sha": "a6cdbf4deac97aac5c9b76bd12d38eace78dac01",
+   "stars": 89976,
+   "description": "Model Context Protocol Servers",
+   "readme_path": "README.md",
+   "readme_sha": "fe5351a890ab80f6d49b2b50f1e0732224313b24",
+   "readme_size": 8609
+  },
+  {
+   "full_name": "microsoft/ML-For-Beginners",
+   "default_branch": "main",
+   "head_sha": "d0d0ea2b2d22cddca31f9c6d108df7daa87a1b46",
+   "stars": 89940,
+   "description": "12 weeks, 26 lessons, 52 quizzes, classic Machine Learning for all",
+   "readme_path": "README.md",
+   "readme_sha": "6ba4afedc283fed953984efa75dc5d8846050552",
+   "readme_size": 31491
+  },
+  {
+   "full_name": "localsend/localsend",
+   "default_branch": "main",
+   "head_sha": "6279d3e30d1d1290caee3b81549f8128a8b01d9f",
+   "stars": 89751,
+   "description": "An open-source cross-platform alternative to AirDrop",
+   "readme_path": "README.md",
+   "readme_sha": "44ec4792bfc2cd5b0831e323d47ae321b4994936",
+   "readme_size": 14363
+  },
+  {
+   "full_name": "infiniflow/ragflow",
+   "default_branch": "main",
+   "head_sha": "a39b6ec2e9a840c8cf9c1c8c021ade6a7613be56",
+   "stars": 89668,
+   "description": "RAGFlow is a leading open-source Retrieval-Augmented Generation (RAG) engine that fuses cutting-edge RAG with Agent capabilities to create a superior context layer for LLMs",
+   "readme_path": "README.md",
+   "readme_sha": "2851eba54381630f1ee45393dc80bcdb053a6cdf",
+   "readme_size": 17687
+  },
+  {
+   "full_name": "gohugoio/hugo",
+   "default_branch": "master",
+   "head_sha": "e6abb9c3d052e06bed961c3280d7d490e634ff8d",
+   "stars": 89637,
+   "description": "The world’s fastest framework for building websites.",
+   "readme_path": "README.md",
+   "readme_sha": "13050922b69c150b432bcef34fd677a0e135a675",
+   "readme_size": 16523
+  },
+  {
+   "full_name": "zed-industries/zed",
+   "default_branch": "main",
+   "head_sha": "399258feeaf90ad8a3a208c99221ee87b6452f38",
+   "stars": 89474,
+   "description": "Code at the speed of thought – Zed is a high-performance, multiplayer code editor from the creators of Atom and Tree-sitter.",
+   "readme_path": "README.md",
+   "readme_sha": "9f641fb3841909e9e1f6dbfb947f953c0a0c5ebf",
+   "readme_size": 2854
+  },
+  {
+   "full_name": "django/django",
+   "default_branch": "main",
+   "head_sha": "73cc09f14f13fedddc14d6ba5b287cb33c24e4a4",
+   "stars": 89291,
+   "description": "The Web framework for perfectionists with deadlines.",
+   "readme_path": "README.rst",
+   "readme_sha": "f6209e36d8c42a53ead51fa236f0b3f46fdc5e39",
+   "readme_size": 2179
+  },
+  {
+   "full_name": "astral-sh/uv",
+   "default_branch": "main",
+   "head_sha": "7896d580c245493c88ea5be56724e6e42ee7d197",
+   "stars": 89249,
+   "description": "An extremely fast Python package and project manager, written in Rust.",
+   "readme_path": "README.md",
+   "readme_sha": "66caaf9ccc62add8c63de8e71184c9b7677377ad",
+   "readme_size": 9859
+  },
+  {
+   "full_name": "gin-gonic/gin",
+   "default_branch": "master",
+   "head_sha": "dcaa4296d111981ffb31ac3eba90bb63e1eb5ab9",
+   "stars": 89146,
+   "description": "Gin is a high-performance HTTP web framework written in Go. It provides a Martini-like API but with significantly better performance—up to 40 times faster—thanks to httprouter. Gin is designed for building REST APIs, web applications, and microservices.",
+   "readme_path": "README.md",
+   "readme_sha": "96b0ae3c10204e14099683602217c10541ace230",
+   "readme_size": 11827
+  },
+  {
+   "full_name": "MunGell/awesome-for-beginners",
+   "default_branch": "main",
+   "head_sha": "69fbfe6a7b8dc686a272229b62337241e0aae600",
+   "stars": 88855,
+   "description": "A list of awesome beginners-friendly projects.",
+   "readme_path": "README.md",
+   "readme_sha": "1b2353486f8e306b35a154770b288a76331d429b",
+   "readme_size": 46632
+  },
+  {
+   "full_name": "ChatGPTNextWeb/NextChat",
+   "default_branch": "main",
+   "head_sha": "defdcdb55d850cd12c4c657eb83729fd66e215c0",
+   "stars": 88669,
+   "description": "✨ Light and Fast AI Assistant. Support: Web | iOS | MacOS | Android |  Linux | Windows",
+   "readme_path": "README.md",
+   "readme_sha": "8271d5d8c1daa491df4d6f0eb324fd8a7b3b06ad",
+   "readme_size": 17585
+  },
+  {
+   "full_name": "PaddlePaddle/PaddleOCR",
+   "default_branch": "main",
+   "head_sha": "2661c7c0ef5c613e8f93c6e93b2e052399f0f854",
+   "stars": 88496,
+   "description": "Turn any PDF or image document into structured data for your AI. A powerful, lightweight OCR toolkit that bridges the gap between images/PDFs and LLMs. Supports 100+ languages.",
+   "readme_path": "README.md",
+   "readme_sha": "589a9eedf7c0037bbfbe2095d0160f93688adc72",
+   "readme_size": 26854
+  },
+  {
+   "full_name": "syncthing/syncthing",
+   "default_branch": "main",
+   "head_sha": "9af3c75f377c51a7e3f285704025385104d8f428",
+   "stars": 88131,
+   "description": "Open Source Continuous File Synchronization",
+   "readme_path": "README.md",
+   "readme_sha": "3167b1b4d3a85927d7dc4cd6d1fb98e22cd12a66",
+   "readme_size": 3999
+  },
+  {
+   "full_name": "sveltejs/svelte",
+   "default_branch": "main",
+   "head_sha": "7bc0a70fe64dbb3fa3848b741963f31d1e10a8dc",
+   "stars": 88022,
+   "description": "web development for the rest of us",
+   "readme_path": "README.md",
+   "readme_sha": "7ea71647521ae850fd0933665f94760806ac5b29",
+   "readme_size": 1730
+  },
+  {
+   "full_name": "OpenCut-app/OpenCut",
+   "default_branch": "main",
+   "head_sha": "400f097becba5db0fbc305d5a65348cb81c20356",
+   "stars": 88015,
+   "description": "The open-source CapCut alternative",
+   "readme_path": "README.md",
+   "readme_sha": "2c715d8e2b99237322f7be93512b603a399155fb",
+   "readme_size": 2661
+  },
+  {
+   "full_name": "odysseus-dev/odysseus",
+   "default_branch": "dev",
+   "head_sha": "c9dd68d890a7c0ee0df9a0e351ce22aafd6c7c0f",
+   "stars": 86584,
+   "description": "Self-hosted AI workspace. ",
+   "readme_path": "README.md",
+   "readme_sha": "72bd1303cfc41487a9b45eae73d1930a29bd5153",
+   "readme_size": 3507
+  },
+  {
+   "full_name": "OpenHands/OpenHands",
+   "default_branch": "main",
+   "head_sha": "1098d73df42351a31b2940557efb9fe8750365c4",
+   "stars": 85676,
+   "description": "🙌 OpenHands: AI-Driven Development",
+   "readme_path": "README.md",
+   "readme_sha": "43f8740f621f4ef6319308ba94a78604a0372fa9",
+   "readme_size": 10126
+  },
+  {
+   "full_name": "koala73/worldmonitor",
+   "default_branch": "main",
+   "head_sha": "daf51e0858b7ca3a8ff6f786e3c66256397026a8",
+   "stars": 85071,
+   "description": "Real-time global intelligence dashboard. AI-powered news aggregation, geopolitical monitoring, and infrastructure tracking in a unified situational awareness interface",
+   "readme_path": "README.md",
+   "readme_sha": "a492848ab438442377fb6852410df74254c7aaf8",
+   "readme_size": 13354
+  },
+  {
+   "full_name": "laravel/laravel",
+   "default_branch": "13.x",
+   "head_sha": "aa0cf127fc365a56ee016867144ddffabc2290ae",
+   "stars": 84899,
+   "description": "Laravel is a web application framework with expressive, elegant syntax. We’ve already laid the foundation for your next big idea — freeing you to create without sweating the small things.",
+   "readme_path": "README.md",
+   "readme_sha": "5ad13779e0df8fca8c419cc16548c14801893757",
+   "readme_size": 3700
+  },
+  {
+   "full_name": "macrozheng/mall",
+   "default_branch": "master",
+   "head_sha": "0504e86b1f1b6f1b8aa6a734d37a90fb67346be7",
+   "stars": 84662,
+   "description": "mall项目是一套电商系统，包括前台商城系统及后台管理系统，基于Spring Boot+MyBatis实现，采用Docker容器化部署。 前台商城系统包含首页门户、商品推荐、商品搜索、商品展示、购物车、订单流程、会员中心、客户服务、帮助中心等模块。 后台管理系统包含商品管理、订单管理、会员管理、促销管理、运营管理、内容管理、统计报表、财务管理、权限管理、设置等模块。",
+   "readme_path": "README.md",
+   "readme_sha": "2cca6a5f2d1cb833ee5323fd8122d7b66fe1123a",
+   "readme_size": 13541
+  },
+  {
+   "full_name": "realworld-apps/realworld",
+   "default_branch": "main",
+   "head_sha": "ebbcdeb8d55b42a3a613c787560498b8ef10003f",
+   "stars": 84167,
+   "description": "\"The mother of all demo apps\" — Exemplary fullstack Medium.com clone powered by React, Angular, Node, Django, and many more",
+   "readme_path": "README.md",
+   "readme_sha": "e3a74806931b4b9610c671565253a848a24c4a9e",
+   "readme_size": 3245
+  },
+  {
+   "full_name": "Developer-Y/cs-video-courses",
+   "default_branch": "master",
+   "head_sha": "3964fc44f5b6aeccc6f1de6a8b532ab13944d8f7",
+   "stars": 83289,
+   "description": "List of Computer Science courses with video lectures.",
+   "readme_path": "README.md",
+   "readme_sha": "bf55f0292a896cb7889d4e32ff07855c525f4c2e",
+   "readme_size": 223928
+  },
+  {
+   "full_name": "junegunn/fzf",
+   "default_branch": "master",
+   "head_sha": "f7ae439ff5b2f8298716d39783a546db793b0625",
+   "stars": 82736,
+   "description": ":cherry_blossom: A command-line fuzzy finder",
+   "readme_path": "README.md",
+   "readme_sha": "d4d183894d5a1d87e00beca7efcc850e6a88e48b",
+   "readme_size": 41829
+  },
+  {
+   "full_name": "vitejs/vite",
+   "default_branch": "main",
+   "head_sha": "e2b597de0ef14598901703f5aa52f8c962007d02",
+   "stars": 82610,
+   "description": "Next generation frontend tooling. It's fast!",
+   "readme_path": "README.md",
+   "readme_sha": "069c468a98123f873f4626f6fb5a666389cdfb45",
+   "readme_size": 3416
+  },
+  {
+   "full_name": "Leonxlnx/taste-skill",
+   "default_branch": "main",
+   "head_sha": "ccbc15639c97057cbfcf32ecebc38ef716e4bb37",
+   "stars": 82489,
+   "description": "Taste-Skill - gives your AI good taste. stops the AI from generating boring, generic slop ",
+   "readme_path": "README.md",
+   "readme_sha": "5577b99d193716cb26467b0b0f1cfc506deb26a8",
+   "readme_size": 16319
+  },
+  {
+   "full_name": "mlabonne/llm-course",
+   "default_branch": "main",
+   "head_sha": "7abd96e8284bfae232048fdb77b52397a2114847",
+   "stars": 82117,
+   "description": "Course to get into Large Language Models (LLMs) with roadmaps and Colab notebooks.",
+   "readme_path": "README.md",
+   "readme_sha": "c605bee6695691d73a68de0aa21669b0f67b5412",
+   "readme_size": 56631
+  },
+  {
+   "full_name": "lobehub/lobehub",
+   "default_branch": "canary",
+   "head_sha": "322a462b26527de92918a01d24997429fc8dc815",
+   "stars": 82106,
+   "description": "🤯 LobeHub is your Chief Agent Operator, organizing your agents into 7×24 operations by hiring, scheduling, and reporting on your entire AI team.",
+   "readme_path": "README.md",
+   "readme_sha": "b3ecbefa9bd88b098da5d3dd4f1f5309d29ae653",
+   "readme_size": 39136
+  },
+  {
+   "full_name": "tonsky/FiraCode",
+   "default_branch": "master",
+   "head_sha": "ecd367b040ad92a28b64fa93135775f7e2417b37",
+   "stars": 81966,
+   "description": "Free monospaced font with programming ligatures",
+   "readme_path": "README.md",
+   "readme_sha": "3d7ef4a4ada2e6e49bfa079d57eafdcfa77eefde",
+   "readme_size": 12428
+  },
+  {
+   "full_name": "jesseduffield/lazygit",
+   "default_branch": "master",
+   "head_sha": "8924bca76f7926d47fd13676830adc3b27555a6c",
+   "stars": 81780,
+   "description": "simple terminal UI for git commands",
+   "readme_path": "README.md",
+   "readme_sha": "5d5e47e11cfddc95dc0f5b02689cd4e2c3d40ca4",
+   "readme_size": 38288
+  },
+  {
+   "full_name": "spring-projects/spring-boot",
+   "default_branch": "main",
+   "head_sha": "b28ee136986d0ce47bc8b9219b66574c2a37f0f6",
+   "stars": 81381,
+   "description": "Spring Boot helps you to create Spring-powered, production-grade applications and services with absolute minimum fuss.",
+   "readme_path": "README.adoc",
+   "readme_sha": "7eb4dda1349162a84d3345ec96b5278330d64747",
+   "readme_size": 5279
+  },
+  {
+   "full_name": "bytedance/deer-flow",
+   "default_branch": "main",
+   "head_sha": "42796d70865848a237eeec382c104f7bf0197b3e",
+   "stars": 81137,
+   "description": "An open-source long-horizon SuperAgent harness that researches, codes, and creates. With the help of sandboxes, memories, tools, skill, subagents and message gateway, it handles different levels of tasks that could take minutes to hours.",
+   "readme_path": "README.md",
+   "readme_sha": "45df84a8c55ec4b677cf542f61e4c576241757c5",
+   "readme_size": 129379
+  },
+  {
+   "full_name": "Egonex-AI/Understand-Anything",
+   "default_branch": "main",
+   "head_sha": "ba450c43425f3de6d43daf76526950ad8ca93536",
+   "stars": 81099,
+   "description": "Graphs that teach > graphs that impress. Turn any code into an interactive knowledge graph you can explore, search, and ask questions about. Works with Claude Code, Codex, Cursor, Copilot, Gemini CLI, and more.",
+   "readme_path": "README.md",
+   "readme_sha": "066f7888b619fc142c3f025536b6e25cad94c24e",
+   "readme_size": 19786
+  },
+  {
+   "full_name": "swisskyrepo/PayloadsAllTheThings",
+   "default_branch": "master",
+   "head_sha": "3ac27901c711bdf3f5b65a7b1d1820a1f65bd09a",
+   "stars": 80508,
+   "description": "A list of useful payloads and bypass for Web Application Security and Pentest/CTF",
+   "readme_path": "README.md",
+   "readme_sha": "41fa5e3f9ebba6d5e623c19139c39d4e11cb0ffb",
+   "readme_size": 4198
+  },
+  {
+   "full_name": "netdata/netdata",
+   "default_branch": "master",
+   "head_sha": "8d24c0e90786923cba4e5b4ac0dfb2b30bbafd03",
+   "stars": 80360,
+   "description": "The fastest path to AI-powered full stack observability, even for lean teams.",
+   "readme_path": "README.md",
+   "readme_sha": "c6fe60a5ef829719a134858e20b5b8673ad65b0f",
+   "readme_size": 26316
+  },
+  {
+   "full_name": "unclecode/crawl4ai",
+   "default_branch": "main",
+   "head_sha": "7e801521428ee12509994d39151006f64055ebe3",
+   "stars": 80227,
+   "description": "🚀🤖 Crawl4AI: Open-source LLM Friendly Web Crawler & Scraper. Don't be shy, join here: https://discord.gg/jP8KfhDhyN",
+   "readme_path": "README.md",
+   "readme_sha": "83855376224ae501ff4edc24ef8978c0db9dcf51",
+   "readme_size": 55816
+  },
+  {
+   "full_name": "hoppscotch/hoppscotch",
+   "default_branch": "main",
+   "head_sha": "ac145e7f758151b41fd46d3e5f513886ce9068ba",
+   "stars": 80122,
+   "description": "Open-Source API Development Ecosystem • https://hoppscotch.io • Offline, On-Prem & Cloud • Web, Desktop & CLI • Open-Source Alternative to Postman, Insomnia",
+   "readme_path": "README.md",
+   "readme_sha": "ffe946ee471221c8ff23601d1067e4a4fb88687b",
+   "readme_size": 11653
+  },
+  {
+   "full_name": "anuraghazra/github-readme-stats",
+   "default_branch": "master",
+   "head_sha": "54a7985aeefda00d5eadb55b80c17c7f976c37d2",
+   "stars": 79842,
+   "description": ":zap: Dynamically generated stats for your github readmes",
+   "readme_path": "readme.md",
+   "readme_sha": "d3de4f835cc5db94ab49880f976746f1474d6b2b",
+   "readme_size": 49853
+  },
+  {
+   "full_name": "paperclipai/paperclip",
+   "default_branch": "master",
+   "head_sha": "3623a369aa15c3ccb9d696f176049db4ed241248",
+   "stars": 79707,
+   "description": "The open-source app everyone uses to manage agents at work",
+   "readme_path": "README.md",
+   "readme_sha": "601e0252a1f5c61a79862c2756414872393f4cd8",
+   "readme_size": 28756
+  },
+  {
+   "full_name": "Z4nzu/hackingtool",
+   "default_branch": "master",
+   "head_sha": "ef5334f8d37e5be2eecbf56e334f5e3f0f6817ec",
+   "stars": 79213,
+   "description": "ALL IN ONE Hacking Tool For Hackers",
+   "readme_path": "README.md",
+   "readme_sha": "41ac0fc21a2a8c1ea68b201122f43e6e4976b0f8",
+   "readme_size": 23325
+  },
+  {
+   "full_name": "coder/code-server",
+   "default_branch": "main",
+   "head_sha": "2b2f8b3d5c64e2f0bda876e4b1a95a79067ca01a",
+   "stars": 79127,
+   "description": "VS Code in the browser",
+   "readme_path": "docs/README.md",
+   "readme_sha": "470095071afd381ad0f41e56deadc24339fb62b5",
+   "readme_size": 3353
+  },
+  {
+   "full_name": "doocs/advanced-java",
+   "default_branch": "main",
+   "head_sha": "b887f6271efcdbc21f2ac97307ec1694d50636d7",
+   "stars": 79089,
+   "description": "😮 Core Interview Questions & Answers For Experienced Java(Backend) Developers | 互联网 Java 工程师进阶知识完全扫盲：涵盖高并发、分布式、高可用、微服务、海量数据处理等领域知识",
+   "readme_path": "README.md",
+   "readme_sha": "99266dba30d14eb5ef7551db1ba74f1fee0e611c",
+   "readme_size": 18125
+  },
+  {
+   "full_name": "ventoy/Ventoy",
+   "default_branch": "master",
+   "head_sha": "6568972abca37e33e031e1f2651a68a86491082b",
+   "stars": 79035,
+   "description": "A new bootable USB solution.",
+   "readme_path": "README.md",
+   "readme_sha": "4e30a74d0a7e94dd10dd3dafb2604ba1a3a3c9b7",
+   "readme_size": 11811
+  },
+  {
+   "full_name": "opendatalab/MinerU",
+   "default_branch": "master",
+   "head_sha": "4fe4bde114a23ee5dd637eae99b767f4669bf58c",
+   "stars": 78815,
+   "description": "Transforms complex documents like PDFs and Office docs into LLM-ready markdown/JSON for your Agentic workflows.",
+   "readme_path": "README.md",
+   "readme_sha": "d056e5ca21a9f45504cbdecf74e6d25c3bb750b8",
+   "readme_size": 40453
+  },
+  {
+   "full_name": "awesomedata/awesome-public-datasets",
+   "default_branch": "master",
+   "head_sha": "56257c2ccc17545ba4d7621a1ee5ed3529caac6e",
+   "stars": 78732,
+   "description": "A topic-centric list of HQ open datasets.",
+   "readme_path": "README.rst",
+   "readme_sha": "41fa2c16bc3635dac1051ac95809697b5814811e",
+   "readme_size": 241583
+  },
+  {
+   "full_name": "rtk-ai/rtk",
+   "default_branch": "develop",
+   "head_sha": "475f9ddfc20dbce4dab206329a36d8303cd9aa09",
+   "stars": 77947,
+   "description": "CLI proxy that reduces LLM token consumption by 60-90% on common dev commands. Single Rust binary, zero dependencies",
+   "readme_path": "README.md",
+   "readme_sha": "b76f15af28de67b5d244631a88bd44b9e8fcca86",
+   "readme_size": 24234
+  },
+  {
+   "full_name": "dair-ai/Prompt-Engineering-Guide",
+   "default_branch": "main",
+   "head_sha": "57673726396dd94acb23bdb1e67f27c78ee85a8e",
+   "stars": 77912,
+   "description": "🐙 Guides, papers, lessons, notebooks and resources for prompt engineering, context engineering, RAG, and AI Agents.",
+   "readme_path": "README.md",
+   "readme_sha": "87082c1cbe20bbd22d29ea272fc9efd3753f2e4b",
+   "readme_size": 10961
+  },
+  {
+   "full_name": "elastic/elasticsearch",
+   "default_branch": "main",
+   "head_sha": "ce0eea6cec98d6128d805dcce3b769e124ba1ae8",
+   "stars": 77881,
+   "description": "Free and Open Source, Distributed, RESTful Search Engine",
+   "readme_path": "README.asciidoc",
+   "readme_sha": "2dbf6d1f287ac3c3305503cf162a7a0efb6bcaf3",
+   "readme_size": 10283
+  },
+  {
+   "full_name": "tensorflow/models",
+   "default_branch": "master",
+   "head_sha": "f34f029ed8742f694abe86cc34c134aaded3b5cf",
+   "stars": 77659,
+   "description": "Models and examples built with TensorFlow",
+   "readme_path": "README.md",
+   "readme_sha": "db37fce8ad12a3b80574ccf09ad192d05976ea04",
+   "readme_size": 4937
+  },
+  {
+   "full_name": "D4Vinci/Scrapling",
+   "default_branch": "main",
+   "head_sha": "458e2a2ac909b3235747ebcdb312b93a1080a10a",
+   "stars": 77375,
+   "description": "🕷️ An adaptive Web Scraping framework that handles everything from a single request to a full-scale crawl!",
+   "readme_path": "README.md",
+   "readme_sha": "fed38769aabf703763a7f76e49479570ada648ba",
+   "readme_size": 35621
+  },
+  {
+   "full_name": "FortAwesome/Font-Awesome",
+   "default_branch": "7.x",
+   "head_sha": "14c65a3747d0f3b751f15831fc719236aea8729d",
+   "stars": 76894,
+   "description": "The iconic SVG, font, and CSS toolkit",
+   "readme_path": "README.md",
+   "readme_sha": "869540d3a4c278bb710f983bf4f6db7c7528791d",
+   "readme_size": 3606
+  },
+  {
+   "full_name": "Panniantong/Agent-Reach",
+   "default_branch": "main",
+   "head_sha": "06c202b03400a7d31886bf4399213706da1a0324",
+   "stars": 76782,
+   "description": "Give your AI agent eyes to see the entire internet. Read & search Twitter, Reddit, YouTube, GitHub, Bilibili, XiaoHongShu — one CLI, zero API fees.",
+   "readme_path": "README.md",
+   "readme_sha": "ce226de030886fb667d8fad24196f43933c40d1e",
+   "readme_size": 22663
+  },
+  {
+   "full_name": "MisterBooo/LeetCodeAnimation",
+   "default_branch": "master",
+   "head_sha": "e853d7a5a893292b9d4636c78c080daf11552c81",
+   "stars": 76704,
+   "description": "Demonstrate all the questions on LeetCode in the form of animation.（用动画的形式呈现解LeetCode题目的思路,完整单步/回看/变速/语音讲解在 algomooc.com）",
+   "readme_path": "README.md",
+   "readme_sha": "e64dab58b43e468715f1148d8c19c708c0f7bacb",
+   "readme_size": 10222
+  },
+  {
+   "full_name": "grafana/grafana",
+   "default_branch": "main",
+   "head_sha": "5e3a02f81d2aadf4bf24fe49ed97d872556f5bf9",
+   "stars": 76519,
+   "description": "The open and composable observability and data visualization platform. Visualize metrics, logs, and traces from multiple sources like Prometheus, Loki, Elasticsearch, InfluxDB, Postgres and many more. ",
+   "readme_path": "README.md",
+   "readme_sha": "7b768e029f8ad89feae45d31bce9a57d42d9cf5c",
+   "readme_size": 3114
+  },
+  {
+   "full_name": "nestjs/nest",
+   "default_branch": "master",
+   "head_sha": "75958d7ab15a9b17f7aba7b486f7b8c4cae5fb78",
+   "stars": 76515,
+   "description": "A progressive Node.js framework for building efficient, scalable, and enterprise-grade server-side applications with TypeScript/JavaScript 🚀",
+   "readme_path": "Readme.md",
+   "readme_sha": "0d4f349835fd546d060e4a601b04ed36501705c2",
+   "readme_size": 10885
+  },
+  {
+   "full_name": "abi/screenshot-to-code",
+   "default_branch": "main",
+   "head_sha": "d026163f586dfa8c5c10d28c36edd59a9d3b0e88",
+   "stars": 76391,
+   "description": "Drop in a screenshot and convert it to clean code (HTML/Tailwind/React/Vue)",
+   "readme_path": "README.md",
+   "readme_sha": "735c5780a7998f767664b8fd6ed99d53f875223a",
+   "readme_size": 7484
+  },
+  {
+   "full_name": "tesseract-ocr/tesseract",
+   "default_branch": "main",
+   "head_sha": "76865fa087c15f5ea2f75f697993fc3b05eabaf2",
+   "stars": 76266,
+   "description": "Tesseract Open Source OCR Engine (main repository)",
+   "readme_path": "README.md",
+   "readme_sha": "9102a110ce666f906218e24d44764e910c6d2be7",
+   "readme_size": 8159
+  }
+ ]
+}

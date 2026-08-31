@@ -1,0 +1,54 @@
+{
+  "_source": "oracle/fixtures/sampled/flutter__flutter/README.md",
+  "_note": "Every URL below was copied verbatim from the README's inline and reference-style links; none were fetched or verified over the network.",
+  "documentation": {
+    "Install Flutter": "https://docs.flutter.dev/get-started",
+    "Flutter documentation": "https://docs.flutter.dev",
+    "Development wiki": "./docs/README.md",
+    "Contributing to Flutter": "https://github.com/flutter/flutter/blob/main/CONTRIBUTING.md",
+    "flutter-announce mailing list": "https://groups.google.com/g/flutter-announce",
+    "Breaking changes": "https://docs.flutter.dev/release/breaking-changes",
+    "Terms of service": "https://policies.google.com/terms",
+    "Contributor guide": "CONTRIBUTING.md"
+  },
+  "technology": {
+    "layered architecture": "https://docs.flutter.dev/resources/inside-flutter",
+    "architectural overview": "https://docs.flutter.dev/resources/architectural-overview",
+    "widget catalog": "https://docs.flutter.dev/ui/widgets",
+    "Cupertino": "https://docs.flutter.dev/ui/widgets/cupertino",
+    "Material": "https://docs.flutter.dev/ui/widgets/material",
+    "Skia": "https://skia.org/",
+    "Impeller": "https://docs.flutter.dev/perf/impeller",
+    "Dart programming language": "https://dart.dev/",
+    "Hot reload": "https://docs.flutter.dev/tools/hot-reload",
+    "Hot reload animation": "https://github.com/flutter/website/blob/main/sites/docs/web/assets/images/docs/tools/android-studio/hot-reload.gif?raw=true"
+  },
+  "tooling": {
+    "Visual Studio Code": "https://marketplace.visualstudio.com/items?itemName=Dart-Code.flutter",
+    "IntelliJ / Android Studio": "https://plugins.jetbrains.com/plugin/9212-flutter",
+    "Flutter packages": "https://pub.dev/flutter"
+  },
+  "native_interop": {
+    "Android FFI": "https://docs.flutter.dev/platform-integration/android/c-interop",
+    "iOS FFI": "https://docs.flutter.dev/platform-integration/ios/c-interop",
+    "macOS FFI": "https://docs.flutter.dev/platform-integration/macos/c-interop",
+    "Windows FFI": "https://docs.flutter.dev/platform-integration/windows/building#integrating-with-windows",
+    "platform channels": "https://docs.flutter.dev/platform-integration/platform-channels",
+    "interop example": "https://github.com/flutter/flutter/tree/main/examples/platform_channel"
+  },
+  "community": {
+    "flutter.dev": "https://flutter.dev",
+    "Discord instructions": "./docs/contributing/Chat.md",
+    "Discord badge": "https://img.shields.io/discord/608014603317936148?logo=discord",
+    "Twitter handle badge": "https://img.shields.io/twitter/follow/flutterdev.svg?style=social&label=Follow",
+    "Twitter follow intent": "https://twitter.com/intent/follow?screen_name=flutterdev",
+    "BlueSky badge": "https://img.shields.io/badge/Bluesky-0285FF?logo=bluesky&logoColor=fff&label=Follow%20me%20on&color=0285FF",
+    "BlueSky handle": "https://bsky.app/profile/flutter.dev"
+  },
+  "status_badges": {
+    "Flutter CI Status": "https://flutter-dashboard.appspot.com/api/public/build-status-badge?repo=flutter",
+    "LFX Health Score": "https://insights.linuxfoundation.org/api/badge/health-score?project=flutter",
+    "CII Best Practices": "https://bestpractices.coreinfrastructure.org/projects/5631/badge",
+    "SLSA 1": "https://slsa.dev/images/gh-badge-level1.svg"
+  }
+}

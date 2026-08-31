@@ -1,0 +1,47 @@
+{
+  "source": "README.md, section 'Alternatives'",
+  "free": [
+    {
+      "name": "Hasklig",
+      "url": "https://github.com/i-tu/Hasklig"
+    },
+    {
+      "name": "Monoid",
+      "url": "http://larsenwork.com/monoid/"
+    },
+    {
+      "name": "Fixedsys Excelsior",
+      "url": "https://github.com/kika/fixedsys"
+    },
+    {
+      "name": "Iosevka",
+      "url": "https://be5invis.github.io/Iosevka/"
+    },
+    {
+      "name": "DejaVu Sans Code",
+      "url": "https://github.com/SSNikolaevich/DejaVuSansCode"
+    },
+    {
+      "name": "Victor Mono",
+      "url": "https://rubjo.github.io/victor-mono/"
+    },
+    {
+      "name": "Cascadia Code",
+      "url": "https://github.com/microsoft/cascadia-code"
+    },
+    {
+      "name": "JetBrains Mono",
+      "url": "https://github.com/JetBrains/JetBrainsMono"
+    }
+  ],
+  "paid": [
+    {
+      "name": "PragmataPro",
+      "url": "http://www.fsd.it/fonts/pragmatapro.htm"
+    },
+    {
+      "name": "Mono Lisa",
+      "url": "https://www.monolisa.dev/"
+    }
+  ]
+}

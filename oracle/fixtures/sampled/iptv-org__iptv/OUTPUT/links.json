@@ -1,0 +1,91 @@
+{
+  "source": "oracle/fixtures/sampled/iptv-org__iptv/README.md",
+  "extracted_from_line": null,
+  "links": [
+    {
+      "context": "How to use? — video player compatibility list",
+      "text": "any video player",
+      "url": "https://github.com/iptv-org/awesome-iptv#apps"
+    },
+    {
+      "context": "How to use? — preview screenshot",
+      "text": "VLC Network Panel (image)",
+      "url": "https://github.com/iptv-org/iptv/raw/master/.readme/preview.png"
+    },
+    {
+      "context": "Playlists — main playlist containing all channels in the repository",
+      "text": "main playlist",
+      "url": "https://iptv-org.github.io/iptv/index.m3u"
+    },
+    {
+      "context": "Playlists — links to other playlists",
+      "text": "PLAYLISTS.md",
+      "url": "PLAYLISTS.md"
+    },
+    {
+      "context": "EPG — definition of Electronic Program Guide",
+      "text": "Electronic Program Guide",
+      "url": "https://en.wikipedia.org/wiki/Electronic_program_guide"
+    },
+    {
+      "context": "EPG — utilities repository",
+      "text": "iptv-org/epg",
+      "url": "https://github.com/iptv-org/epg"
+    },
+    {
+      "context": "Database — source of all channel data",
+      "text": "iptv-org/database",
+      "url": "https://github.com/iptv-org/database"
+    },
+    {
+      "context": "Database — where to report data errors",
+      "text": "issue (database repo)",
+      "url": "https://github.com/iptv-org/database/issues"
+    },
+    {
+      "context": "API — documentation repository",
+      "text": "iptv-org/api",
+      "url": "https://github.com/iptv-org/api"
+    },
+    {
+      "context": "Resources — other IPTV-related resources",
+      "text": "iptv-org/awesome-iptv",
+      "url": "https://github.com/iptv-org/awesome-iptv"
+    },
+    {
+      "context": "Discussions — question/idea forum",
+      "text": "Discussions",
+      "url": "https://github.com/orgs/iptv-org/discussions"
+    },
+    {
+      "context": "FAQ — answers to popular questions",
+      "text": "FAQ.md",
+      "url": "FAQ.md"
+    },
+    {
+      "context": "Contribution — guide to read before contributing",
+      "text": "CONTRIBUTING.md",
+      "url": "CONTRIBUTING.md"
+    },
+    {
+      "context": "Contribution — Backers badge/link",
+      "text": "opencollective.com/iptv-org (backers)",
+      "url": "https://opencollective.com/iptv-org"
+    },
+    {
+      "context": "Contribution — Contributors graph",
+      "text": "iptv-org/iptv contributors",
+      "url": "https://github.com/iptv-org/iptv/graphs/contributors"
+    },
+    {
+      "context": "Legal — how to request a link removal for a copyright claim",
+      "text": "issue (copyright-claim template)",
+      "url": "https://github.com/iptv-org/iptv/issues/new?template=6_copyright-claim.yml"
+    },
+    {
+      "context": "License — CC0 badge",
+      "text": "LICENSE",
+      "url": "LICENSE"
+    }
+  ]
+}

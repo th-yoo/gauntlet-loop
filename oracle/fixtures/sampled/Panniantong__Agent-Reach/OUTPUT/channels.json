@@ -1,0 +1,142 @@
+{
+  "_source": "Derived entirely from README.md (Panniantong/Agent-Reach) — the '支持的平台' and '当前选型' tables and the channels/ tree listing.",
+  "_note": "This registry does not install or contact anything; it is a static transcription of the routing table the README describes, for an agent to consult before choosing a command.",
+  "channels": [
+    {
+      "id": "web",
+      "name": "网页",
+      "zero_config": "阅读任意网页",
+      "unlocks_with_config": null,
+      "config_action": "无需配置",
+      "backends": ["Jina Reader"],
+      "example_command": "curl https://r.jina.ai/URL"
+    },
+    {
+      "id": "youtube",
+      "name": "YouTube",
+      "zero_config": "字幕提取 + 视频搜索",
+      "unlocks_with_config": null,
+      "config_action": "无需配置",
+      "backends": ["yt-dlp"],
+      "example_command": "yt-dlp --write-auto-sub --skip-download URL",
+      "note": "154K Star，YouTube 仍是最佳（注意：不再用于 B站）"
+    },
+    {
+      "id": "rss",
+      "name": "RSS",
+      "zero_config": "阅读任意 RSS/Atom 源",
+      "unlocks_with_config": null,
+      "config_action": "无需配置",
+      "backends": ["feedparser"]
+    },
+    {
+      "id": "exa_search",
+      "name": "全网搜索",
+      "zero_config": null,
+      "unlocks_with_config": "全网语义搜索",
+      "config_action": "自动配置（MCP 接入，免费无需 Key）",
+      "backends": ["Exa via mcporter"]
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "zero_config": "读公开仓库 + 搜索",
+      "unlocks_with_config": "私有仓库、提 Issue/PR、Fork",
+      "config_action": "告诉 Agent「帮我登录 GitHub」",
+      "backends": ["gh CLI"],
+      "example_command": "gh repo view owner/repo"
+    },
+    {
+      "id": "twitter",
+      "name": "Twitter/X",
+      "zero_config": "读单条推文",
+      "unlocks_with_config": "搜索推文、浏览时间线、读长文",
+      "config_action": "告诉 Agent「帮我配 Twitter」",
+      "backends": ["twitter-cli", "OpenCLI", "bird"],
+      "caveats": [
+        "只接受用户通过 Cookie-Editor 手工导出的内容",
+        "Cookie 保存后仅供 `agent-reach doctor` 检查配置是否齐全；直接运行上游 `twitter` 命令前，仍需在当前进程环境中显式设置 TWITTER_AUTH_TOKEN 和 TWITTER_CT0"
+      ]
+    },
+    {
+      "id": "bilibili",
+      "name": "B站",
+      "zero_config": "搜索 + 视频详情（bili-cli，无需登录）",
+      "unlocks_with_config": "字幕（OpenCLI）",
+      "config_action": "告诉 Agent「帮我配 B站」",
+      "backends": ["bili-cli", "OpenCLI", "搜索 API"],
+      "example_command": "bili search",
+      "note": "yt-dlp 被 B站风控 412 封死（2026-06 实测），已退役并替换为 bili-cli"
+    },
+    {
+      "id": "reddit",
+      "name": "Reddit",
+      "zero_config": null,
+      "zero_config_note": "没有零配置路径：匿名接口已被封",
+      "unlocks_with_config": "搜索 + 读帖子和评论",
+      "config_action": "桌面装 OpenCLI 用浏览器登录态；或 rdt-cli + Cookie",
+      "backends": ["OpenCLI", "rdt-cli"]
+    },
+    {
+      "id": "facebook",
+      "name": "Facebook",
+      "zero_config": null,
+      "unlocks_with_config": "搜索、主页、Feed、群组列表",
+      "config_action": "桌面装 OpenCLI（复用 Chrome 登录态）",
+      "backends": ["OpenCLI"]
+    },
+    {
+      "id": "instagram",
+      "name": "Instagram",
+      "zero_config": null,
+      "unlocks_with_config": "用户搜索、Profile、用户最近帖子、Explore",
+      "config_action": "桌面装 OpenCLI（复用 Chrome 登录态）",
+      "backends": ["OpenCLI"]
+    },
+    {
+      "id": "xiaohongshu",
+      "name": "小红书",
+      "zero_config": null,
+      "unlocks_with_config": "搜索、阅读、评论",
+      "config_action": "OpenCLI 只用用户已有 Chrome 会话；MCP/存量工具用 Cookie-Editor",
+      "backends": ["OpenCLI", "xiaohongshu-mcp", "xhs-cli"],
+      "caveats": [
+        "Agent Reach 不替用户执行小红书登录，也不读取小红书浏览器 Cookie",
+        "OpenCLI 只使用用户已经存在且明确控制的 Chrome 会话",
+        "`agent-reach configure xhs-cookies` 不会把 Cookie 注入 OpenCLI / Chrome；没有现成会话时，改用 Cookie-Editor 导出后配置 xiaohongshu-mcp / 存量工具"
+      ]
+    },
+    {
+      "id": "linkedin",
+      "name": "LinkedIn",
+      "zero_config": "Jina Reader 读公开页面",
+      "unlocks_with_config": "Profile 详情、公司页面、职位搜索",
+      "config_action": "告诉 Agent「帮我配 LinkedIn」",
+      "backends": ["mcp-server-linkedin", "Jina Reader"]
+    },
+    {
+      "id": "v2ex",
+      "name": "V2EX",
+      "zero_config": "热门帖子、节点帖子、帖子详情+回复、用户信息",
+      "unlocks_with_config": null,
+      "config_action": "无需配置",
+      "backends": []
+    },
+    {
+      "id": "xueqiu",
+      "name": "雪球",
+      "zero_config": "股票行情、搜索股票、热门帖子、热门股票排行",
+      "unlocks_with_config": null,
+      "config_action": "告诉 Agent「帮我配雪球」",
+      "backends": []
+    },
+    {
+      "id": "xiaoyuzhou_podcast",
+      "name": "小宇宙播客",
+      "zero_config": null,
+      "unlocks_with_config": "播客音频转文字（Whisper 转录，免费 Key）",
+      "config_action": "告诉 Agent「帮我配小宇宙播客」",
+      "backends": []
+    }
+  ]
+}

@@ -42,6 +42,8 @@ const PV = 'scripts/plugin-version-check.mjs'
 const PL = 'scripts/play.mjs'
 const CC = 'scripts/capacity-check.mjs'
 const CS = 'scripts/coverage-sweep.mjs'
+const FD = 'scripts/frame-draw.mjs'
+const SR = 'scripts/sampled-report.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -335,6 +337,14 @@ export const PROPERTIES = [
   ['a non-durable snapshot names both paths', L, ' instead of the required ${SNAP_REQUIRED}', ''],
   ['each round requires a distinct snapshot name', L, '/.gauntlet-snapshots/${PC.slice(i + 1)}.${RUN_STAMP}.${TAG}`', '/.gauntlet-snapshots/${PC.slice(i + 1)}.${RUN_STAMP}`'],
   ['the blindness cost of the snapshot directory is admitted', L, 'the content-blindness probe runs before round 1 so it cannot see what rounds create', 'the content-blindness probe covers it'],
+  // --- issue 73: the sampled corpus draws from a committed frame ---------------
+  ['the draw rank is the pinned formula, seed first', FD, 'update(`${seed}:${fullName}`)', 'update(`${fullName}:${seed}`)'],
+  ['fetched bytes must re-derive the pinned blob sha', FD, 'if (got !== member.readme_sha) {', 'if (false) {'],
+  ['an over-bound readme is attrition, not a fixture', FD, 'if (buf.length > README_BYTE_BOUND) {', 'if (false) {'],
+  ['a goalless member is counted, not silently groundable', FD, 'if (row.goal === null) {', 'if (false) {'],
+  ['a sampled row without a draw fails the accounting', SR, 'if (!owner) { fail(', 'if (false) { fail('],
+  ['the sampled scope prints where the numbers print', SR, "console.log('    Random within an authored frame — never representative of the pairings operators bring.')", "console.log('')"],
+  ['attrition reasons are printed, not summarised away', SR, 'for (const a of attr) console.log(`      attrition       ${a.full_name}: ${a.why}`)', 'for (const a of attr) {}'],
   // --- the sweep's own baseline: a red tree grades nothing --------------------
   // These four mutate THIS file, which is why runSweep is a function a test can call:
   // the sweep applying a mutation to its own source still spawns a fresh suite, and

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<!--
+  Fira Code ligature demo.
+  Assembled from README.md: the "Browser support" <link>/CSS snippet, and the
+  multi-character operator sequences named in the "Problem"/"Solution" sections
+  (`->`, `<=`, `:=`, `..`, `//`) plus one progress-bar line from the "What's in
+  the box?" section.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Fira Code ligature demo</title>
+  <!-- HTML embedding, as given in README.md "Browser support" -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/firacode@6.2.0/distr/fira_code.css">
+  <style>
+    body { font-family: sans-serif; max-width: 40rem; margin: 2rem auto; }
+    code, pre {
+      font-family: 'Fira Code', monospace;
+      font-size: 1.1rem;
+    }
+    @supports (font-variation-settings: normal) {
+      code, pre { font-family: 'Fira Code VF', monospace; }
+    }
+    pre {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 1rem;
+      border-radius: 6px;
+      overflow-x: auto;
+    }
+  </style>
+</head>
+<body>
+  <h1>Fira Code: free monospaced font with programming ligatures</h1>
+  <p>
+    If this page's font failed to load (offline environments have no
+    network access to the CDN referenced above), the sequences below still
+    render — just without the ligatures Fira Code draws for them.
+  </p>
+
+  <h2>Multi-character sequences named in the README</h2>
+  <pre><code>a -&gt;  b        // arrow
+x &lt;=  y        // less-or-equal
+n :=  1         // assignment
+range(0, 10) .. 2   // range with step
+// a comment, note the corrected spacing on `//` itself</code></pre>
+
+  <h2>Progress bar convention</h2>
+  <p>
+    From README.md: Fira Code ships dedicated glyphs at U+EE00..EE0B for
+    progress bars, and the README proposes checking the environment
+    variable <code>UNICODE_PROGRESS_BAR=true</code> as a heuristic for
+    whether they'll render.
+  </p>
+</body>
+</html>

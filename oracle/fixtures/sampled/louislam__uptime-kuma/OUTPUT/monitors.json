@@ -1,0 +1,44 @@
+{
+  "monitors": [
+    {
+      "id": "self-http",
+      "name": "Dashboard (self, HTTP)",
+      "type": "http",
+      "target": "http://127.0.0.1:3001/api/monitors",
+      "interval_sec": 20,
+      "expected_status": 200,
+      "active": true
+    },
+    {
+      "id": "self-tcp",
+      "name": "Dashboard port (self, TCP)",
+      "type": "tcp",
+      "target": "127.0.0.1:3001",
+      "interval_sec": 20,
+      "active": true
+    },
+    {
+      "id": "loopback-dns",
+      "name": "localhost (DNS Record)",
+      "type": "dns",
+      "target": "localhost",
+      "interval_sec": 60,
+      "active": true
+    },
+    {
+      "id": "heartbeat-push",
+      "name": "External cron job (Push)",
+      "type": "push",
+      "push_token": "demo0000000000000000000000000000",
+      "interval_sec": 60,
+      "active": true
+    }
+  ],
+  "status_pages": [
+    {
+      "slug": "public",
+      "title": "System Status",
+      "monitor_ids": ["self-http", "self-tcp", "loopback-dns"]
+    }
+  ]
+}
