@@ -332,7 +332,15 @@ export async function runLoop(opts) {
       // prompt, so a test can assert the alternation instead of trusting it. Without
       // this a check pinned to one side passes every test in the suite — which is
       // what the coverage sweep reported the first time these properties were pinned.
-      const newIsA = /ARTIFACT A: (?!.*\.prev-)/.test(prompt)
+      //
+      // Read by comparing the A-line against the candidate path — the new version IS
+      // the live artifact — rather than by recognising a snapshot naming scheme: the
+      // scheme changed once (.prev- to .gauntlet-snapshots) and a matcher keyed on it
+      // silently stopped varying, marking the wrong rounds regressed. BOUND, stated:
+      // a decomposed fixture whose pieces name their own candidate paths would need
+      // this to know them; no fixture with a regressionCheck decomposes today.
+      const aLine = ((String(prompt).match(/ARTIFACT A: (.*)/) || [])[1] || '').trim()
+      const newIsA = aLine === String((opts.args && opts.args.candidate) || '')
       const spec = typeof opts.regressionCheck === 'function' ? opts.regressionCheck(round, { newIsA }) : opts.regressionCheck
       if (spec == null) return null
       // A test says which VERSION the critic preferred; which SIDE that is comes from
@@ -395,12 +403,16 @@ export async function runLoop(opts) {
       // to fails every time, on a stub that is perfectly correct.
       if (typeof opts.builder === 'function') return enforceSchema(label, o, await opts.builder(round, prompt))
       // The default stub models a builder that DID take the snapshot the prompt asks
-      // for and reported where it put it. opts.snapshots === false models one that
-      // did not — the loop must then say the comparison could not be made rather
-      // than skip it silently. `snapshot` is optional in BUILD_SCHEMA on purpose:
-      // making it required would mean every existing builder stub in this suite is
-      // an input production cannot deliver.
-      const snap = opts.snapshots === false ? {} : { snapshot: `${CANDIDATE}.prev-${round}` }
+      // for and reported where it put it — which since the durable-path change means
+      // ECHOING THE REQUIRED PATH OUT OF THE PROMPT, exactly as a live builder must:
+      // if the prompt stops carrying the path, this stub reports no snapshot, and the
+      // rounds read as uncheckable rather than quietly durable. opts.snapshots ===
+      // false models a builder that took none — the loop must then say the comparison
+      // could not be made rather than skip it silently. `snapshot` is optional in
+      // BUILD_SCHEMA on purpose: making it required would mean every existing builder
+      // stub in this suite is an input production cannot deliver.
+      const req = String(prompt).match(/COPY THE ARTIFACT to exactly this path[^]*?\n\s*(\S+)\n/)
+      const snap = opts.snapshots === false || !req ? {} : { snapshot: req[1] }
       return enforceSchema(label, o, { changed: `did round ${round}`, where: 'candidate.js', ...snap })
     }
 

@@ -329,6 +329,12 @@ export const PROPERTIES = [
   // recorded as an attestation. Both mutations were applied and watched.
   ['an attestation the loop cannot read is refused, not dropped', L, 'if (GOAL_AUTHORED !== null && !GOAL_AUTHORED_VALUES.includes(GOAL_AUTHORED)) throw new Error(', 'if (false) throw new Error('],
   ['not asked and answered-no are different disclosures', L, "    GOAL_AUTHORED === null\n      ? 'NOBODY WAS ASKED", "    true\n      ? 'NOBODY WAS ASKED"],
+  // --- decision 0003's follow-up: the snapshot's location is required, compared, durable -
+  ['durability is compared, not taken from the builder', L, 'entry.snapshot_durable = snapshot === null ? null : snapshot === SNAP_REQUIRED', 'entry.snapshot_durable = snapshot === null ? null : true'],
+  ['the build prompt requires the computed path verbatim', L, '    ${SNAP_REQUIRED}', '    (a path of your choosing)'],
+  ['a non-durable snapshot names both paths', L, ' instead of the required ${SNAP_REQUIRED}', ''],
+  ['each round requires a distinct snapshot name', L, '/.gauntlet-snapshots/${PC.slice(i + 1)}.${RUN_STAMP}.${TAG}`', '/.gauntlet-snapshots/${PC.slice(i + 1)}.${RUN_STAMP}`'],
+  ['the blindness cost of the snapshot directory is admitted', L, 'the content-blindness probe runs before round 1 so it cannot see what rounds create', 'the content-blindness probe covers it'],
   // --- the sweep's own baseline: a red tree grades nothing --------------------
   // These four mutate THIS file, which is why runSweep is a function a test can call:
   // the sweep applying a mutation to its own source still spawns a fresh suite, and

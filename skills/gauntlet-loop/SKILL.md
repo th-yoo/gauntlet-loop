@@ -319,9 +319,15 @@ stays checkable while its correct form is underivable from anything else.
   than the reference, and no part of this run would notice.
 - **No ratchet — regressions are measured, not undone.** The builder edits in place, so a
   bad round still stands. What changed is that it is no longer invisible: the builder copies
-  the artifact first, one fresh critic says which version is closer to the goal, and the
-  record carries `regression` and `regressed` with the path of what it lost to. Keeping the
-  best version and restoring it would be a ratchet; this is not one.
+  the artifact first — to a required path beside it, in a `.gauntlet-snapshots` directory
+  stamped per run, so the copy outlives the session; `snapshot_durable` records per round
+  whether the builder echoed that path or chose its own — one fresh critic says which
+  version is closer to the goal, and the record carries `regression` and `regressed` with
+  the path of what it lost to. Keeping the best version and restoring it would be a
+  ratchet; this is not one. The snapshot directory sits beside the CANDIDATE only, and the
+  content-blindness probe runs before round 1: a critic with a shell can identify the
+  iterated side from round 2 by listing its directory. Disclosed in the verdict, not
+  prevented.
 - **Critics are not independent judgments.** They are the same model in fresh
   contexts. Requiring k of them to agree is not k independent opinions, and
   nothing here measures how much independence there actually is.

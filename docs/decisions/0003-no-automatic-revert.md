@@ -80,6 +80,11 @@ Declined, with reasons:
   `/tmp`. A snapshot beside the artifact would make "recoverable by hand" true past the
   session. That is a change to the builder's instruction, not to this decision, and it is
   worth making whichever way this decision goes.
+  *(Done, 2026-08-31: the build prompt now requires one computed path beside the artifact,
+  `snapshot_durable` records per round whether the builder echoed it, and
+  `test/snapshot-durable.test.mjs` pins both plus the blindness cost the location buys.
+  This narrows the reopen condition it sat under without answering it — the first
+  `regressed: true` in a real run still reopens the revert question.)*
 
 ## What this decision does not establish
 

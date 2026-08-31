@@ -341,6 +341,15 @@ function shq(s) {
   return `'${String(s).replace(/'/g, "'\\''")}'`
 }
 
+// One stamp per run, so a second run on the same candidate does not overwrite the first
+// run's round-N copies — the copy an operator has not yet acted on is exactly the one a
+// re-run would clobber. Derived from the TOKEN's basename because that is the one
+// per-run value this substrate has: new Date() and Math.random THROW in the real
+// Workflow runtime (drift-guard pins both), and the token path is already required and
+// operator-chosen per run. The bound that buys, stated: two runs given the SAME token
+// path stamp alike and do overwrite each other — no more unique than the token is.
+const RUN_STAMP = String(TOKEN || 'no-token').split('/').pop().replace(/[^A-Za-z0-9._-]/g, '-') || 'no-token'
+
 function shapeOf(s) {
   if (/\s/.test(s)) return 'prose'
   if (/^\/\//.test(s) || /^[a-z][a-z0-9+.-]*:/i.test(s)) return 'url'   // //host/x, https://x, C:\x
@@ -1464,6 +1473,18 @@ async function runPiece(piece) {
   while (true) {
   round++
   const TAG = piece.name ? `${piece.name}-round-${round}` : `round-${round}`
+  // THE REQUIRED SNAPSHOT PATH — beside the artifact, on purpose. Decision 0003 measured
+  // that "recoverable by hand" was as durable as wherever the builder chose to copy, and
+  // the builder chose /tmp: the Tetris verdict names three snapshot paths that outlived
+  // nothing. This is computed here (strings only — no filesystem in this substrate), the
+  // build prompt requires it verbatim, and the report is compared against it below. The
+  // stamp keeps one run's snapshots out of the next run's way on the same candidate; the
+  // TAG keeps rounds and pieces out of each other's.
+  const SNAP_REQUIRED = (() => {
+    const i = PC.lastIndexOf('/')
+    const dir = i === -1 ? '.' : PC.slice(0, i)
+    return `${dir}/.gauntlet-snapshots/${PC.slice(i + 1)}.${RUN_STAMP}.${TAG}`
+  })()
 
   // Budget first: it is free to check, so a run that is already out of money
   // does not pay for a breaker probe to be told so.
@@ -1735,12 +1756,18 @@ Not the one you find more interesting, not three while you are in there, not a r
 noticed on the way. The loop closes the biggest gap repeatedly, and a round that changes five
 things makes the next verdict uninterpretable — nobody can tell which change moved it.
 
-BEFORE YOU CHANGE ANYTHING, COPY THE ARTIFACT and report the copy's absolute path as the
-"snapshot" field. A plain cp beside it is enough. This loop compares every round against the
-REFERENCE and has never compared a round against the one before it, so a round that makes
-the artifact worse is currently invisible — the copy is what makes that question askable.
-If the artifact does not exist yet, or the copy fails, report NONE and say why in "failed";
-an invented path is worse than an admitted absence.
+BEFORE YOU CHANGE ANYTHING, COPY THE ARTIFACT to exactly this path (create its directory
+first — mkdir -p):
+
+    ${SNAP_REQUIRED}
+
+and report exactly that path as the "snapshot" field. The location is required, not
+suggested: it sits beside the artifact so the copy outlives this session — earlier runs
+copied to /tmp, and those paths named in the record were gone with the session. This loop
+compares every round against the REFERENCE and has never compared a round against the one
+before it, so a round that makes the artifact worse is currently invisible — the copy is
+what makes that question askable. If the artifact does not exist yet, or the copy fails,
+report NONE and say why in "failed"; an invented path is worse than an admitted absence.
 
 Modify the artifact in place at the path above. The critic inspects the real thing, never a
 description of it, so anything you leave only in your report does not exist as far as this
@@ -1772,6 +1799,16 @@ know, and a fresh critic decides next round. Report what you changed, factually.
   // would make it look like a round that was checked and found fine.
   const snapshot = built.snapshot && built.snapshot !== 'NONE' ? built.snapshot : null
   entry.snapshot = snapshot
+  // WHERE the copy is claimed to be is two strings this script can compare itself, even
+  // though WHETHER it exists stays the builder's word. Recorded on all three branches:
+  // required path echoed -> true; another path -> false, why names both, and the
+  // regression check still uses the reported path (the copy is where it is); no
+  // snapshot -> null, because a durability verdict about a copy that does not exist
+  // would be this check grading its own absence.
+  entry.snapshot_durable = snapshot === null ? null : snapshot === SNAP_REQUIRED
+  if (entry.snapshot_durable === false) {
+    entry.snapshot_durable_why = `the builder copied to ${snapshot} instead of the required ${SNAP_REQUIRED} — recoverable only while the builder's own path survives`
+  }
   if (!snapshot) {
     entry.regression = null
     entry.regression_why_not = 'the builder reported no snapshot, so there was no previous version to compare this round against'
@@ -2404,7 +2441,7 @@ return {
       ? null
       : `this run's args.reference/args.candidate pair was not a comparable filesystem path pair (reference read as ${shapeOf(REFERENCE)}, candidate as ${shapeOf(CANDIDATE)}). The two ARTIFACT lines rendered in visibly different shapes, so this run's A/B was NOT blind — the loop's own formatting gave away which side was the candidate before the critic looked at either one.`,
     'The critic is instructed to be a really harsh critic — the source says it "should be a really harsh critic", its one requirement on the judge — in both its standing agent definition and the round prompt. Nothing verifies that a harsh INSTRUCTION produced a harsh CRITIC. A lenient verdict and an exacting one are indistinguishable from here: no calibration trial ran, and the loop reads only the letter that came back.',
-    'THERE IS NO RATCHET; REGRESSIONS ARE MEASURED AND NOT REVERTED (issue #18). A ratchet keeps the best version and restores it — nothing here does that, and the field is called `regression` rather than `ratchet` so a record cannot imply otherwise. Each built round asks one fresh critic which is closer to the goal — the version this round produced, or the copy taken before it — and the answer is recorded per round as `regression`, with `regressed: true` on any round the critic judged worse than what it replaced. Nothing is rolled back, and the reason has changed since this sentence was first written: the detection rate behind it was one observation, and is now 12/15 with a 95% interval of 55%-93% (docs/runs/2026-08-27-detection-rate/verdict.md). What remains is that the interval is wide, the trials differ by one mechanical transform, and every miss was a defect of 3 bytes or fewer - so an automatic revert would act on a judgement measured on nothing like the case it would decide. A wrong revert is also quieter than a wrong refusal, which at least stops the run loudly. The previous version is named in the record, so a regression is recoverable by hand for as long as the snapshot exists where the builder put it. This is decided and recorded, with the evidence, in docs/decisions/0003-no-automatic-revert.md; the first regressed round a real run records is what reopens it. What this still cannot do: VERIFY the snapshot — a Workflow script has no filesystem, so the copy is the builder\'s word, exactly as sizes are the breaker\'s — and tell an improvement from a lateral move, since one judge on one day is the whole of the comparison. A round whose builder reported no snapshot says so in `regression_why_not` rather than reading as a round that was checked and found fine.',
+    'THERE IS NO RATCHET; REGRESSIONS ARE MEASURED AND NOT REVERTED (issue #18). A ratchet keeps the best version and restores it — nothing here does that, and the field is called `regression` rather than `ratchet` so a record cannot imply otherwise. Each built round asks one fresh critic which is closer to the goal — the version this round produced, or the copy taken before it — and the answer is recorded per round as `regression`, with `regressed: true` on any round the critic judged worse than what it replaced. Nothing is rolled back, and the reason has changed since this sentence was first written: the detection rate behind it was one observation, and is now 12/15 with a 95% interval of 55%-93% (docs/runs/2026-08-27-detection-rate/verdict.md). What remains is that the interval is wide, the trials differ by one mechanical transform, and every miss was a defect of 3 bytes or fewer - so an automatic revert would act on a judgement measured on nothing like the case it would decide. A wrong revert is also quieter than a wrong refusal, which at least stops the run loudly. The previous version is named in the record, and the copy is REQUIRED at a computed path beside the artifact (a .gauntlet-snapshots directory, stamped per run and named per round) so that it outlives the session — earlier runs copied to /tmp and the recorded paths outlived nothing; `snapshot_durable` says per round whether the builder echoed the required path, false names both paths, and the bytes remain the builder\'s word either way. That directory is also an asymmetry bought knowingly: it sits beside the CANDIDATE only, and the content-blindness probe runs before round 1 so it cannot see what rounds create — from round 2 a critic with a shell can identify the iterated side by listing its directory, and this sentence, not the probe, is where that is admitted. This is decided and recorded, with the evidence, in docs/decisions/0003-no-automatic-revert.md; the first regressed round a real run records is what reopens it. What this still cannot do: VERIFY the snapshot — a Workflow script has no filesystem, so the copy is the builder\'s word, exactly as sizes are the breaker\'s — and tell an improvement from a lateral move, since one judge on one day is the whole of the comparison. A round whose builder reported no snapshot says so in `regression_why_not` rather than reading as a round that was checked and found fine.',
     K_MAX === 1
       ? 'Position bias is averaged across rounds by alternation, not eliminated within a round.'
       : 'Position bias is split across the line within each round, which measures it rather than eliminating it. It is not removed.',
