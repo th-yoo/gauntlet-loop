@@ -1,0 +1,20 @@
+=== bits=8 ===
+[infer] alphabet=28 symbols, corpus=1579 chars, bits=8, seed=7
+[infer] backoff usage: trigram=160 bigram=0 unigram=0 uniform=0
+the model weightep anywhe the malls ans con, anywhe turrevel larger ins, memore the model itiounnessimplit orthe mes ithe mor of falle oned lessiontep antion thers larare
+
+=== bits=4 ===
+[infer] alphabet=28 symbols, corpus=1579 chars, bits=4, seed=7
+[infer] backoff usage: trigram=160 bigram=0 unigram=0 uniform=0
+the model inition and fall faind mor a to andre cloation ther ler evels son of plit ness a metwor linvols meary fordinaris plinin on tratal kin the point way tabiliked da
+
+=== bits=2 ===
+[infer] alphabet=28 symbols, corpus=1579 chars, bits=2, seed=7
+[infer] backoff usage: trigram=160 bigram=0 unigram=0 uniform=0
+the model itizata. fory catabils a faing en counine memodels is it fas ing smalledit con. aral is thereand comparit the com, nexot calles more much prencess is it codels 
+
+=== bits=1 ===
+[infer] alphabet=28 symbols, corpus=1579 chars, bits=1, seed=7
+[infer] backoff usage: trigram=160 bigram=0 unigram=0 uniform=0
+the model symbol seeps an a poin an the thas it the that thatickels an thast the the thast thast an the models a prence meack fer likel it the the meack con thatiout that
+

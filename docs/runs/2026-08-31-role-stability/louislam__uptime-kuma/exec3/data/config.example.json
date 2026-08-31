@@ -1,0 +1,47 @@
+{
+  "_comment": "Copy the monitors below through the dashboard's 'Add a monitor' form, or POST them to /api/monitors once an admin account exists. This file is documentation, not something the server reads automatically.",
+  "monitors": [
+    {
+      "name": "Example homepage",
+      "type": "http",
+      "url": "https://example.com",
+      "acceptedStatusRange": [200, 299]
+    },
+    {
+      "name": "Example API health keyword",
+      "type": "http-keyword",
+      "url": "https://example.com/health",
+      "keyword": "ok",
+      "keywordInverted": false
+    },
+    {
+      "name": "Example JSON health field",
+      "type": "json-query",
+      "url": "https://example.com/health.json",
+      "jsonPath": "status",
+      "expectedValue": "ok"
+    },
+    {
+      "name": "Example SSH port",
+      "type": "tcp",
+      "host": "example.com",
+      "port": 22
+    },
+    {
+      "name": "Example host reachability",
+      "type": "ping",
+      "host": "example.com"
+    },
+    {
+      "name": "Example DNS record",
+      "type": "dns",
+      "host": "example.com",
+      "recordType": "A"
+    },
+    {
+      "name": "Example background job heartbeat",
+      "type": "push",
+      "intervalSeconds": 60
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+# Starting point for a Docker Compose deployment.
+#
+# This is the equivalent, in compose form, of the single-container
+# `docker run` invocation documented for this project: same image
+# major version, same published port, same named volume for
+# persistent data, and the same "always restart" policy.
+#
+# Do not back the named volume with an NFS mount or NFS-backed bind
+# mount; that combination is explicitly unsupported.
+
+services:
+  uptime-kuma:
+    image: louislam/uptime-kuma:2
+    container_name: uptime-kuma
+    volumes:
+      - uptime-kuma:/app/data
+    ports:
+      # Change to "127.0.0.1:3001:3001" if you want the dashboard
+      # reachable only from this host, not from the rest of the network.
+      - 3001:3001
+    restart: always
+
+volumes:
+  uptime-kuma:

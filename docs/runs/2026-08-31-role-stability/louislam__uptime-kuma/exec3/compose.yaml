@@ -1,0 +1,12 @@
+services:
+  pulsewatch:
+    build: .
+    container_name: pulsewatch
+    restart: always
+    ports:
+      - "3001:3001"
+    volumes:
+      - pulsewatch-data:/app/data
+
+volumes:
+  pulsewatch-data:

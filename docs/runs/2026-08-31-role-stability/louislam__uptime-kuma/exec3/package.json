@@ -1,0 +1,15 @@
+{
+  "name": "pulsewatch",
+  "version": "0.1.0",
+  "description": "A fancy self-hosted monitoring tool built entirely on Node.js core modules.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "check": "node --check server.js && node --check lib/store.js && node --check lib/auth.js && node --check lib/monitors.js && node --check lib/notify.js && node --check lib/statuspages.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "dependencies": {}
+}

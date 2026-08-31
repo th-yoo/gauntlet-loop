@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PulseWatch</title>
+<link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+<div id="login-screen">
+  <form id="login-form">
+    <div class="brand"><span class="dot"></span> PulseWatch</div>
+    <input id="login-username" placeholder="Username" autocomplete="username" required />
+    <input id="login-password" type="password" placeholder="Password" autocomplete="current-password" required />
+    <input id="login-totp" placeholder="2FA code (if enabled)" />
+    <button type="submit">Sign in</button>
+    <p id="login-error" style="color: var(--down); font-size: 0.85rem;"></p>
+    <p style="color: var(--muted); font-size: 0.8rem;">First run? This form also creates the admin account.</p>
+  </form>
+</div>
+
+<div id="app" class="hidden">
+  <header class="topbar">
+    <div class="brand"><span class="dot"></span> PulseWatch</div>
+    <div>
+      <span id="whoami" style="color: var(--muted); margin-right: 12px;"></span>
+      <button class="ghost" id="logout-btn">Log out</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="summary-cards">
+      <div class="card"><div class="value" id="stat-up">-</div><div class="label">Up</div></div>
+      <div class="card"><div class="value" id="stat-down">-</div><div class="label">Down</div></div>
+      <div class="card"><div class="value" id="stat-total">-</div><div class="label">Monitors</div></div>
+      <div class="card"><div class="value" id="stat-uptime">-</div><div class="label">Avg uptime</div></div>
+    </div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">Add a monitor</h3>
+      <div class="form-row">
+        <input id="new-name" placeholder="Name" />
+        <select id="new-type">
+          <option value="http">HTTP(s)</option>
+          <option value="http-keyword">HTTP(s) Keyword</option>
+          <option value="json-query">HTTP(s) Json Query</option>
+          <option value="tcp">TCP Port</option>
+          <option value="ping">Ping</option>
+          <option value="dns">DNS Record</option>
+          <option value="push">Push</option>
+          <option value="steam">Steam Game Server</option>
+          <option value="docker">Docker Container</option>
+        </select>
+        <input id="new-target" placeholder="URL / host:port depending on type" style="flex: 1; min-width: 220px;" />
+        <button id="add-monitor-btn">Add</button>
+      </div>
+      <p style="color: var(--muted); font-size: 0.8rem; margin: 0;">
+        For TCP give <code>host:port</code>. For Ping/DNS give a hostname. For HTTP give a full URL.
+      </p>
+    </div>
+
+    <h3>Monitors</h3>
+    <div class="monitor-list" id="monitor-list"></div>
+
+    <div class="panel">
+      <h3 style="margin-top:0;">Two-factor authentication</h3>
+      <div id="twofa-status"></div>
+      <div id="twofa-setup" class="hidden">
+        <p style="color: var(--muted); font-size: 0.85rem;">Scan this secret into any TOTP app, then confirm a code.</p>
+        <p><code id="twofa-secret"></code></p>
+        <div class="form-row">
+          <input id="twofa-code" placeholder="6-digit code" />
+          <button id="twofa-confirm-btn">Confirm</button>
+        </div>
+      </div>
+      <button class="ghost" id="twofa-start-btn">Enable 2FA</button>
+    </div>
+  </main>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>
