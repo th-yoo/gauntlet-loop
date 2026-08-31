@@ -68,8 +68,17 @@ const ok = (cond, msg) => { if (!cond) fail(msg) }
 // ubuntu-latest, ~32 min locally, and it mutates the tree while it runs. That
 // failure is loud — the sweep prints a line per property while it happens — and
 // test/sweep-summary.test.mjs pins the guard with bounded probes.
-const { PROPERTIES } = await import(pathToFileURL(SWEEP).href)
+const { PROPERTIES, DEFAULT_CHECK } = await import(pathToFileURL(SWEEP).href)
 const PROPERTY_COUNT = PROPERTIES.length
+
+// A PRESENCE PIN, and stated as one: --fail-fast changes no verdict (any red already
+// means CAUGHT — 5.3x, identical verdicts, docs/runs/2026-08-26-rc5-suspects.md S3), so
+// no red/green test can catch its removal. What its removal DOES change is the sweep's
+// wall clock, and the way that was discovered was run 33341941280 dying at the 120-minute
+// timeout with 34 properties ungraded. A knob invisible until a timeout gets a pin.
+console.log('coverage-cadence: the sweep check short-circuits — a cost pin, since no verdict can carry it')
+ok(Array.isArray(DEFAULT_CHECK) && DEFAULT_CHECK.includes('--fail-fast'),
+   `the sweep's default check (${JSON.stringify(DEFAULT_CHECK)}) no longer passes --fail-fast — at the last measured 47 s/property a full-suite sweep of this list exceeds its own job timeout, and the only thing that notices is a killed weekly run`)
 
 // THE FLOOR IS A DECISION, AND SAYING SO IS THE OTHER HALF OF RC4.
 //
@@ -95,7 +104,13 @@ const FLOOR = 125
 //
 // The conclusion is unchanged and does not depend on the precision: a 13-minute gate is as
 // unusable in front of a push as a 53-minute one.
-const OBSERVED = { minutes: 14, where: 'ubuntu-latest', run: '32900618692' }
+// REVISED 2026-08-31: the previous figure here (14 min, run 32900618692) was three
+// property-list generations stale. The most recent full-cost observation is a KILL: run
+// 33341941280 graded 151 of 185 properties in 120 minutes — 47 s per property — and was
+// terminated by the job timeout. That kill is what forced --fail-fast into the sweep's
+// check; no full run under it has completed yet, so this records the cost as last
+// observed rather than as hoped.
+const OBSERVED = { minutes: 120, where: 'ubuntu-latest (killed by timeout at 151/185 properties)', run: '33341941280' }
 
 // "BLOCKING" IS THE WRONG WORD FOR ANYTHING HERE, and this file used it four times.
 // main has no branch protection and no required status checks, and .git/hooks holds

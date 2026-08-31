@@ -345,6 +345,9 @@ export const PROPERTIES = [
   ['a sampled row without a draw fails the accounting', SR, 'if (!owner) { fail(', 'if (false) { fail('],
   ['the sampled scope prints where the numbers print', SR, "console.log('    Random within an authored frame — never representative of the pairings operators bring.')", "console.log('')"],
   ['attrition reasons are printed, not summarised away', SR, 'for (const a of attr) console.log(`      attrition       ${a.full_name}: ${a.why}`)', 'for (const a of attr) {}'],
+  // --- the sweep's check short-circuits, and the flag stays out of the default ---
+  ['the fail-fast flag stops run-all at the first red suite', 'test/run-all.mjs', 'if (FAIL_FAST) { console.error(', 'if (false) { console.error('],
+  ['the sweep default check short-circuits', CS, "export const DEFAULT_CHECK = ['node', 'test/run-all.mjs'," + " '--fail-fast']", "export const DEFAULT_CHECK = ['node', 'test/run-all.mjs']"],
   // --- the sweep's own baseline: a red tree grades nothing --------------------
   // These four mutate THIS file, which is why runSweep is a function a test can call:
   // the sweep applying a mutation to its own source still spawns a fresh suite, and
@@ -420,7 +423,15 @@ export function renderRefusal({ check, words }) {
 // per property. What that leaves unreachable by any test respecting that guard is the
 // two-line CLI wiring at the bottom of this file: the argv filter and the process.exit.
 // Stated here rather than assumed covered.
-export function runSweep({ filter, properties = PROPERTIES, check = ['node', 'test/run-all.mjs'], log = console.log, err = console.error } = {}) {
+// --fail-fast is a COST knob, not a correctness one: the verdict is the exit code, any
+// red already means CAUGHT, and running both ways over the whole list measured 5.3x with
+// identical verdicts (docs/runs/2026-08-26-rc5-suspects.md S3). It went in when the
+// 120-minute job timeout killed sweep run 33341941280 at 151 of 185 properties. Exported
+// so test/coverage-cadence.test.mjs can pin its presence — a presence pin, stated as
+// such, because a knob whose removal changes no verdict is invisible until a timeout.
+export const DEFAULT_CHECK = ['node', 'test/run-all.mjs', '--fail-fast']
+
+export function runSweep({ filter, properties = PROPERTIES, check = DEFAULT_CHECK, log = console.log, err = console.error } = {}) {
   const chosen = filter ? properties.filter(p => p[0].includes(filter)) : properties
   if (!chosen.length) { err(`no property matches "${filter}"`); return { status: 'refused', exitCode: 2 } }
 

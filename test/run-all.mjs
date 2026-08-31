@@ -1,4 +1,12 @@
 // One command a reviewer runs. Exits nonzero if anything fails.
+//
+// --fail-fast stops at the first failing suite. It exists for the coverage sweep, where
+// the exit code is the whole verdict and any red already means CAUGHT: both ways were run
+// over the whole list on 2026-08-26 — 5.3x apart, identical verdicts
+// (docs/runs/2026-08-26-rc5-suspects.md S3) — and it stayed unimplemented until the
+// 120-minute job timeout killed sweep run 33341941280 at 151 of 185 properties graded
+// (47 s per property, measured off that log). The DEFAULT stays a full run on purpose:
+// a reviewer and the push-time suite need every failure named, not the first one.
 import { spawnSync } from 'node:child_process'
 import { readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
@@ -25,9 +33,15 @@ const suites = [
 // that path; this can.
 const SUITE_ENV = { ...process.env, GAUNTLET_SUITE: '1' }
 
+const FAIL_FAST = process.argv.includes('--fail-fast')
+
 let failed = 0
 for (const s of suites) {
   const r = spawnSync(process.execPath, [join(HERE, s)], { stdio: 'inherit', env: SUITE_ENV })
-  if (r.status !== 0) { console.error(`FAILED: ${s}`); failed++ }
+  if (r.status !== 0) {
+    console.error(`FAILED: ${s}`)
+    failed++
+    if (FAIL_FAST) { console.error('run-all: --fail-fast — stopping at the first failure; suites after this one did not run.'); break }
+  }
 }
 process.exit(failed ? 1 : 0)

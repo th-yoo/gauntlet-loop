@@ -14,12 +14,14 @@
 # "114 of them at ~28s each, roughly 50 minutes" — a local sample multiplied out,
 # wrong by 4x, and stale in both halves once the list reached 117.
 #
-# THAT COST IS NOT IRREDUCIBLE. mutate runs the whole suite per property even after
-# the first suite fails, though any non-zero exit already means CAUGHT. Both ways
-# were run over the whole list on 2026-08-26 — 5.3x apart, identical verdicts,
-# figures in docs/runs/2026-08-26-rc5-suspects.md (S3). Not implemented, so the
-# placement below is argued from the cost as built and would have to be re-argued
-# against a short-circuited sweep.
+# THAT COST WAS NOT IRREDUCIBLE, AND THE TIMEOUT PROVED IT. mutate runs the check per
+# property, and any non-zero exit already means CAUGHT — both ways were run over the
+# whole list on 2026-08-26, 5.3x apart with identical verdicts
+# (docs/runs/2026-08-26-rc5-suspects.md S3) — but the short-circuit stayed unimplemented
+# until run 33341941280 was killed by this file's own 120-minute timeout at 151 of 185
+# properties graded (47 s per property, full suite each). The sweep's check now runs
+# `node test/run-all.mjs --fail-fast`; the default run-all is unchanged, because the
+# push-time suite must name every failure, not the first one.
 #
 # WHY A SEPARATE WORKFLOW. `suite` (ci.yml) runs on every push and finishes in
 # 24-35 s. Putting this in it would couple ordinary work to a full sweep of
@@ -84,14 +86,16 @@ concurrency:
 jobs:
   sweep:
     runs-on: ubuntu-latest
-    # Comfortably over the observed cost, with headroom that is not decoration:
-    # every real finding costs a full suite rather than an early exit, the list is
-    # hand-written and grows, and runner speed varies. Not unbounded — a sweep
-    # that hangs should be killed and reported, not left to burn the job limit.
-    # Raised from 90 when test/play.test.mjs arrived: it spawns Chrome six times
-    # per suite run (~6 s in parallel), and the sweep runs the suite once per
-    # property, so that is ~17 minutes on top of the 68–70 observed before it.
-    timeout-minutes: 120
+    # Argued from the worst case, not the hoped-for one. With --fail-fast a
+    # CAUGHT-heavy sweep is predicted at a fraction of the old cost (5.3x on the
+    # 2026-08-26 mix), but every NOT CAUGHT property still costs a full green suite —
+    # and a sweep where coverage has genuinely regressed is exactly the run that must
+    # not be killed mid-report. All-green worst case at the last measured rate:
+    # 201 properties x 47 s ≈ 158 min, plus the baseline suite runSweep now runs
+    # first. 180 covers that with margin; run 33341941280 (killed at 120 with 34
+    # properties ungraded) is the observation this number rests on. Not unbounded —
+    # a sweep that hangs should be killed and reported, not left to burn the job limit.
+    timeout-minutes: 180
 
     steps:
       - uses: actions/checkout@v4
