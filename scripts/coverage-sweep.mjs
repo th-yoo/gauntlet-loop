@@ -41,6 +41,7 @@ const SE = 'scripts/split-extract.mjs'
 const PV = 'scripts/plugin-version-check.mjs'
 const PL = 'scripts/play.mjs'
 const CC = 'scripts/capacity-check.mjs'
+const CS = 'scripts/coverage-sweep.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -328,6 +329,20 @@ export const PROPERTIES = [
   // recorded as an attestation. Both mutations were applied and watched.
   ['an attestation the loop cannot read is refused, not dropped', L, 'if (GOAL_AUTHORED !== null && !GOAL_AUTHORED_VALUES.includes(GOAL_AUTHORED)) throw new Error(', 'if (false) throw new Error('],
   ['not asked and answered-no are different disclosures', L, "    GOAL_AUTHORED === null\n      ? 'NOBODY WAS ASKED", "    true\n      ? 'NOBODY WAS ASKED"],
+  // --- the sweep's own baseline: a red tree grades nothing --------------------
+  // These four mutate THIS file, which is why runSweep is a function a test can call:
+  // the sweep applying a mutation to its own source still spawns a fresh suite, and
+  // test/coverage-baseline.test.mjs fails in that suite. Each was applied and the suite
+  // watched to go red before being pinned here.
+  //
+  // The find strings are CONCATENATED, not written whole: mutate replaces the FIRST
+  // occurrence in the file, and these entries sit above the code they mutate — an entry
+  // containing its own needle verbatim is the occurrence that gets mutated, the live
+  // gate stays intact, and the property reads NOT CAUGHT about a working check.
+  ['a red baseline refuses the sweep instead of grading every property CAUGHT', CS, 'if (base.status !== 0)' + ' {', 'if (false) {'],
+  ['a baseline that could not run is a crash, not a red tree', CS, 'if (base.error || base.status === null)' + ' {', 'if (false) {'],
+  ['a hanging baseline is killed, not graded', CS, "if (base.error && base.error.code === 'ETIMEDOUT')" + ' {', 'if (false) {'],
+  ['the once-only residual is stated on the branch that grades', CS, "log('          property — still lands on whichever mutation" + " is being graded and reads as CAUGHT.')", "log('')"],
 ]
 
 // THE LIST IS EXPORTED AND THE SWEEP RUNS ONLY WHEN INVOKED, and that is not tidiness.
@@ -366,25 +381,93 @@ export function renderSummary({ total, missed, refused, findings }) {
   return lines.join('\n') + '\n'
 }
 
-if (INVOKED) {
-  const filter = process.argv[2]
-  const chosen = filter ? PROPERTIES.filter(p => p[0].includes(filter)) : PROPERTIES
-  if (!chosen.length) { console.error(`no property matches "${filter}"`); process.exit(2) }
+// THE SUMMARY A REFUSED SWEEP LEAVES ON THE RUN PAGE. Without it, a refusal is an exit
+// code and a log line — and the log is the channel #46 established nothing points at.
+export function renderRefusal({ check, words }) {
+  return [
+    '## coverage sweep',
+    '',
+    '**REFUSED — no property was graded.**',
+    '',
+    words,
+    '',
+    `The check (\`${check}\`) has to exit 0 on the unmutated tree before a mutation can mean`,
+    'anything: a check red before a mutation is red after it, and every property would have',
+    'read CAUGHT with nothing measured. This refusal says nothing about coverage — it says',
+    'the question could not be put.',
+  ].join('\n') + '\n'
+}
+
+// THE SWEEP, callable. The CLI below runs exactly this; test/coverage-baseline.test.mjs
+// calls it with a substitute check command, because test/coverage-cadence.test.mjs
+// (rightly) fails any test that spawns this script — a real invocation costs a suite run
+// per property. What that leaves unreachable by any test respecting that guard is the
+// two-line CLI wiring at the bottom of this file: the argv filter and the process.exit.
+// Stated here rather than assumed covered.
+export function runSweep({ filter, properties = PROPERTIES, check = ['node', 'test/run-all.mjs'], log = console.log, err = console.error } = {}) {
+  const chosen = filter ? properties.filter(p => p[0].includes(filter)) : properties
+  if (!chosen.length) { err(`no property matches "${filter}"`); return { status: 'refused', exitCode: 2 } }
+
+  // THE BASELINE, before any mutation. Verdicts here are mutate's exit codes, and
+  // mutate's CAUGHT is "the check exited nonzero" — so a tree whose check is red before
+  // anything is mutated grades EVERY property CAUGHT and the sweep publishes a clean
+  // coverage report about a suite that cannot pass. Built before it was fixed: with one
+  // failing test present, an uncovered comment edit flipped NOT CAUGHT -> CAUGHT, and a
+  // one-property sweep printed "0 unpinned" and exited 0. coverage.yml had already named
+  // this class at its checkout step ("a suite red before the mutation is red after it")
+  // and guarded exactly one cause — a shallow clone. This is the mechanism, so the next
+  // cause of a red baseline is refused without having been foreseen.
+  //
+  // The check command itself is asserted by nothing outside this function, and that is
+  // measured rather than worrying: corrupt it toward always-red and this baseline refuses
+  // the whole sweep; corrupt it toward always-green and every property reports NOT CAUGHT.
+  // Either direction turns the scheduled run red instead of silently green.
+  const timeoutMs = Number(process.env.MUTATE_CHECK_TIMEOUT_MS || 300_000)
+  const base = spawnSync(check[0], check.slice(1), { encoding: 'utf8', timeout: timeoutMs, env: { ...process.env, GAUNTLET_SUITE: '1' } })
+  const refuse = words => {
+    err(words)
+    err('               Nothing was mutated and nothing was graded: this refusal says nothing about')
+    err('               coverage — it says the question could not be put. Fix that, then re-run.')
+    const summary = renderRefusal({ check: check.join(' '), words })
+    if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary)
+    return { status: 'refused', exitCode: 2, words }
+  }
+  if (base.error && base.error.code === 'ETIMEDOUT') {
+    return refuse(`coverage-sweep: REFUSED — the baseline check (${check.join(' ')}) did not finish within ${timeoutMs} ms and was killed. A hang is not a verdict about the tree: nothing red was seen and nothing green was either.`)
+  }
+  if (base.error || base.status === null) {
+    return refuse(`coverage-sweep: REFUSED — the baseline check (${check.join(' ')}) could not run (${(base.error && base.error.message) || 'terminated by signal'}). A crash is reported as a crash: it says nothing about whether the tree is red or green.`)
+  }
+  if (base.status !== 0) {
+    // The two shapes a failure actually prints as here — `  FAIL  <msg>` (every suite's
+    // fail()) and `FAILED: <suite>` (run-all) — not any line containing the word: three
+    // OK-path log lines in this repo say "it can still FAIL" and matched a looser filter.
+    const failLines = String((base.stdout || '') + (base.stderr || '')).split('\n').filter(l => /^\s*FAIL\s\s|^FAILED:/.test(l)).slice(0, 5)
+    return refuse(`coverage-sweep: REFUSED — the check (${check.join(' ')}) is red on the unmutated tree (exited ${base.status}). A check red before a mutation is red after it, so every property here would have read CAUGHT with nothing measured.${failLines.length ? '\n               ' + failLines.join('\n               ') : ''}`)
+  }
+  log(`baseline: ${check.join(' ')} exited 0 on the unmutated tree — CAUGHT below means a mutation turned that green red.`)
+  log('          Checked ONCE, here. A failure that begins mid-sweep — a flake, outside state moving under a')
+  log('          property — still lands on whichever mutation is being graded and reads as CAUGHT.')
 
   let missed = 0, refused = 0
   const findings = []
   for (const [name, file, find, replace] of chosen) {
-    const r = spawnSync(process.execPath, [MUTATE, file, find, replace], { encoding: 'utf8' })
+    const r = spawnSync(process.execPath, [MUTATE, file, find, replace, '--', ...check], { encoding: 'utf8' })
     const verdict = r.status === 0 ? 'CAUGHT' : r.status === 1 ? 'NOT CAUGHT' : 'COULD NOT RUN'
     if (r.status === 1) missed++
     if (r.status === 2) refused++
     if (r.status !== 0) findings.push({ verdict, name })
-    console.log(`${verdict.padEnd(14)} ${name}`)
-    if (r.status === 2) console.log(`               ${String(r.stdout || r.stderr).split('\n')[0]}`)
+    log(`${verdict.padEnd(14)} ${name}`)
+    if (r.status === 2) log(`               ${String(r.stdout || r.stderr).split('\n')[0]}`)
   }
-  console.log(`\n${chosen.length} properties — ${missed} unpinned, ${refused} could not be tested`)
+  log(`\n${chosen.length} properties — ${missed} unpinned, ${refused} could not be tested`)
 
   const summary = renderSummary({ total: chosen.length, missed, refused, findings })
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary)
-  process.exit(missed || refused ? 1 : 0)
+  return { status: 'swept', exitCode: missed || refused ? 1 : 0, missed, refused, findings }
+}
+
+if (INVOKED) {
+  const r = runSweep({ filter: process.argv[2] })
+  process.exit(r.exitCode)
 }
