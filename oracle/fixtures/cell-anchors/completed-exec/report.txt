@@ -1,0 +1,3 @@
+REPORT
+generated-by: make-report.sh
+lines: 3

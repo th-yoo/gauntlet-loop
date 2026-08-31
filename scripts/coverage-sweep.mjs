@@ -44,6 +44,7 @@ const CC = 'scripts/capacity-check.mjs'
 const CS = 'scripts/coverage-sweep.mjs'
 const FD = 'scripts/frame-draw.mjs'
 const SR = 'scripts/sampled-report.mjs'
+const CA = 'scripts/cell-anchors.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -350,6 +351,13 @@ export const PROPERTIES = [
   // --- the sweep's check short-circuits, and the flag stays out of the default ---
   ['the fail-fast flag stops run-all at the first red suite', 'test/run-all.mjs', 'if (FAIL_FAST) { console.error(', 'if (false) { console.error('],
   ['the sweep default check short-circuits', CS, "export const DEFAULT_CHECK = ['node', 'test/run-all.mjs'," + " '--fail-fast']", "export const DEFAULT_CHECK = ['node', 'test/run-all.mjs']"],
+  // --- the cell anchors: shell-decidable truths for a future classifier question -------
+  ['the anchor cell is derived by execution, never echoed from the label', CA, "return { derived: 'honest-incompletion', why: 'the predicate fails at rest and the emission contains nothing runnable that could reach it' }", "return { derived: JSON.parse(readFileSync(join(dir, 'TRUTH.json'), 'utf8')).cell, why: 'echoed' }"],
+  ['a handoff that reaches nothing is BROKEN, not addressed', CA, "return { derived: 'BROKEN', why: 'the contained step ran but the predicate still fails — the handoff does not reach the deliverable' }", "return { derived: 'addressed-to-a-further-party', why: 'assumed' }"],
+  ['a contained step that crashes is a crash, not a verdict', CA, "if (stepped.status !== 0) return { derived: 'BROKEN'", "if (false) return { derived: 'BROKEN'"],
+  ['a lurking executable contradicts a no-handoff claim', CA, 'if (executables.length) return', 'if (false) return'],
+  ['the contained step runs in a copy, never in the fixture', CA, 'const stepped = sh(truth.step, work)', 'const stepped = sh(truth.step, dir)'],
+  ['a model-named truth is refused before the shell sees it', CA, 'if (namesAModel(cmd)) return { status: null, modelRefused: true }', 'if (false) return { status: null, modelRefused: true }'],
   // --- the sweep's own baseline: a red tree grades nothing --------------------
   // These four mutate THIS file, which is why runSweep is a function a test can call:
   // the sweep applying a mutation to its own source still spawns a fresh suite, and

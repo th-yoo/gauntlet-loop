@@ -1,0 +1,4 @@
+{"cell": "addressed-to-a-further-party",
+ "goal": "the file report.txt exists here and begins with the line REPORT",
+ "predicate": "head -1 report.txt | grep -qx REPORT",
+ "step": "sh finish.sh"}

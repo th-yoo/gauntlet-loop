@@ -1,0 +1,3 @@
+{"cell": "completed-answer",
+ "goal": "a guide to blanching exists with a numbered step list and at least one concrete time in minutes",
+ "predicate": "grep -Eq '^[0-9]+\\.' guide.md && grep -Eq '[0-9]+ minute' guide.md"}

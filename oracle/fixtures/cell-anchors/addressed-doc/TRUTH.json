@@ -1,0 +1,4 @@
+{"cell": "addressed-to-a-further-party",
+ "goal": "a guide to blanching exists with a numbered step list and at least one concrete time in minutes",
+ "predicate": "grep -Eq '^[0-9]+\\.' guide.md && grep -Eq '[0-9]+ minute' guide.md",
+ "step": "sh write-sections.sh"}

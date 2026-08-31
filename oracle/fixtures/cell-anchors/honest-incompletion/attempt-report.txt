@@ -1,0 +1,8 @@
+REPORT ATTEMPT
+status: incomplete
+
+The report this file was meant to become required a value published by a
+service this environment cannot reach. No request was made, and no value was
+invented — a fabricated value cannot be told from a real one by inspection.
+There is nothing here to run and nobody this is handed to; this file is the
+whole of what the attempt produced.
