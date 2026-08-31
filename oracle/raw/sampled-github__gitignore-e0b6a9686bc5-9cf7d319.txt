@@ -1,0 +1,5 @@
+Referenced sibling paths (`./Global`, `./community`, `CONTRIBUTING.md`, `./LICENSE`) do not resolve — only README.md exists in fixture.
+
+```json
+{"verdict": "produces-an-instruction", "reasoning": "The artifact contains no templates (one inline example serves only to illustrate contribution format), and every path it points at for the actual collection — ./Global, ./community, CONTRIBUTING.md — does not resolve beside it. Its operative content is criteria for acceptable templates and a contributing workflow (fork, branch, send a pull request to our main branch) whose end state is a proposal handed to maintainers who 'may not accept it immediately.' Followed to its end, an agent produces guidance-conformant submissions for a different party to accept later; the collection itself is untouched by anything in this file.", "what_it_is": "The front-page README / contributor guide of GitHub's gitignore repository — documentation describing the collection's structure and the rules and workflow for proposing templates to its maintainers, detached from the collection it describes."}
+```

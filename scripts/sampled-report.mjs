@@ -19,6 +19,10 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
+// The bound is IMPORTED, not restated: a second copy of the number here would agree with
+// a drifted original, defect and all, and the census below would report liability against
+// a bound the sampler no longer enforces.
+import { README_BYTE_BOUND } from './frame-draw.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const FRAME = process.env.ORACLE_FRAME || join(ROOT, 'oracle', 'frame.json')
@@ -50,6 +54,19 @@ const frame = JSON.parse(readFileSync(FRAME, 'utf8'))
 console.log(`sampled-report: frame ${frame.frame_id}`)
 console.log(`  population        ${frame.n} members — ${frame.query}`)
 console.log(`  authored          ${frame.authored}`)
+
+// THE ATTRITION LIABILITY, with its real denominator. The live attrition paths — an
+// over-bound README, a goalless member, a vanished blob — run only when a draw actually
+// hits one, and manufacturing that hit would be the seed-shopping the ledger exists to
+// forbid. So the instrument states the standing liability instead: how many members
+// COULD trip each path, out of how many. Until a draw lands on one, those branches are
+// exercised by constructed inputs alone (test/frame-draw.test.mjs), and this line is
+// what keeps that fact from living only in an adjudication nobody reruns.
+{
+  const liable = (frame.members || []).filter(m => m.readme_size > README_BYTE_BOUND)
+  const goalless = (frame.members || []).filter(m => m.description === null || m.description === undefined)
+  console.log(`  attrition liability ${liable.length} of ${frame.n} member(s) exceed the ${README_BYTE_BOUND}-byte fixture bound${liable.length ? ' (' + liable.map(m => m.full_name).join(', ') + ')' : ''}; ${goalless.length} carry no description. A draw hitting one is the only live test of the attrition paths; until then they are exercised by constructed inputs alone.`)
+}
 
 for (const d of draws.filter(x => x.unparseable)) fail(`unreadable ledger line: ${d.unparseable} — a row that cannot be read is a member that cannot be accounted for`)
 

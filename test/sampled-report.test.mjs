@@ -83,6 +83,29 @@ console.log('sampled-report: draws without a frame are refused — a numerator w
   ok(r.status === 2 && /denominator/.test(r.stderr + r.stdout), 'refused with the reason, not reported as a clean empty cohort')
 }
 
+console.log('sampled-report: the frame\'s attrition liability is a census with a denominator, not an anecdote')
+{
+  // Live attrition cannot be manufactured without seed-shopping, so the instrument must
+  // state the standing liability instead — and NAME the members that carry it, because
+  // "3 members are over-bound" invites no verification while a name invites `wc -c`.
+  const bigFrame = { frame_id: 'tf', query: 'q', n: 3, authored: 'a choice', members: [
+    { full_name: 'ok/small', description: 'd', readme_size: 100 },
+    { full_name: 'big/huge', description: 'd', readme_size: 999999999 },
+    { full_name: 'mute/nodesc', description: null, readme_size: 50 },
+  ] }
+  writeFileSync(F, JSON.stringify(bigFrame))
+  writeFileSync(L, '')
+  writeFileSync(S, '')
+  const r = run()
+  ok(/attrition liability 1 of 3/.test(r.stdout) && /big\/huge/.test(r.stdout),
+     'the census counts and NAMES the over-bound member against the frame\'s n')
+  ok(/1 carry no description/.test(r.stdout),
+     'and counts the goalless members — the other path a live draw could trip')
+  ok(/exercised by constructed inputs alone/.test(r.stdout),
+     'and says plainly that until a draw hits one, the attrition branches have run only against constructed inputs — the residual printed by the instrument, not buried in an adjudication')
+  writeFileSync(F, JSON.stringify(frame))
+}
+
 console.log('sampled-report: no frame and no data is a cohort that does not exist, said plainly')
 {
   const r = run({ ORACLE_FRAME: join(dir, 'absent.json'), ORACLE_DRAWS: join(dir, 'absent.jsonl'), ORACLE_SAMPLED: join(dir, 'absent2.jsonl') })

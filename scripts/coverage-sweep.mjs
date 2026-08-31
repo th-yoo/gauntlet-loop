@@ -345,6 +345,8 @@ export const PROPERTIES = [
   ['a sampled row without a draw fails the accounting', SR, 'if (!owner) { fail(', 'if (false) { fail('],
   ['the sampled scope prints where the numbers print', SR, "console.log('    Random within an authored frame — never representative of the pairings operators bring.')", "console.log('')"],
   ['attrition reasons are printed, not summarised away', SR, 'for (const a of attr) console.log(`      attrition       ${a.full_name}: ${a.why}`)', 'for (const a of attr) {}'],
+  ['the attrition liability census counts against the bound', SR, 'const liable = (frame.members || []).filter(m => m.readme_size > README_BYTE_BOUND)', 'const liable = []'],
+  ['the census counts goalless members too', SR, "const goalless = (frame.members || []).filter(m => m.description === null || m.description === undefined)", 'const goalless = []'],
   // --- the sweep's check short-circuits, and the flag stays out of the default ---
   ['the fail-fast flag stops run-all at the first red suite', 'test/run-all.mjs', 'if (FAIL_FAST) { console.error(', 'if (false) { console.error('],
   ['the sweep default check short-circuits', CS, "export const DEFAULT_CHECK = ['node', 'test/run-all.mjs'," + " '--fail-fast']", "export const DEFAULT_CHECK = ['node', 'test/run-all.mjs']"],
