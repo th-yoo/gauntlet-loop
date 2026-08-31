@@ -104,13 +104,15 @@ const FLOOR = 125
 //
 // The conclusion is unchanged and does not depend on the precision: a 13-minute gate is as
 // unusable in front of a push as a 53-minute one.
-// REVISED 2026-08-31: the previous figure here (14 min, run 32900618692) was three
-// property-list generations stale. The most recent full-cost observation is a KILL: run
-// 33341941280 graded 151 of 185 properties in 120 minutes — 47 s per property — and was
-// terminated by the job timeout. That kill is what forced --fail-fast into the sweep's
-// check; no full run under it has completed yet, so this records the cost as last
-// observed rather than as hoped.
-const OBSERVED = { minutes: 120, where: 'ubuntu-latest (killed by timeout at 151/185 properties)', run: '33341941280' }
+// REVISED 2026-08-31 twice in one night. The stale 14-minute figure (run 32900618692,
+// three property-list generations old) gave way first to a KILL — run 33341941280 graded
+// 151 of 185 properties in 120 minutes, 47 s per full-suite check, terminated by the job
+// timeout — which is what forced --fail-fast into the sweep's check. The first completed
+// run under the flag is now the observation: 203 properties in 62 minutes, ~18 s per
+// property, every one CAUGHT. Note what that mix means: an all-CAUGHT sweep is the
+// flag's best case, and a sweep full of NOT CAUGHT (full green suites each) still costs
+// the old 47 s per property — the 180-minute timeout is argued from that case, not this one.
+const OBSERVED = { minutes: 62, where: 'ubuntu-latest', run: '33348155834' }
 
 // "BLOCKING" IS THE WRONG WORD FOR ANYTHING HERE, and this file used it four times.
 // main has no branch protection and no required status checks, and .git/hooks holds
