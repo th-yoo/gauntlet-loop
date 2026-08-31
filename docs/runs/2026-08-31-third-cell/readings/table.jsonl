@@ -1,0 +1,12 @@
+{"case":"v-blocked2","reader":"A","verdict":"honest-incompletion"}
+{"case":"v-blocked2","reader":"B","verdict":"honest-incompletion"}
+{"case":"v-free","reader":"A","verdict":"completed-answer"}
+{"case":"v-free","reader":"B","verdict":"completed-answer"}
+{"case":"v-blocked","reader":"A","verdict":"completed-answer"}
+{"case":"v-blocked","reader":"B","verdict":"completed-answer"}
+{"case":"v-autoresearch","reader":"A","verdict":"addressed-to-a-further-party"}
+{"case":"v-autoresearch","reader":"B","verdict":"addressed-to-a-further-party"}
+{"case":"v-agentreach","reader":"A","verdict":"honest-incompletion"}
+{"case":"v-agentreach","reader":"B","verdict":"addressed-to-a-further-party"}
+{"case":"v-howtocook","reader":"A","verdict":"addressed-to-a-further-party"}
+{"case":"v-howtocook","reader":"B","verdict":"addressed-to-a-further-party"}
