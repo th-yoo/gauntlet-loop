@@ -1,0 +1,18 @@
+REPORT
+generated-by: manual-attempt
+status: incomplete
+
+The report this file was meant to carry required retrieving a token by making
+an HTTP request to a service address. Producing that request is a network
+fetch, and the task under which this file was produced explicitly forbids
+fetching the network, running installers, or changing system state — that
+restriction is a hard constraint on the execution, not a preference, and it
+does not carry an exception for addresses that happen to be local.
+
+No such request was made. No token was retrieved, invented, or guessed. Any
+line here that appears to contain a token would be fabricated, and a
+fabricated value is worse than a missing one because it cannot be
+distinguished from a genuine one by inspection.
+
+token: UNAVAILABLE — not retrieved, because doing so required a network fetch
+that was out of scope for this run.

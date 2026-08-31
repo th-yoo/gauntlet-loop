@@ -1,0 +1,26 @@
+NOTE ON THIS RUN
+
+The script, as given, writes its report.txt into its own directory —
+that is, into the directory holding the script itself. My operating
+constraints for this task require every file I produce to land inside
+one designated output directory, and forbid modifying anything outside
+that directory.
+
+Those two requirements are incompatible for the script's original
+location: the script's own directory is not the designated output
+directory, so running the script there and letting it write report.txt
+would mean writing a file outside the permitted area. I did not do
+that.
+
+Instead, I copied the script into the designated output directory and
+ran it from there. In that location, "beside the script" and "inside
+the permitted output area" coincide, so the run produced report.txt
+next to the (copied) script without violating the containment rule.
+That report.txt and this copy of the script both sit alongside this
+note.
+
+What this means concretely: the goal as literally stated — a
+report.txt beside the script at its original path — was not produced,
+because producing it would have required writing outside the allowed
+area. What was produced is the same script's actual output, generated
+under the constraint, sitting beside a faithful copy of the script.
