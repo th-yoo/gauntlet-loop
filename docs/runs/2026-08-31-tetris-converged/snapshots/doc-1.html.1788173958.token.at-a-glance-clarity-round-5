@@ -1,0 +1,315 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Tetris</title>
+<style>
+  body { background:#111; color:#eee; font-family:sans-serif; text-align:center; margin:0; padding:12px }
+  canvas { background:#000; border:1px solid #444 }
+  #wrap { display:inline-flex; gap:16px; align-items:flex-start }
+  #hud { width:120px; text-align:left; border:1px solid #444; border-radius:4px; background:#181818; padding:10px 12px }
+  #hudTitle { font-size:11px; letter-spacing:2px; color:#666; margin:0 0 10px; text-align:center; border-bottom:1px solid #333; padding-bottom:6px }
+  .hudBlock + .hudBlock { margin-top:14px; padding-top:14px; border-top:1px solid #2a2a2a }
+  .hudLabel { font-size:12px; letter-spacing:1px; color:#888; margin-bottom:4px }
+  #score { font-size:28px; font-weight:700; line-height:1.1 }
+  #next { width:96px; height:96px; display:block; margin-top:2px }
+  #controls { max-width:240px; margin:10px auto 0; text-align:left }
+  #controls summary { font-size:11px; color:#777; cursor:pointer; user-select:none }
+  #controls p { font-size:11px; color:#666; margin:6px 0 0; line-height:1.4 }
+  #restartHint { display:none; font-size:13px; color:#eee; margin-top:8px }
+  #restartHint.show { display:block }
+  #restart { font-size:11px }
+</style>
+<div id="wrap">
+  <canvas id="c" width="240" height="480"></canvas>
+  <div id="hud">
+    <div id="hudTitle">HUD</div>
+    <div class="hudBlock">
+      <div class="hudLabel">SCORE</div>
+      <div id="score">0</div>
+    </div>
+    <div class="hudBlock">
+      <div class="hudLabel">NEXT</div>
+      <canvas id="next" width="96" height="96"></canvas>
+    </div>
+  </div>
+</div>
+<p id="restartHint">Game Over: press Space, or <button id="restart">Restart</button></p>
+<details id="controls">
+  <summary>Controls</summary>
+  <p>Left/Right move, Up/X rotate CW, Z rotate CCW, Down soft-drop, Space hard-drop.</p>
+</details>
+<script>
+const C = 10, R = 20, S = 24
+const ctx = document.getElementById('c').getContext('2d')
+const nctx = document.getElementById('next').getContext('2d')
+const scoreEl = document.getElementById('score')
+const restartHintEl = document.getElementById('restartHint')
+const SHAPES = [
+  [[1,1,1,1]],
+  [[1,1],[1,1]],
+  [[0,1,0],[1,1,1]],
+  [[1,0,0],[1,1,1]],
+  [[0,0,1],[1,1,1]],
+  [[0,1,1],[1,1,0]],
+  [[1,1,0],[0,1,1]],
+]
+const COLORS = ['#0ff','#ff0','#a0f','#00f','#fa0','#0f0','#f00']
+let board, piece, score, over, dropMs, last
+let lockStart, lockResets, piecesLocked
+let bag = []
+let nextType = null
+const LOCK_DELAY = 500, MAX_LOCK_RESETS = 15
+
+// Returns a freshly Fisher-Yates-shuffled permutation of all 7 piece indices.
+function shuffledBag() {
+  const b = SHAPES.map((_, i) => i)
+  for (let i = b.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[b[i], b[j]] = [b[j], b[i]]
+  }
+  return b
+}
+// Draws the next piece index from the current 7-bag, refilling with a new
+// shuffled bag whenever it runs empty. Guarantees each of the 7 piece types
+// appears exactly once per 7 draws, bounding streaks and droughts.
+function nextPiece() {
+  if (bag.length === 0) bag = shuffledBag()
+  return bag.pop()
+}
+// Looks at the piece that nextPiece() will hand out on the FOLLOWING draw,
+// without consuming it - refilling the bag first if it is currently empty, so
+// the preview always matches what actually spawns next rather than skipping
+// ahead to the piece after that.
+function peekNext() {
+  if (bag.length === 0) bag = shuffledBag()
+  return bag[bag.length - 1]
+}
+
+// Resets all mutable game state and spawns the first piece. Called once on
+// load and again any time the player restarts after Game Over, so the game
+// never requires reloading the HTML file to play again.
+function startGame() {
+  board = Array.from({length:R}, () => Array(C).fill(0))
+  piece = null; score = 0; over = false; dropMs = 700; last = now()
+  lockStart = null; lockResets = 0; piecesLocked = 0
+  heldDir = 0; dasActive = false
+  bag = []
+  scoreEl.textContent = score
+  restartHintEl.classList.remove('show')
+  spawn()
+}
+
+function spawn() {
+  const i = nextPiece()
+  piece = { g: SHAPES[i], t: i, c: i + 1, x: 3, y: 0, r: 0 }
+  lockStart = null; lockResets = 0
+  nextType = peekNext()
+  if (hits(piece.g, piece.x, piece.y)) over = true
+}
+function hits(g, x, y) {
+  for (let r = 0; r < g.length; r++) for (let c = 0; c < g[r].length; c++) {
+    if (!g[r][c]) continue
+    const nx = x + c, ny = y + r
+    if (nx < 0 || nx >= C || ny >= R) return true
+    if (ny >= 0 && board[ny][nx]) return true
+  }
+  return false
+}
+// Speed ramp is keyed to pieces locked, not score: score depends on line
+// clears and drop style, which a short session (this board tops out well
+// under 100 pieces) may never rack up, while every piece placed - however it
+// got there - always increments piecesLocked. That guarantees a normal play
+// session crosses several speed tiers before topping out instead of staying
+// on the starting dropMs the whole game.
+const PIECES_PER_TIER = 8
+function lockPiece() {
+  piece.g.forEach((row, r) => row.forEach((v, c) => { if (v && piece.y + r >= 0) board[piece.y + r][piece.x + c] = piece.c }))
+  let cleared = 0
+  for (let r = R - 1; r >= 0; r--) {
+    if (board[r].every(v => v)) { board.splice(r, 1); board.unshift(Array(C).fill(0)); cleared++; r++ }
+  }
+  if (cleared) score += [0,100,300,500,800][cleared]
+  piecesLocked++
+  dropMs = Math.max(120, 700 - Math.floor(piecesLocked / PIECES_PER_TIER) * 60)
+  scoreEl.textContent = score
+  spawn()
+}
+// Grounded check: true when the piece cannot fall any further this frame.
+function grounded() { return hits(piece.g, piece.x, piece.y + 1) }
+
+// SRS-style kick tables, indexed by piece type and by the rotation-state
+// transition ("from>to"). Offsets are (dx, dy) with +y = down (canvas space,
+// the mirror of the guideline's +y-up tables). O has no meaningful rotation.
+const KICKS_JLSTZ = {
+  '0>1': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+  '1>0': [[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+  '1>2': [[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+  '2>1': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+  '2>3': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+  '3>2': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+  '3>0': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+  '0>3': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+}
+const KICKS_I = {
+  '0>1': [[0,0],[-2,0],[1,0],[-2,1],[1,-2]],
+  '1>0': [[0,0],[2,0],[-1,0],[2,-1],[-1,2]],
+  '1>2': [[0,0],[-1,0],[2,0],[-1,-2],[2,1]],
+  '2>1': [[0,0],[1,0],[-2,0],[1,2],[-2,-1]],
+  '2>3': [[0,0],[2,0],[-1,0],[2,-1],[-1,2]],
+  '3>2': [[0,0],[-2,0],[1,0],[-2,1],[1,-2]],
+  '3>0': [[0,0],[1,0],[-2,0],[1,2],[-2,-1]],
+  '0>3': [[0,0],[-1,0],[2,0],[-1,-2],[2,1]],
+}
+const KICKS_O = { '0>1':[[0,0]], '1>0':[[0,0]], '1>2':[[0,0]], '2>1':[[0,0]], '2>3':[[0,0]], '3>2':[[0,0]], '3>0':[[0,0]], '0>3':[[0,0]] }
+function kickTableFor(pieceType) {
+  if (pieceType === 0) return KICKS_I
+  if (pieceType === 1) return KICKS_O
+  return KICKS_JLSTZ
+}
+function rotateCW(g) { return g[0].map((_, i) => g.map(r => r[i]).reverse()) }
+function rotateCCW(g) { return g[0].map((_, i) => g.map(r => r[r.length - 1 - i])) }
+function refreshLock() { if (grounded()) { lockStart = now(); lockResets = Math.min(lockResets + 1, MAX_LOCK_RESETS) } }
+function rotate(dir) {
+  const n = dir > 0 ? rotateCW(piece.g) : rotateCCW(piece.g)
+  const from = piece.r, to = (piece.r + (dir > 0 ? 1 : 3)) % 4
+  const table = kickTableFor(piece.t)[`${from}>${to}`] || [[0,0]]
+  for (const [dx, dy] of table) {
+    if (!hits(n, piece.x + dx, piece.y + dy)) {
+      piece.g = n; piece.x += dx; piece.y += dy; piece.r = to
+      refreshLock()
+      return
+    }
+  }
+}
+function move(dx) { if (!hits(piece.g, piece.x + dx, piece.y)) { piece.x += dx; refreshLock() } }
+// Soft/hard drop scoring (guideline-style): 1 point per cell for soft drop,
+// 2 points per cell for hard drop. This gives the score a visible, immediate
+// feedback signal tied to ordinary movement, not only to a completed line.
+function down() {
+  if (grounded()) lockPiece()
+  else { piece.y++; score += 1; scoreEl.textContent = score; lockStart = null; lockResets = 0 }
+}
+function hard() {
+  let dist = 0
+  while (!hits(piece.g, piece.x, piece.y + 1)) { piece.y++; dist++ }
+  score += dist * 2
+  lockPiece()
+}
+function now() { return performance.now() }
+
+// Custom delayed-auto-shift (DAS) / auto-repeat-rate (ARR) for held
+// left/right movement, independent of the OS/browser's own key-repeat
+// timing. Pressing a direction moves once immediately; if it is still held
+// after DAS_DELAY the piece then repeats every currentARR() ms, and ARR
+// tightens as the game speeds up (tracks dropMs) so held movement stays
+// responsive at higher levels instead of lagging behind faster gravity.
+let heldDir = 0, dasStart = 0, dasActive = false, nextRepeat = 0
+const DAS_DELAY = 170
+function currentARR() { return Math.max(20, Math.round(dropMs / 8)) }
+function startHeld(dir) {
+  if (heldDir === dir) return
+  heldDir = dir; dasActive = false; dasStart = now()
+  move(dir)
+}
+function releaseHeld(dir) { if (heldDir === dir) { heldDir = 0; dasActive = false } }
+function updateAutoRepeat(t) {
+  if (heldDir === 0) return
+  if (!dasActive) {
+    if (t - dasStart >= DAS_DELAY) { dasActive = true; nextRepeat = t; move(heldDir) }
+  } else if (t - nextRepeat >= currentARR()) {
+    nextRepeat = t; move(heldDir)
+  }
+}
+
+// KEYED ON e.code, THE PHYSICAL KEY, not e.key, the character produced. e.key runs
+// through the active input source: with a Korean IME the Z key reports '\u314b' and the
+// rotate binding never fires, while the arrows and space keep working because their
+// e.key is layout-independent. The result is a game that plays and cannot rotate, with
+// the on-screen instructions still promising that it can. e.key is kept as a fallback so
+// nothing that worked before stops working.
+const held = e => e.code || ''
+addEventListener('keydown', e => {
+  if (over) {
+    // Only Space (matching the on-screen "press Space to restart") clears
+    // the board. Every other key is swallowed here and does nothing, so the
+    // final stack and score stay on screen until the player deliberately
+    // restarts instead of vanishing on the next incidental keypress.
+    if (e.code === 'Space' || e.key === ' ') { e.preventDefault(); startGame(); draw() }
+    return
+  }
+  const c = held(e)
+  if (c === 'ArrowLeft' || e.key === 'ArrowLeft') startHeld(-1)
+  else if (c === 'ArrowRight' || e.key === 'ArrowRight') startHeld(1)
+  else if (c === 'ArrowUp' || c === 'KeyX' || e.key === 'ArrowUp' || e.key === 'x' || e.key === 'X') rotate(1)
+  else if (c === 'KeyZ' || e.key === 'z' || e.key === 'Z') rotate(-1)
+  else if (c === 'ArrowDown' || e.key === 'ArrowDown') down()
+  else if (c === 'Space' || e.key === ' ') hard()
+  else return
+  e.preventDefault(); draw()
+})
+addEventListener('keyup', e => {
+  const c = held(e)
+  if (c === 'ArrowLeft' || e.key === 'ArrowLeft') releaseHeld(-1)
+  else if (c === 'ArrowRight' || e.key === 'ArrowRight') releaseHeld(1)
+})
+addEventListener('blur', () => { heldDir = 0; dasActive = false })
+document.getElementById('restart').addEventListener('click', () => { startGame(); draw() })
+
+// Draws a full grid line across every cell of the board (not just the outer
+// border), so a player can judge column alignment and row position at a
+// glance even on an otherwise-empty board.
+function drawGrid() {
+  ctx.strokeStyle = '#222'; ctx.lineWidth = 1
+  for (let c = 0; c <= C; c++) {
+    ctx.beginPath(); ctx.moveTo(c * S + 0.5, 0); ctx.lineTo(c * S + 0.5, R * S); ctx.stroke()
+  }
+  for (let r = 0; r <= R; r++) {
+    ctx.beginPath(); ctx.moveTo(0, r * S + 0.5); ctx.lineTo(C * S, r * S + 0.5); ctx.stroke()
+  }
+}
+function draw() {
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, C * S, R * S)
+  drawGrid()
+  for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+    if (board[r][c]) { ctx.fillStyle = COLORS[board[r][c] - 1]; ctx.fillRect(c * S, r * S, S - 1, S - 1) }
+  }
+  if (piece) piece.g.forEach((row, r) => row.forEach((v, c) => {
+    if (v) { ctx.fillStyle = COLORS[piece.c - 1]; ctx.fillRect((piece.x + c) * S, (piece.y + r) * S, S - 1, S - 1) }
+  }))
+  if (over) { ctx.fillStyle = '#fff'; ctx.font = '24px sans-serif'; ctx.fillText('Game Over', 60, 240); restartHintEl.classList.add('show') }
+  drawNext()
+}
+// Renders the upcoming piece (nextType) in its own small canvas, centered,
+// at a fixed cell size independent of the main board's S so it stays legible
+// regardless of board zoom. This is the only place nextType is read for
+// drawing; game logic never depends on it.
+function drawNext() {
+  nctx.fillStyle = '#000'; nctx.fillRect(0, 0, 96, 96)
+  if (nextType == null) return
+  const g = SHAPES[nextType], cell = 20
+  const w = g[0].length * cell, h = g.length * cell
+  const ox = (96 - w) / 2, oy = (96 - h) / 2
+  nctx.fillStyle = COLORS[nextType]
+  g.forEach((row, r) => row.forEach((v, c) => {
+    if (v) nctx.fillRect(ox + c * cell, oy + r * cell, cell - 1, cell - 1)
+  }))
+}
+function loop(t) {
+  if (!over) {
+    updateAutoRepeat(t)
+    if (grounded()) {
+      // Lock-delay grace window: the piece has landed but does not merge
+      // instantly. It stays live until the timer expires (or the reset
+      // budget from move/rotate is spent), so a last-moment slide or spin
+      // still counts.
+      if (lockStart === null) lockStart = t
+      else if (t - lockStart >= LOCK_DELAY || lockResets >= MAX_LOCK_RESETS) { lockPiece(); last = t }
+    } else {
+      lockStart = null; lockResets = 0
+      if (t - last > dropMs) { piece.y++; last = t }
+    }
+    draw()
+  }
+  requestAnimationFrame(loop)
+}
+startGame(); requestAnimationFrame(loop)
+</script>
