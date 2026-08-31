@@ -1,0 +1,10 @@
+{"anchor":"completed-exec","reader":"A","verdict":"completed-answer"}
+{"anchor":"completed-exec","reader":"B","verdict":"completed-answer"}
+{"anchor":"completed-doc","reader":"A","verdict":"completed-answer"}
+{"anchor":"completed-doc","reader":"B","verdict":"completed-answer"}
+{"anchor":"addressed-exec","reader":"A","verdict":"addressed-to-a-further-party"}
+{"anchor":"addressed-exec","reader":"B","verdict":"addressed-to-a-further-party"}
+{"anchor":"addressed-doc","reader":"A","verdict":"addressed-to-a-further-party"}
+{"anchor":"addressed-doc","reader":"B","verdict":"addressed-to-a-further-party"}
+{"anchor":"honest-incompletion","reader":"A","verdict":"honest-incompletion"}
+{"anchor":"honest-incompletion","reader":"B","verdict":"honest-incompletion"}
