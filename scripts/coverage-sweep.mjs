@@ -66,6 +66,8 @@ export const PROPERTIES = [
   ['a not-wowed WIN builds on the shortfall, not on the loser-facing gap', L, 'const buildOn = candidateWon ? shortfallLive : primary.gap', 'const buildOn = primary.gap'],
   ['a not-wowed win with no shortfall skips the build rather than falling back', L, '  if (candidateWon && !shortfallUsable) {', '  if (false) {'],
   ['a zero-build WIN says which of its two causes it was', L, "    ? (history.some(h => h.build_skipped)", '    ? (false'],
+  ['the round records whether it cleared the bar, not just who won', L, '    wowed,\n    shortfall: primary.shortfall,', ''],
+  ['the exit-bar note does not overclaim scope either', L, "${PIECES_EDIT_THE_WHOLE ? ' comparing the whole candidate against the whole reference' : ' comparing the pair of files its piece named — see scope_note'}", ' comparing the whole candidate against the whole reference'],
   ['the piece critic judges the artifacts as WHOLES, not as its slice', L, 'BUT THE WINNER YOU PICK IS ABOUT THE WHOLE ARTIFACTS.', ''],
   ['the exit bar requires one wowed sub-agent PER PIECE', L, '    wowed_required: PIECES.length,', '    wowed_required: 1,'],
   ['the exit bar does not claim whole-artifact scope it did not have', L, "    scope: PIECES_EDIT_THE_WHOLE ? 'whole-artifact' : 'per-piece paths',", "    scope: 'whole-artifact',"],

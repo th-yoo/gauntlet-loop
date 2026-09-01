@@ -326,6 +326,39 @@ const TWO = { decomposes: true, split_criterion: 'each subsystem renders alone',
   console.log('exit-bar: winning immediately is still reported as winning immediately OK')
 }
 
+// The round record carries the two fields that now decide it. `wowed` is not recoverable
+// from `candidateWon`, and `shortfall` is what the builder was handed — a reader auditing
+// which text went to the builder cannot check it against a field the record omits.
+{
+  let rounds = 0
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: () => { rounds++; return rounds <= 2 },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i', margin: 'narrow', shortfall: 'the recorded shortfall' }),
+  })
+  const h = r.result.history[0]
+  eq(h.candidateWon, true, 'the candidate won the round')
+  eq(h.wowed, false, 'and the record says it did not clear the bar — a fact candidateWon cannot carry')
+  eq(h.shortfall, 'the recorded shortfall', 'and the shortfall the builder was given is on the round')
+  console.log('exit-bar: the round records wowed and shortfall, the fields that now decide it OK')
+}
+
+// The exit_bar note must not claim whole-artifact scope on a run that had none. Same
+// overclaim as `scope`, one field over — the twin the repo's own rule says to look for.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: { decomposes: true, split_criterion: 'c', pieces: [
+      { name: 'render', observable: 'open the frame', candidate: '/tmp/x/render.js', reference: '/tmp/x/ref-render.js' },
+      { name: 'audio', observable: 'play it', candidate: '/tmp/x/audio.js', reference: '/tmp/x/ref-audio.js' }] },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i', margin: 'decisive' }),
+  })
+  ok(!/whole candidate against the whole reference/.test(r.result.exit_bar.note),
+     `the note does not claim whole-artifact comparisons a per-piece-paths run never made — got: ${r.result.exit_bar.note}`)
+  ok(/scope_note/.test(r.result.exit_bar.note), 'and points the reader at the field that explains it')
+  console.log('exit-bar: the note does not overclaim scope the run did not have OK')
+}
+
 // ---------------------------------------------------------------------------
 // THE RETRACTION. loop.js asserted, in a comment and in a pinned disclosure, that a
 // whole-artifact round is "NOT SOURCE FIDELITY" because "the source stops when every

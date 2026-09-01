@@ -1697,6 +1697,13 @@ async function runPiece(piece) {
     winner: primary.winner,
     candidateWon,
     margin: primary.margin,
+    // RECORDED BECAUSE THEY NOW DECIDE. `wowed` is what the exit turns on and it is not
+    // recoverable from `candidateWon` alone; `shortfall` is what the builder was given on
+    // a round the candidate won, and a reader auditing `buildOn` cannot check it against
+    // a field the record does not carry. `margin` was made required for the same reason
+    // one version of this loop ago.
+    wowed,
+    shortfall: primary.shortfall,
     why: primary.why,
     gap: primary.gap,
     inspected: primary.inspected,
@@ -2638,7 +2645,7 @@ return {
     }).length,
     // Said on every branch, winning or not: this number counts sub-agents that were
     // wowed, not sub-agents that were right. Nothing here calibrates a critic.
-    note: 'Counts judgements, not correctness. Each is one blind whole-artifact A/B by a separately spawned critic; nothing in this run establishes that any of them could have failed.',
+    note: `Counts judgements, not correctness. Each is one blind A/B by a separately spawned critic${PIECES_EDIT_THE_WHOLE ? ' comparing the whole candidate against the whole reference' : ' comparing the pair of files its piece named — see scope_note'}; nothing in this run establishes that any of them could have failed.`,
   },
 
   split_check,
