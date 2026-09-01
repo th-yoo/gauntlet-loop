@@ -237,6 +237,30 @@ if (wf) {
 }
 
 // ---------------------------------------------------------------------------
+// THE README'S PROPERTY COUNT IS RECOMPUTED, not read back.
+//
+// It was written by hand in two places and nothing checked it. It said 211 while
+// PROPERTIES held 221 — a fact stored beside the artifact it is derivable from, which is
+// the shape this repo treats as a defect wherever it finds one: something must recompute
+// it and FAIL on disagreement, or the number decays every time a needle is added and the
+// only reader who notices is one who counts by hand.
+//
+// EVERY occurrence is checked, not the first. A check that verified one line would go
+// green on a file whose other mention still said 211 — and there were exactly two.
+// ---------------------------------------------------------------------------
+console.log('coverage-cadence: the README\'s property count is derived, not asserted')
+{
+  const readme = readFileSync(join(ROOT, 'README.md'), 'utf8')
+  const claimed = [...readme.matchAll(/\*\*(\d+) properties/g)].map(m => Number(m[1]))
+  ok(claimed.length > 0, 'README states the sweep\'s property count somewhere — if this fails the claim moved and this check went blind')
+  for (const n of claimed) {
+    ok(n === PROPERTY_COUNT,
+       `README says ${n} properties and scripts/coverage-sweep.mjs holds ${PROPERTY_COUNT} — the count is derivable, so a stored copy that disagrees is stale, not a second opinion`)
+  }
+  console.log(`          ${claimed.length} stated count(s), all ${PROPERTY_COUNT}`)
+}
+
+// ---------------------------------------------------------------------------
 // THE RESIDUAL, on the branch that carries the verdict.
 // ---------------------------------------------------------------------------
 
