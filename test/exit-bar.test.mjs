@@ -359,6 +359,51 @@ const TWO = { decomposes: true, split_criterion: 'each subsystem renders alone',
   console.log('exit-bar: the note does not overclaim scope the run did not have OK')
 }
 
+// THE LINE IS ONLY PAID FOR WHILE THE ROUND CAN STILL END. The escalation guard stopped
+// at a first-critic dissent, because a lost round is lost whatever the rest say. The bar
+// created a second settled case — a candidate win the first critic calls narrow cannot be
+// wowed by anything that follows — and the guard did not know about it, so a k=4 run
+// bought three verdicts per narrow round that could not change the outcome. It also made
+// commands/loop.md's cost promise false: "only a round that could end costs two".
+{
+  const spawned = margin => runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 4 },
+    // Stops after round 1: the token reads present for round 1 and absent for round 2, so
+    // exactly one round's critic line is spawned and counted. A never-tripping breaker
+    // here ran to the harness runaway guard instead, which throws and counts nothing.
+    breaker: round => round <= 1,
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i', margin, shortfall: 's' }),
+  }).then(r => r.labels.filter(l => /^round-1:ab/.test(l)).length)
+
+  // A narrow first verdict settles the round: one critic, not four.
+  eq(await spawned('narrow'), 1,
+     'a round that can no longer clear the bar stops after the first critic')
+  // The control. Without it this passes against a loop that never escalates at all, which
+  // would silently reduce every k>1 run to k=1 — the failure this check must not permit.
+  eq(await spawned('decisive'), 4,
+     'a round that can still end pays for the whole line — the guard narrowed, it did not close')
+  console.log('exit-bar: the critic line is paid for only while the round can still end OK')
+}
+
+// The allow-list must stay a SUBSET of the schema's enum. Two literals that must agree,
+// recomputed here rather than asserted in a comment beside them — a comment claiming two
+// literals agree is the shape this repo keeps finding to be false.
+{
+  const enumMatch = LOOP.match(/margin: \{ type: 'string', enum: \[([^\]]+)\]/)
+  ok(enumMatch, 'the margin enum is still findable in AB_SCHEMA — if this fails the check went blind, not green')
+  const enumVals = enumMatch[1].split(',').map(x => x.trim().replace(/^'|'$/g, ''))
+  const allowMatch = LOOP.match(/const WOWED_MARGINS = new Set\(\[([^\]]+)\]\)/)
+  ok(allowMatch, 'the wowed allow-list is still findable')
+  const allowVals = allowMatch[1].split(',').map(x => x.trim().replace(/^'|'$/g, ''))
+  for (const v of allowVals) {
+    ok(enumVals.includes(v),
+       `WOWED_MARGINS contains ${JSON.stringify(v)}, which the margin enum does not offer — the bar would be unreachable through that value`)
+  }
+  ok(allowVals.length < enumVals.length,
+     'at least one enum value does NOT clear the bar — an allow-list containing the whole enum is a gate that cannot fail')
+  console.log(`exit-bar: the allow-list (${allowVals.join(', ')}) is a proper subset of the enum (${enumVals.join(', ')}) OK`)
+}
+
 // ---------------------------------------------------------------------------
 // THE RETRACTION. loop.js asserted, in a comment and in a pinned disclosure, that a
 // whole-artifact round is "NOT SOURCE FIDELITY" because "the source stops when every

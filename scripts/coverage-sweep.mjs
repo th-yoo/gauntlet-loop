@@ -184,7 +184,12 @@ export const PROPERTIES = [
   ['a piece cannot depend on itself', L, 'const ok = byName.has(d) && d !== piece.name', 'const ok = byName.has(d)'],
   ['a dependency that did not WIN releases nothing', L, "if (!r || r.status !== 'WON') {", 'if (false) {'],
   ['coupled pieces never overlap on one path', L, '    const prior = pathLock.get(key) || Promise.resolve()', '    const prior = Promise.resolve()'],
-  ['the escalation line is only bought on a winning round', L, 'if (firstVerdict && firstVerdict.candidateWon && K > 1) {', 'if (firstVerdict && K > 1) {'],
+  // REPOINTED when the exit bar rose: the guard now also stops on a win the first critic
+  // will not call better than narrow, so the condition moved into `firstCanStillEnd`.
+  // Both halves are pinned, because dropping either one buys critics that cannot change
+  // the round — the dissent half is the original property, the margin half is the new one.
+  ['the escalation line is only bought on a winning round', L, 'const firstCanStillEnd = firstVerdict && firstVerdict.candidateWon && WOWED_MARGINS.has(firstVerdict.margin)', 'const firstCanStillEnd = firstVerdict && WOWED_MARGINS.has(firstVerdict.margin)'],
+  ['the escalation line is not bought once the bar is already missed', L, 'const firstCanStillEnd = firstVerdict && firstVerdict.candidateWon && WOWED_MARGINS.has(firstVerdict.margin)', 'const firstCanStillEnd = firstVerdict && firstVerdict.candidateWon'],
   ['the exit requires every critic, not most', L, 'const candidateWon = dissenters.length === 0', 'const candidateWon = dissenters.length < positions.length'],
 
 

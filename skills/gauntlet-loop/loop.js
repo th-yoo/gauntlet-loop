@@ -616,6 +616,17 @@ command cannot be run, return -1 — a size that cannot be measured is not a siz
   }
 }
 
+// The margins that clear the exit bar, as an ALLOW-LIST. Module scope because two places
+// need it and they are on opposite sides of the critic line: the escalation guard, which
+// stops paying for critics once the round can no longer end, and the round verdict. A
+// second copy in one of them is the shape that let `defect_class` be stored twice and
+// recomputed nowhere, so there is one.
+//
+// It must stay a SUBSET of AB_SCHEMA's `margin` enum below, and the check that says so
+// lives in the suite rather than here — a comment asserting agreement between two
+// literals is the thing this repo keeps finding to be false.
+const WOWED_MARGINS = new Set(['decisive', 'clear'])
+
 const AB_SCHEMA = {
   type: 'object',
   required: ['winner', 'why', 'gap', 'inspected', 'margin', 'shortfall'],
@@ -1592,7 +1603,25 @@ async function runPiece(piece) {
   const firstVerdict = await spawnCritic(0)
   if (firstVerdict) positions.push(firstVerdict)
 
-  if (firstVerdict && firstVerdict.candidateWon && K > 1) {
+  // THE LINE IS ONLY PAID FOR WHILE THE ROUND CAN STILL END. This guard has always
+  // stopped at a first-critic dissent, because a lost round is lost whatever the other
+  // K-1 say. Raising the exit bar created a SECOND way for the round to be settled by the
+  // first verdict — a candidate win the first critic will not call better than narrow
+  // cannot be wowed no matter what follows — and the guard did not know about it, so a
+  // k=4 run paid three extra critics on every narrow round for verdicts that could not
+  // change the outcome.
+  //
+  // That also made an operator-facing promise false. commands/loop.md tells whoever
+  // chooses k that "a losing round still costs one critic; only a round that could end
+  // costs two", and a narrow round could no longer end while still costing the full line.
+  // Fixing the code rather than the sentence, because the sentence is the better property.
+  //
+  // The cost is measurement, and it is the cost this guard already accepts: a short line
+  // records fewer positions for the split ledger. Stopping on dissent has always made that
+  // trade, so this is the existing decision applied to the case that now behaves the same
+  // way, not a new one.
+  const firstCanStillEnd = firstVerdict && firstVerdict.candidateWon && WOWED_MARGINS.has(firstVerdict.margin)
+  if (firstCanStillEnd && K > 1) {
     const rest = await parallel(
       Array.from({ length: K - 1 }, (_, n) => () => spawnCritic(n + 1))
     )
@@ -1652,7 +1681,6 @@ async function runPiece(piece) {
   // already: two live runs won with the separation unstated while `margin` was optional,
   // which is why the schema requires it. A field that now GATES must be read as an
   // allow-list, so an unreadable answer costs a round instead of ending the run.
-  const WOWED_MARGINS = new Set(['decisive', 'clear'])
   const notWowed = positions.filter(p => !WOWED_MARGINS.has(p.margin))
   const wowed = candidateWon && notWowed.length === 0
   // Reported separately because they are different events and the log says which. A judge

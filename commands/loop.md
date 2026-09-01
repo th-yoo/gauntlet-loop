@@ -222,8 +222,9 @@ decide yourself if they do not, and say which you chose and why in the same turn
   pieces, because each piece's judge is comparing whole against whole. Choose it
   when the run is cheap or exploratory.
 - **2** — the cheapest non-vacuous standard, and the natural default for real
-  work. A losing round still costs one critic; only a round that could end
-  costs two.
+  work. A round that cannot end still costs one critic — whether the first judge
+  picked the reference or picked the candidate without clearing the bar — and
+  only a round that could still end pays for the rest of the line.
 - **4** — for an artifact you would be embarrassed to ship on a single
   favourable verdict. Even numbers split positions evenly across the line.
 - **More than 4** — only with a reason you can state. Unanimity over a long
