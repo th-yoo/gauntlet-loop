@@ -10,7 +10,9 @@
 // REFUSED before anything is pressed, never skipped. Default a short
 // left/right/rotate/drop run. No npm dependencies: Node 22 has fetch and WebSocket built in. PLAY_WARMUP
 // overrides the keys pressed before the measured sequence (default Enter,Space; empty
-// disables); PLAY_CHROME names the browser binary (default google-chrome).
+// disables); PLAY_CHROME names the browser binary (default google-chrome); PLAY_WINDOW
+// sets the capture window as WIDTHxHEIGHT (default 520x760, unchanged from every run on
+// record — a malformed value REFUSES rather than falling back to it).
 //
 // WHY IT LIVES HERE — issue 66. It began as a scratch file beside the Tetris run's
 // artifacts, and every defect in it was found by reading its output during a live run,

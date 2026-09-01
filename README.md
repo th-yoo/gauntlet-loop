@@ -89,6 +89,11 @@ the same method.
     the current version, diffed to the working tree. The plugin cache is version-pinned,
     so an agent swap without a bump reaches no install — 2548f55 did exactly that and every
     installed copy died at the first spawn for six commits (#68).
+  - `scripts/side-by-side.mjs` — renders two artifacts through that same probe, at the same
+    window and with the same key sequence, into ONE image. It exists for decision 0008's
+    crossing and is NOT wired into the loop: the loop fixes the viewport and leaves keys,
+    strategies and inspection depth to each critic, and this is the apparatus for asking
+    whether holding those constant moves a verdict. Running it is not evidence that it does.
   - `scripts/play.mjs` — the headless probe a critic uses to look at a RUNNING page rather
     than its source: serves the artifact over http, presses a warm-up and then the keys,
     and reports the screenshot, the page's title, whether the warm-up changed the screen,
