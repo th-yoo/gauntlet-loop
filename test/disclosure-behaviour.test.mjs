@@ -33,15 +33,24 @@ const ARGS = { goal: 'g', candidate: '/x/a.md', reference: '/x/b.md', token: '/t
 const win = (margin = 'clear') => ({ candidateWins: true, gap: 'g', margin })
 const lose = (margin = 'clear') => ({ candidateWins: false, gap: 'still short', margin })
 
-console.log('disclosure-behaviour: A NARROW WIN STILL EXITS')
+console.log('disclosure-behaviour: A NARROW WIN NO LONGER EXITS')
 {
-  // The disclosure says the margin does not gate the exit. Both rounds narrow.
-  const r = (await runLoop({ args: ARGS, rounds: [win('narrow'), win('narrow')] })).result
-  ok(r.outcome && r.outcome.status === 'WON',
-     `A NARROW WIN STILL EXITS — two narrow wins produced status ${r.outcome && r.outcome.status}, so the margin gated the exit and the disclosure is false`)
+  // The disclosure used to say the margin does not gate the exit, and this block drove
+  // exactly that: two narrow wins had to reach WON or the disclosure was false. Decision
+  // 0007 raised the bar to the source's ("utterly wowed"), so the disclosure and this
+  // block both invert. Bounded, because the fixture is narrow forever and no longer
+  // terminates on its own — which is the source's design, not a defect.
+  const r = (await runLoop({ args: ARGS, rounds: [win('narrow'), win('narrow')], breaker: round => round <= 3 })).result
+  ok(r.outcome && r.outcome.status !== 'WON',
+     `A NARROW WIN NO LONGER EXITS — two narrow wins produced status ${r.outcome && r.outcome.status}, so the margin did not gate and the disclosure is false`)
   const margins = (r.history || []).map(h => h.margin)
   ok(margins.every(m => m === 'narrow'), `both rounds were narrow — got ${margins.join(', ')}`)
-  console.log(`          two narrow wins => ${r.outcome && r.outcome.status}`)
+  // THE CONTROL. Without it this block passes against a loop that stopped exiting for
+  // any reason at all — a pass condition the broken thing satisfies measures nothing.
+  const c = (await runLoop({ args: ARGS, rounds: [win('decisive'), win('decisive')] })).result
+  ok(c.outcome && c.outcome.status === 'WON',
+     `the bar rose rather than closing — two decisive wins still exit, got ${c.outcome && c.outcome.status}`)
+  console.log(`          two narrow wins => ${r.outcome && r.outcome.status}; two decisive => ${c.outcome && c.outcome.status}`)
 }
 
 console.log('disclosure-behaviour: A RUN CANCELLED WHILE ARMED STOPPED WITH ONE UNCONFIRMED WIN, WHICH IS NOT A WIN')

@@ -1,0 +1,223 @@
+// The exit bar is the source's, not ours — decision 0007's three deltas, as checks.
+//
+//   node test/exit-bar.test.mjs
+//
+// The operator's standing objection to this repo is one sentence: "our k is too small."
+// Every prior session translated it into critics-per-piece or fan-out width — numbers the
+// primary source does not contain — and left the number it DOES contain at 1.
+//
+// The source (mshumer/Claude-of-Duty/prompt.md, 941 bytes, quoted in references.md) puts
+// its count at a scope we ran once:
+//
+//   3/4: "You should /loop on each item and have a separate sub-agent check it visually
+//         ... and if it doesn't look triple A, it should keep going."
+//   5/6: "Don't stop until EACH sub-agent is utterly wowed with the quality when compared
+//         with the actual Call of Duty game. It should literally compare THEM side by side
+//         blind and say which one looks better."
+//
+// "That separate sub-agent" of 3 and "each sub-agent" of 5 are the same agent. So the
+// per-item critic's exit test is a WHOLE-ARTIFACT blind A/B, and every one of the N item
+// critics must be wowed before anything stops. k = N falls out of the structure; it is
+// not a setting. Three deltas follow, and this file is one block per delta.
+//
+// WHY THESE CAN FAIL: each block below failed against loop.js as it stood at eeb129b,
+// which is the commit that recorded the decision and changed no code. They were written
+// first and watched red — the repo's rule is that reasoning about a fix before the
+// reproducible exists produces claims the artifact then refutes.
+//
+// NOTHING HERE SPAWNS. The harness answers every agent call.
+
+import { runLoop, ok, eq } from './harness.mjs'
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
+import { dirname, join } from 'node:path'
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
+const LOOP = readFileSync(join(ROOT, 'skills', 'gauntlet-loop', 'loop.js'), 'utf8')
+
+const CANDIDATE = '/tmp/x/mybuild.html'
+const REFERENCE = '/tmp/x/theoriginal.html'
+const TOKEN = '/tmp/x/run.token'
+const GOAL = 'a goal worth looping over'
+const TWO = { decomposes: true, split_criterion: 'each subsystem renders alone', pieces: [
+  { name: 'render', observable: 'open the frame' },
+  { name: 'audio', observable: 'play it' }] }
+
+// ---------------------------------------------------------------------------
+// DELTA B — the per-piece critic judges the WHOLE artifact.
+//
+// Was: "JUDGE ONLY THIS PART: <piece>. Differences outside this part are not yours to
+// weigh — another critic owns them." That is the exact opposite of sentence 5, and it is
+// what made our whole-artifact judgement count 1 instead of N.
+// ---------------------------------------------------------------------------
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: TWO,
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i', margin: 'decisive' }),
+  })
+  // `:ab`, not any `render-round-1:` prompt — that piece also spawns `:breaker` and
+  // `:size`, and the first draft of this test grabbed `:size` and passed four assertions
+  // against a prompt that never contained the scope line in the first place.
+  const p = r.prompts.find(x => x.label === 'render-round-1:ab')
+  ok(p, 'a piece critic was spawned at all')
+  ok(!/JUDGE ONLY THIS PART/.test(p.prompt),
+     'the piece critic is no longer told to judge only its part — that instruction forbids the comparison sentence 5 requires')
+  ok(!/not yours to weigh/.test(p.prompt),
+     'and is no longer told that differences outside its part belong to another critic')
+  // PINNED AS A SENTENCE, not as the word "whole". The first version asserted
+  // /WHOLE/ && /whole/i, and the coverage sweep reported the property NOT CAUGHT:
+  // deleting the sentence that assigns the winner's scope leaves "Compare them side by
+  // side, WHOLE against whole" standing one line later, so the loose match survived the
+  // mutation that removes the instruction. The claim under test is specifically that the
+  // WINNER is whole-scoped — the critic's gap may still be about its item — so that is
+  // the clause to hold.
+  ok(/THE WINNER YOU PICK IS ABOUT THE WHOLE ARTIFACTS/.test(p.prompt),
+     'the critic is told the WINNER it picks is about the whole artifacts, not about its item')
+  // \s+ across the phrase: the prompt is hard-wrapped, so this clause carries a newline
+  // inside it. A literal-space regex here went red against a prompt that says exactly this.
+  ok(/not the\s+limit of what you weigh/.test(p.prompt),
+     'and that its item bounds where it looks, not what it may weigh')
+  // Sentence 3 survives: the item is still where this critic looks for its gap. Dropping
+  // it entirely would make the N critics N copies of one judge with no division of
+  // attention at all, which is not what the source says either.
+  ok(/render/.test(p.prompt) && /open the frame/.test(p.prompt),
+     'the piece is still named as where this critic looks first — sentence 3 is not discarded, only sentence 5 is added')
+  console.log('exit-bar: the piece critic judges the whole artifact and looks at its own item OK')
+}
+
+// ---------------------------------------------------------------------------
+// DELTA B, the count. N pieces => N whole-artifact judgements at the exit, and the
+// verdict says so with a number an operator can read against the source's "each".
+// ---------------------------------------------------------------------------
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: TWO,
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i', margin: 'decisive' }),
+  })
+  eq(r.result.outcome.status, 'WON', 'two pieces, both critics wowed on the whole artifact — the run wins')
+  ok(r.result.exit_bar, 'the verdict carries an exit_bar block')
+  eq(r.result.exit_bar.wowed_required, 2,
+     'the number of whole-artifact judgements required is the number of pieces — this is the source\'s "each sub-agent", and the operator\'s "k"')
+  eq(r.result.exit_bar.wowed, 2, 'and every one of them came back wowed')
+  eq(r.result.exit_bar.scope, 'whole-artifact',
+     'the scope those judgements were made at is named, because that is the thing that was wrong')
+  console.log('exit-bar: k at the exit is the piece count, reported as a number OK')
+}
+
+// ---------------------------------------------------------------------------
+// DELTA C — "utterly wowed", not "preferred at all". A narrow win does not exit.
+//
+// This reverses an evidence-based choice and decision 0007 says why it does not block:
+// the source's own operator stopped a run that never reached the bar, and removing the
+// run token is that off-switch here. So the cost of an unreliable margin field is rounds,
+// not a wrong verdict.
+// ---------------------------------------------------------------------------
+{
+  let rounds = 0
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: TWO,
+    // The breaker stops the run after a few rounds, standing in for the operator who
+    // removes the token. Without it a bar that is never met would loop forever, which is
+    // the source's design and not something a test should sit through.
+    breaker: () => { rounds++; return rounds <= 8 },
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i', margin: 'narrow' }),
+  })
+  ok(r.result.outcome.status !== 'WON',
+     `every critic preferred the candidate NARROWLY and the run did not exit — got ${r.result.outcome.status}`)
+  ok(r.result.exit_bar && r.result.exit_bar.wowed < r.result.exit_bar.wowed_required,
+     'the verdict says how far short of the bar it stopped, rather than only that it stopped')
+  console.log('exit-bar: a narrow win no longer exits OK')
+}
+
+// A decisive win does exit — the control that keeps the block above from passing because
+// the loop stopped exiting for everything.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: TWO,
+    critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i', margin: 'decisive' }),
+  })
+  eq(r.result.outcome.status, 'WON', 'a decisive win still exits — the bar rose, it did not close')
+  console.log('exit-bar: the bar rose rather than closing OK')
+}
+
+// ---------------------------------------------------------------------------
+// DELTA A — not wowed sends the run back to building, rather than relabelling a run
+// that already ended. Sentence 4: "if it doesn't look triple A, it should keep going."
+// ---------------------------------------------------------------------------
+{
+  // Narrow until round 4, decisive after. If the bar is a gate, the run keeps building
+  // through the narrow rounds and then wins. If it were a postmortem, it would have
+  // exited at the first narrow win and never seen round 4.
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    lead: TWO,
+    critic: (round, s) => ({
+      winner: s.candidateSide, why: 'w', gap: `gap-${round}`, inspected: 'i',
+      margin: round < 4 ? 'narrow' : 'decisive',
+    }),
+  })
+  eq(r.result.outcome.status, 'WON', 'the run kept going through the narrow rounds and won when the critics were wowed')
+  // PER PIECE, not the total. The first draft asserted `history.length >= 4`, which two
+  // pieces satisfy with two rounds each — the arm-and-confirm pair every winning piece
+  // already runs. It passed against the unfixed loop. A pass condition the broken thing
+  // meets measures nothing, so the count that matters is how far ONE piece got: under the
+  // old postmortem it armed at 1 and confirmed at 2 and never saw a decisive round.
+  const renderRounds = r.result.history.filter(h => h.piece === 'render').length
+  ok(renderRounds >= 4,
+     `the "render" piece itself ran past the round where a narrow win used to exit — got ${renderRounds} round(s)`)
+  ok(r.result.history.some(h => h.piece === 'render' && h.built),
+     'and at least one of those rounds actually built, which is what "keep going" means')
+  console.log('exit-bar: falling short of the bar sends the run back to building OK')
+}
+
+// ---------------------------------------------------------------------------
+// THE RETRACTION. loop.js asserted, in a comment and in a pinned disclosure, that a
+// whole-artifact round is "NOT SOURCE FIDELITY" because "the source stops when every
+// sub-agent is wowed, which is what the piece verdicts already are." Piece verdicts were
+// produced under an instruction forbidding exactly that comparison. The claim was false
+// and it is the reason the defect survived five runs of accurate disclosure.
+//
+// Checked against the file rather than the verdict: a disclosure the loop no longer emits
+// can still sit in the source as a comment teaching the next reader the wrong thing.
+//
+// PRESENCE, NOT ABSENCE, and the repo has been here before. The first draft of this block
+// asserted the old sentences were GONE from loop.js. It went red against the fixed file,
+// because an honest retraction quotes what it retracts — the same trap `CONTRACT_STATED`
+// hit when a rule forbidding an old phrase tripped on the comments that quote it to
+// explain the defect, and the same one the sweep needles concatenate their find strings to
+// dodge. Absence of a string is the wrong question here. What matters is whether the loop
+// still ACTS on the claim, and that is settled behaviourally in the first block above,
+// where the emitted prompt is read. What is left for this block is that the file tells the
+// next reader the truth.
+// ---------------------------------------------------------------------------
+{
+  ok(/RETRACTED, decision 0007/.test(LOOP),
+     'loop.js marks the retraction where the false claim was made, rather than quietly deleting it')
+  ok(/each sub-agent is utterly wowed/.test(LOOP),
+     'and quotes the source sentence that decides it, so the next reader can check it against references.md')
+  // The claim only counts as retracted if the retraction sits with it. A file that says
+  // "RETRACTED" somewhere and repeats the false equation somewhere else has not retracted
+  // anything, and this is the assertion that would notice.
+  const i = LOOP.indexOf('which is what the piece verdicts already are')
+  ok(i === -1 || /RETRACTED, decision 0007/.test(LOOP.slice(Math.max(0, i - 900), i)),
+     'every surviving instance of the false equation is inside the retraction that corrects it, not standing as the file\'s own claim')
+  console.log('exit-bar: the retracted claim is marked as retracted, not left standing OK')
+}
+
+// ---------------------------------------------------------------------------
+// WHAT THIS FILE DOES NOT ESTABLISH. Stated on the passing branch, because a residual
+// printed only on failure is printed exactly when nobody is relying on the verdict.
+// ---------------------------------------------------------------------------
+console.log('exit-bar: stating what this cannot establish')
+console.log('          NOT CHECKED: that the source\'s structure produces a BETTER artifact. These')
+console.log('          checks establish that the loop now exits where the source exits, and not that')
+console.log('          exiting there is right. The margin field they now gate on was measured')
+console.log('          unreliable (4 of 5 spawns reported `clear` on both sides of a 3-2 split);')
+console.log('          decision 0007 accepts that cost as rounds rather than correctness, because')
+console.log('          the source\'s own bar is not required to be reachable and the operator\'s')
+console.log('          token removal is the off-switch. Whether N whole-artifact judgements buy')
+console.log('          coverage or only variance is UNMEASURED — 0007 names the run that would say.')

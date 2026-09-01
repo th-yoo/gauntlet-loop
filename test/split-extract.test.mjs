@@ -24,6 +24,16 @@
 // A hand-built history is a structure I invented agreeing with a reader I wrote;
 // what must be parsed is the shape loop.js actually emits.
 //
+// THE CONFIRMING ROUND IS NEVER `margin: 'narrow'` HERE, and that changed under decision
+// 0007. The bar is now the source's — a round no critic is wowed by builds instead of
+// arming — so a fixture whose confirming round was narrow no longer confirms, and three
+// blocks below ran to the harness runaway guard at round 51. Their subject is trial
+// extraction, not the exit bar: the margins were decoration showing the field is recorded
+// on both kinds of round, and they are now `clear` on the rounds that must confirm. The
+// LOSING rounds keep their narrow margins, because a margin on a round the candidate lost
+// gates nothing and never did. The exit bar itself has cases on both sides in
+// test/exit-bar.test.mjs; nothing here is asserting anything about it.
+//
 // NOTHING HERE SPAWNS.
 
 import { extractTrials, estimate, impliedN, wilson, trialKey, discordance, errorFromDiscordance } from '../scripts/split-extract.mjs'
@@ -48,7 +58,7 @@ const run = async (rounds, extra = {}) =>
 console.log('split-extract: an armed-then-confirmed run yields one paired trial')
 {
   const v = await run([{ candidateWins: true, gap: 'g', margin: 'clear' },
-                       { candidateWins: true, gap: 'g', margin: 'narrow' }])
+                       { candidateWins: true, gap: 'g', margin: 'clear' }])
   const t = extractTrials(v, 'run-1')
   eq(t.length, 1, 'exactly one trial from an arm/confirm pair')
   eq(t[0].kind, 'arm-confirm', 'and it is the paired kind')
@@ -144,7 +154,7 @@ console.log('split-extract: a decomposed run pairs each piece with ITSELF')
 console.log('split-extract: re-ingesting a run cannot inflate the denominator')
 {
   const v = await run([{ candidateWins: true, gap: 'g', margin: 'clear' },
-                       { candidateWins: true, gap: 'g', margin: 'narrow' }])
+                       { candidateWins: true, gap: 'g', margin: 'clear' }])
   const a = extractTrials(v, 'run-5'), b = extractTrials(v, 'run-5')
   const keys = new Set([...a, ...b].map(trialKey))
   eq(keys.size, a.length, 'the same run ingested twice yields the same units, not twice as many')
@@ -292,7 +302,7 @@ console.log('split-ledger: accumulation across runs, deduped by unit')
   const vAgree = join(tmp, 'agree.json')
   const vDisagree = join(tmp, 'disagree.json')
   writeFileSync(vAgree, JSON.stringify(await run([{ candidateWins: true, gap: 'g', margin: 'clear' },
-                                                   { candidateWins: true, gap: 'g', margin: 'narrow' }])))
+                                                   { candidateWins: true, gap: 'g', margin: 'clear' }])))
   writeFileSync(vDisagree, JSON.stringify(await run([{ candidateWins: true, gap: 'g', margin: 'clear' },
                                                       { candidateWins: false, gap: 's', margin: 'narrow' },
                                                       { candidateWins: true, gap: 'g', margin: 'clear' },

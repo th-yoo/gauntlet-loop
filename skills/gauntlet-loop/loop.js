@@ -1257,7 +1257,7 @@ is nearer and say plainly what is still missing from it.
 
 THE GOAL these are being judged against:
 ${GOAL}
-${piece && piece.name ? `\nJUDGE ONLY THIS PART: ${piece.name}\nWhat to inspect for it: ${piece.observable}${piece.focus ? `\n${piece.focus}` : ''}\nDifferences outside this part are not yours to weigh — another critic owns them.\n` : ''}
+${piece && piece.name ? `\nYOUR ITEM: ${piece.name}\nWhat to inspect for it: ${piece.observable}${piece.focus ? `\n${piece.focus}` : ''}\nLook there first, and name your gap there if an honest reading puts it there.\n\nBUT THE WINNER YOU PICK IS ABOUT THE WHOLE ARTIFACTS. Compare them side by side, WHOLE\nagainst whole, and say which is better overall. Your item is where you look; it is not the\nlimit of what you weigh. Other critics are looking at other items and you are not excused\nfrom anything they can see. This implements the source's fifth sentence — "Don't stop until\neach sub-agent is utterly wowed with the quality when compared with the actual game" —\nwhere each sub-agent judges whole against whole, not item against item.\n` : ''}
 ARTIFACT A: ${s.A}
 ARTIFACT B: ${s.B}
 ${INSPECT ? `\nHOW TO INSPECT THEM:\n${INSPECT}\n` : ''}
@@ -1611,6 +1611,29 @@ async function runPiece(piece) {
   const dissenters = positions.filter(p => !p.candidateWon)
   const candidateWon = dissenters.length === 0
 
+  // THE BAR IS "UTTERLY WOWED", NOT "PREFERRED AT ALL" — decision 0007, delta C.
+  // The source asks for "utterly perfect" and stops only when a harsh critic is
+  // "utterly wowed"; this loop used to exit on any preference whatever, and the pinned
+  // disclosure admitted it in so many words. It no longer does. (The old disclosure's
+  // opening phrase is deliberately not quoted here: drift-guard checks that a pinned
+  // disclosure appears in LIVE code rather than in a comment, and a comment carrying the
+  // string verbatim defeats its stripper. Same trap as the sweep needles, same fix.)
+  //
+  // This reverses an evidence-based choice and the evidence has not gone away: across
+  // five spawns on one unchanged pair, four judges reported margin `clear` on BOTH sides
+  // of a 3-2 split, so the field cannot separate a stable verdict from a coin. What
+  // decided it anyway is that the cost lands on the right side. An unreliable margin here
+  // buys extra rounds, never a wrong exit, and the source is explicit that its bar need
+  // not be reachable — "My game did not become better than Call of Duty. I stopped the
+  // run while it was still improving." Removing the run token is that stop, and it still
+  // writes a verdict.
+  //
+  // Every critic in the line must be wowed, not the primary one: `dissenters` already
+  // requires all K to pick the candidate, and a line where one judge calls it narrow is a
+  // line that is not wowed.
+  const narrowCritics = positions.filter(p => p.margin === 'narrow')
+  const wowed = candidateWon && narrowCritics.length === 0
+
   // WHICH gap goes back, when more than one soldier blocked. Literal
   // restatement only: normalise whitespace and case, take the largest group of
   // two or more, else the earliest dissenter by spawn order (parallel()
@@ -1679,11 +1702,11 @@ async function runPiece(piece) {
   const gapLive = String(primary.gap || '').replace(/\s+/g, ' ').trim()
   const gapShown = gapLive.length > 180 ? gapLive.slice(0, 180) + '… (full text in the verdict)' : gapLive
   const sizeLive = sizeByRound.filter(x => x.round === round && x.piece === (piece.name || null)).pop()
-  log(`round ${round}${piece.name ? ` [${piece.name}]` : ''}: ${positions.length} critic(s) — ${positions.length - dissenters.length} for the candidate, ${dissenters.length} against — ${candidateWon ? 'CANDIDATE WINS' : 'reference still ahead'}` +
+  log(`round ${round}${piece.name ? ` [${piece.name}]` : ''}: ${positions.length} critic(s) — ${positions.length - dissenters.length} for the candidate, ${dissenters.length} against — ${candidateWon ? (wowed ? 'CANDIDATE WINS' : `candidate preferred but NOT WOWED (${narrowCritics.length} of ${positions.length} called it narrow) — the bar is "utterly wowed", so this builds instead of arming`) : 'reference still ahead'}` +
       `${sizeLive ? ` · ${sizeLive.bytes} bytes` : ''}` +
       `\n  gap: ${gapShown || '(the critic recorded no gap text)'}`)
 
-  if (candidateWon) {
+  if (wowed) {
     if (armedAt === null) {
       // ARM. Do not build: the confirming critic must judge the same bytes, or
       // it is measuring a different artifact and confirms nothing.
@@ -1709,7 +1732,15 @@ async function runPiece(piece) {
   // not banked: the run builds on THIS critic's gap, and a later win has to be
   // armed and confirmed again from scratch.
   if (armedAt !== null) {
-    log(`round ${round}${piece.name ? ` [${piece.name}]` : ''}: the confirming critic picked the reference — DISARMED. The win at round ${armedAt} stands unconfirmed and is discarded; building on this critic's gap.`)
+    // Two ways to arrive here now, and they are different events. The confirming critic
+    // picked the reference (the original disarm), or it picked the candidate and was not
+    // wowed by it (delta C). Saying "picked the reference" for the second is a false
+    // report of what a judge did, and it is the kind an operator acts on.
+    log(`round ${round}${piece.name ? ` [${piece.name}]` : ''}: ` +
+        (candidateWon
+          ? `the confirming critic picked the candidate but called the margin narrow — NOT WOWED, so this is not a confirmation. DISARMED.`
+          : `the confirming critic picked the reference — DISARMED.`) +
+        ` The win at round ${armedAt} stands unconfirmed and is discarded; building on this critic's gap.`)
     history[history.length - 1].disarmed_win_at = armedAt
     armedAt = null
   }
@@ -2038,10 +2069,25 @@ if (!outcome) {
 // pieces does not establish that the seam was correct, and nothing here should be
 // read as if it did.
 //
-// NOT SOURCE FIDELITY. Neither primary text describes a whole-artifact round;
-// the source stops when every sub-agent is wowed, which is what the piece
-// verdicts already are. This is an ADDITION, disclosed as one, for the same
-// reason k>1 is: it defends a property the source assumes rather than checks.
+// RETRACTED, decision 0007. This comment used to read: "NOT SOURCE FIDELITY.
+// Neither primary text describes a whole-artifact round; the source stops when
+// every sub-agent is wowed, which is what the piece verdicts already are."
+//
+// The last clause was false, and it is why the hole below survived five runs of
+// otherwise accurate disclosure. Piece verdicts were produced under an
+// instruction — "JUDGE ONLY THIS PART ... differences outside this part are not
+// yours to weigh" — forbidding exactly the comparison the source's fifth
+// sentence requires: "Don't stop until each sub-agent is utterly wowed with the
+// quality when compared with the actual Call of Duty game. It should literally
+// compare THEM side by side." Them is the two artifacts, whole against whole.
+// So a whole-artifact round is not an addition to the source; it IS the source's
+// exit, and we had one of them where the source has one per sub-agent.
+//
+// That is fixed at criticPrompt: every piece critic now judges whole against
+// whole, so the exit already carries N whole-artifact judgements. What remains
+// here is a genuine EXTRA — one more such judgement, spawned with no item at
+// all. It is kept because it is the only critic in the run with no assigned
+// place to look, so it is the only one that cannot inherit a piece's blind spot.
 //
 // Undecomposed runs do not pay for it. The artifact was judged whole every round
 // already, so a whole-artifact A/B would be the same judgment a second time.
@@ -2405,7 +2451,7 @@ return {
     // named each, and a mechanism whose limits are unwritten gets quoted past
     // them.
     'BOTH CRITICS SHARE A MODEL FAMILY, so a blind spot they hold in common survives confirmation. Two agreeing judges of the same stock is not two independent judgments, and this loop cannot buy a second family.',
-    'A NARROW WIN STILL EXITS. `margin` is recorded and gates nothing, and that is on evidence rather than oversight: across five spawns on one unchanged pair, four judges reported margin `clear` on BOTH sides of a 3-2 split, so the field reported high confidence for either answer and cannot separate a stable verdict from a coin flip.',
+    'A NARROW WIN NO LONGER EXITS, AND THE FIELD IT NOW GATES ON WAS MEASURED UNRELIABLE. Decision 0007 raised the bar to the source\'s, which is "Don\'t stop until each sub-agent is utterly wowed with the quality when compared with the actual Call of Duty game" — not preferred at all — so a round where any critic calls the margin `narrow` builds instead of arming. The evidence against that field stands and is not superseded: across five spawns on one unchanged pair, four judges reported margin `clear` on BOTH sides of a 3-2 split, so it cannot separate a stable verdict from a coin flip. What changed is where the cost lands. An unreliable margin here buys extra rounds, never a wrong exit, and the source is explicit that its bar need not be reachable — the operator removing the run token is the stop, and it still writes a verdict. A run that never reaches the bar is the source\'s normal ending, not a failure of this loop.',
     'THE CONFIRMATION MEASURES JUDGE REPRODUCIBILITY, NOT ARTIFACT IMPROVEMENT. The artifact is identical across the two rounds by construction, so what the second critic establishes is that the first verdict replicates — never that the work got better between them.',
     'A RUN CANCELLED WHILE ARMED STOPPED WITH ONE UNCONFIRMED WIN, WHICH IS NOT A WIN. The armed round is recorded, and reading it as a result is reading a coin flip that was never checked.',
     // THE PAIRING CHECK COVERS args.candidate/args.reference AND NOTHING ELSE.
@@ -2497,6 +2543,36 @@ return {
     'Nothing stops the token being re-created after a cancel. The breaker reports the state at each boundary; it does not latch.',
     'With no budget target set, there is no pre-committed ceiling at all — the run continues until it wins, an agent fails, or the operator cancels. That is the source design rather than an oversight — it says "there should be no arbitrary final round" — and it means an unattended run is bounded only by the host\'s own runaway backstop.',
   ].filter(Boolean),
+
+  // THE EXIT BAR, as a number an operator can read against the source (decision 0007).
+  // The source's count lives here and nowhere else: "Don't stop until EACH sub-agent is
+  // utterly wowed ... compared with the actual game." One item sub-agent per piece, each
+  // judging whole against whole, all of them wowed. `wowed_required` is therefore the
+  // piece count and is not a setting — no argument sets it, and raising `critics` does
+  // not move it. It is reported because the operator's standing objection to this loop
+  // for many sessions was "our k is too small", and until now no field in the verdict
+  // carried the k he meant.
+  exit_bar: {
+    // NOT ALWAYS WHOLE-ARTIFACT, and saying so unconditionally would be the same class of
+    // false claim this decision was written to retract. A lead may give each piece its own
+    // candidate and reference files, and then the whole artifact is not among the two
+    // files any critic is shown — each judges its own pair whole, and no judgement in the
+    // run is at the scope the source's fifth sentence names. That run does not get to
+    // report the source's exit bar as met.
+    scope: PIECES_EDIT_THE_WHOLE ? 'whole-artifact' : 'per-piece paths',
+    scope_note: PIECES_EDIT_THE_WHOLE
+      ? null
+      : 'The pieces were judged against their own files, not against the whole candidate and whole reference. Every judgement below is whole-against-whole for the pair its critic was shown, and NONE of them is the whole-artifact comparison the source asks for. Nothing in this run establishes that the artifacts compose.',
+    bar: 'the candidate wins the blind A/B and no critic in the line calls the margin narrow',
+    wowed_required: PIECES.length,
+    wowed: PIECES.filter(p => {
+      const o = results.get(p.name)
+      return (o && o.status === 'WON') || (!p.name && outcome.status === 'WON')
+    }).length,
+    // Said on every branch, winning or not: this number counts sub-agents that were
+    // wowed, not sub-agents that were right. Nothing here calibrates a critic.
+    note: 'Counts judgements, not correctness. Each is one blind whole-artifact A/B by a separately spawned critic; nothing in this run establishes that any of them could have failed.',
+  },
 
   split_check,
   won_without_building: outcome.status === 'WON' && history.every(h => !h.built)

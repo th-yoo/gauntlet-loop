@@ -49,7 +49,7 @@ export const LOOP_DISCLOSURES = [
   // NOT buy. A stricter mechanism is exactly the kind that gets quoted past its
   // limits, so the limits are pinned rather than trusted to survive an edit.
   'BOTH CRITICS SHARE A MODEL FAMILY',
-  'A NARROW WIN STILL EXITS',
+  'A NARROW WIN NO LONGER EXITS',
   'THE CONFIRMATION MEASURES JUDGE REPRODUCIBILITY, NOT ARTIFACT IMPROVEMENT',
   'A RUN CANCELLED WHILE ARMED STOPPED WITH ONE UNCONFIRMED WIN, WHICH IS NOT A WIN',
   // REPOINTED when the regression check landed, and again when it was renamed off

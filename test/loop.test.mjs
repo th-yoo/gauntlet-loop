@@ -2338,8 +2338,13 @@ console.log('loop: args.critics is validated OK')
   const p1 = r.prompts.find(p => p.label === 'render-round-1:ab')
   ok(p1.prompt.includes('/tmp/x/render.js') && p1.prompt.includes('/tmp/x/ref-render.js'), 'the piece is judged against its own two paths')
   ok(!p1.prompt.includes(CANDIDATE), 'the whole-artifact path is not shown to a piece critic')
-  ok(/JUDGE ONLY THIS PART: render/.test(p1.prompt), 'the critic is scoped to the piece')
-  ok(/not yours to weigh/.test(p1.prompt), 'and told another critic owns the rest')
+  ok(/YOUR ITEM: render/.test(p1.prompt), 'the critic is pointed at its piece as where to look')
+  ok(/THE WINNER YOU PICK IS ABOUT THE WHOLE ARTIFACTS/.test(p1.prompt),
+     'and judges the artifacts it was given as wholes, not as a slice of something larger (decision 0007) — pinned as the sentence, since a bare /WHOLE/ survives deleting it')
+  // A piece with its OWN paths cannot be judged at whole-artifact scope — the whole
+  // artifact is not among the two files it is shown. The verdict must not claim otherwise.
+  ok(r.result.exit_bar.scope !== 'whole-artifact',
+     `exit_bar does not claim whole-artifact scope for pieces judged on their own paths — got ${r.result.exit_bar.scope}`)
   const b1 = r.prompts.find(p => p.label === 'render-round-1:build')
   ok(!b1 || b1.prompt.includes('/tmp/x/render.js'), 'the builder edits the piece, not the whole artifact')
   console.log('loop: a piece is judged against its own paths and scoped explicitly OK')
@@ -2417,11 +2422,19 @@ console.log('loop: args.critics is validated OK')
 // ---------------------------------------------------------------------------
 
 // margin is REQUIRED. Two live runs won with the separation unstated because it
-// was optional. It still does not gate the exit — a narrow win ends a round —
-// but a win nobody can audit afterwards is not a record.
+// was optional, and a win nobody can audit afterwards is not a record.
+//
+// It NOW GATES the exit as well (decision 0007, delta C): the source's bar is "utterly
+// wowed", so a narrow win builds instead of arming. This block used to end with "a narrow
+// win still ends the run — margin records, it does not gate", which was the behaviour and
+// is no longer. The schema half is unchanged and is what this block is actually for; the
+// gating half moved to test/exit-bar.test.mjs, where it has cases on both sides.
 {
   const r = await runLoop({
     args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    // Bounded, because a narrow win no longer terminates and this fixture is narrow
+    // forever. Without the breaker the harness runaway guard stops it at round 51.
+    breaker: round => round <= 3,
     rounds: [{ candidateWins: true, gap: 'unused', margin: 'narrow' }],
   })
   // Assert the SCHEMA, not the stub. The offline runtime does not validate
@@ -2431,9 +2444,9 @@ console.log('loop: args.critics is validated OK')
   const call = r.prompts.find(p => p.label === 'round-1:ab')
   ok(call.schema.required.includes('margin'), 'the critic schema REQUIRES a margin')
   ok(!call.schema.required.includes('nothing'), 'sanity: required is the real list')
-  eq(r.result.outcome.status, 'WON', 'a narrow win still ends the run — margin records, it does not gate')
-  eq(r.result.history[0].margin, 'narrow', 'and the margin is recorded')
-  console.log('loop: margin is required by the schema and does not gate the exit OK')
+  ok(r.result.outcome.status !== 'WON', `a narrow win no longer ends the run — got ${r.result.outcome.status}`)
+  eq(r.result.history[0].margin, 'narrow', 'and the margin is recorded, which is what made gating on it possible')
+  console.log('loop: margin is required by the schema and now gates the exit OK')
 }
 
 // A run where every piece won its first round never built anything, and the

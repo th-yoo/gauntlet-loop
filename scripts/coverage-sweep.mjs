@@ -52,6 +52,13 @@ export const PROPERTIES = [
   ['a content leak withdraws the blindness claim', L, "selfid.verdict === 'self-identifying' || LEAKING_FILES.length > 0", 'false'],
   ['a working sibling probe narrows a null result', L, "const GOAL_CHECK_SPAWNABLE = typeProven('gauntlet-loop:gauntlet-goal-check')", 'const GOAL_CHECK_SPAWNABLE = true'],
   ['a split whose whole loses is SPLIT_UNSOUND', L, '    if (!candidateWon) {', '    if (false) {'],
+  // --- decision 0007: the exit bar is the source's ------------------------------------
+  // Each applied by hand and the suite watched to go red before being pinned here. The
+  // first three are the three deltas; the fourth is the field that must not overclaim.
+  ['a narrow win does not exit — the bar is "utterly wowed"', L, 'const wowed = candidateWon && narrowCritics.length === 0', 'const wowed = candidateWon'],
+  ['the piece critic judges the artifacts as WHOLES, not as its slice', L, 'BUT THE WINNER YOU PICK IS ABOUT THE WHOLE ARTIFACTS.', ''],
+  ['the exit bar requires one wowed sub-agent PER PIECE', L, '    wowed_required: PIECES.length,', '    wowed_required: 1,'],
+  ['the exit bar does not claim whole-artifact scope it did not have', L, "    scope: PIECES_EDIT_THE_WHOLE ? 'whole-artifact' : 'per-piece paths',", "    scope: 'whole-artifact',"],
   ['the split check only judges what the pieces edited', L, 'const PIECES_EDIT_THE_WHOLE = PIECES.every(p => (p.candidate || CANDIDATE) === CANDIDATE)', 'const PIECES_EDIT_THE_WHOLE = true'],
   ['a cancel after rounds is not reported as a bad token path', L, '        : history.length === 0', '        : round === 1'],
   ['a silent breaker is not reported as an absent token', L, '      why: breakerSilent !== null', '      why: false'],
