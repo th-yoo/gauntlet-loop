@@ -91,11 +91,22 @@ jobs:
     # 2026-08-26 mix), but every NOT CAUGHT property still costs a full green suite —
     # and a sweep where coverage has genuinely regressed is exactly the run that must
     # not be killed mid-report. All-green worst case at the last measured rate:
-    # 201 properties x 47 s ≈ 158 min, plus the baseline suite runSweep now runs
-    # first. 180 covers that with margin; run 33341941280 (killed at 120 with 34
-    # properties ungraded) is the observation this number rests on. Not unbounded —
-    # a sweep that hangs should be killed and reported, not left to burn the job limit.
-    timeout-minutes: 180
+    # RAISED 180 -> 300 on 2026-09-01, and the honest basis is mixed. The OBSERVED
+    # part: run 33341941280 was killed at 120 min with 34 of 185 properties ungraded,
+    # at 47 s per full-suite check on ubuntu-latest. At 226 properties that same rate
+    # is ~178 min, which 180 covered by two minutes. The EXTRAPOLATED part, labelled
+    # because this repo has been wrong by four times extrapolating before: the suite
+    # grew when test/side-by-side.test.mjs added three headless Chrome renders —
+    # locally 42 s -> 59 s, +41% — and 47 s scaled by that is ~66 s, putting the
+    # worst case near 250 min. 300 covers the scaled figure with margin.
+    #
+    # The scaling is a local ratio and is NOT evidence. The next completed runner
+    # sweep replaces WORST_SECONDS in test/coverage-cadence.test.mjs with a measured
+    # number, and that check — added the same day — recomputes this headroom on every
+    # push so the list can no longer outgrow its own timeout in silence. Not
+    # unbounded: a sweep that hangs should be killed and reported, not left to burn
+    # the job limit.
+    timeout-minutes: 300
 
     steps:
       - uses: actions/checkout@v4

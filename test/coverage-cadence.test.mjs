@@ -127,6 +127,45 @@ ok(PROPERTY_COUNT > 0, 'the imported property list is empty — the sweep would 
 ok(PROPERTY_COUNT >= FLOOR,
    `the list holds ${PROPERTY_COUNT} properties and has held at least ${FLOOR} — it lost ${FLOOR - PROPERTY_COUNT}. That is the silent-coverage-loss this sweep exists to catch: a structural edit once removed four cases beyond the one being rewritten and the suite went green at a lower count. Establish why, then lower FLOOR deliberately or restore what went.`)
 
+// THE TIMEOUT IS A KNOB AND IT GETS A PIN. This file already says "a knob invisible until
+// a timeout gets a pin" — about --fail-fast, and it was never applied to the timeout
+// itself. The 180 minutes in coverage.yml was argued in a COMMENT from one case
+// (201 properties x 47 s all-green, ~158 min) and nothing recomputes it when the list
+// grows. Run 33341941280 is what that costs: killed at 151 of 185 properties.
+//
+// WORST CASE, not the observed one. OBSERVED.minutes is an all-CAUGHT sweep, which is
+// --fail-fast's best case; a sweep full of NOT CAUGHT runs a full green suite per property
+// and costs WORST_SECONDS each. That is the case the timeout has to survive, because it is
+// the case where the sweep has the most to report.
+const WORST_SECONDS = 47   // run 33341941280, ubuntu-latest, measured off its own log
+console.log('coverage-cadence: the job timeout still covers the worst-case sweep')
+{
+  const yml = readFileSync(join(WF_DIR, 'coverage.yml'), 'utf8')
+  const m = /timeout-minutes:\s*(\d+)/.exec(yml)
+  ok(m, 'coverage.yml states a job timeout — without one the sweep is bounded by the runner and nothing here can check it')
+  const timeout = Number(m[1])
+  const worstMin = Math.ceil(PROPERTY_COUNT * WORST_SECONDS / 60)
+  console.log(`          ${PROPERTY_COUNT} properties x ${WORST_SECONDS}s worst case = ~${worstMin} min against a ${timeout} min timeout`)
+  ok(worstMin <= timeout,
+     `a sweep in which nothing is caught needs ~${worstMin} min and the job is killed at ${timeout}. That is run 33341941280 again — 151 of 185 graded, the rest silently ungraded. Raise timeout-minutes with the arithmetic in its commit, or remove properties deliberately.`)
+  // HEADROOM, reported and not asserted. A pass with two minutes to spare is a pass that
+  // the next property breaks, and the number is what makes that visible before it happens.
+  console.log(`          headroom ${timeout - worstMin} min`)
+}
+
+// WORST_SECONDS IS STALE AND THIS SAYS SO ON THE PASSING BRANCH. It was measured when the
+// suite was shorter. Adding test/side-by-side.test.mjs put three headless Chrome renders
+// into every full run: locally the suite went 42 s -> 59 s, +41%, which would carry
+// WORST_SECONDS to ~66 and the worst case past any timeout now written here. That figure is
+// LOCAL and this file is emphatic that multiplying a local sample is how the first estimate
+// here was wrong by four times, so it is not used to derive anything — it is the reason to
+// re-observe on the runner, and the check above is deliberately computed from the number
+// that was actually measured there rather than from this one.
+console.log('coverage-cadence: NOT ESTABLISHED — that 47 s/property still holds. The suite has grown')
+console.log('                  since it was measured (locally 42 s -> 59 s when the side-by-side render')
+console.log('                  landed). The next completed runner sweep is what replaces it; until then')
+console.log('                  the worst case above is a floor, not a bound.')
+
 // It must NOT be in run-all. This is asserted in the direction that would actually
 // go wrong: someone reads #45, adds the sweep to the suite, and every push carries
 // OBSERVED.minutes instead of seconds.
