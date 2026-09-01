@@ -1631,8 +1631,26 @@ async function runPiece(piece) {
   // Every critic in the line must be wowed, not the primary one: `dissenters` already
   // requires all K to pick the candidate, and a line where one judge calls it narrow is a
   // line that is not wowed.
-  const narrowCritics = positions.filter(p => p.margin === 'narrow')
-  const wowed = candidateWon && narrowCritics.length === 0
+  //
+  // STATED POSITIVELY, AND THAT IS THE WHOLE POINT. The first version of this line read
+  // `positions.filter(p => p.margin === 'narrow')` and failed OPEN: `margin` is
+  // `v.margin || null`, the offline runtime does not validate schemas, and a critic that
+  // omitted the field or returned a value outside the enum was therefore not "narrow" and
+  // passed the bar. Both were reproduced returning WON. Decision 0007 had already
+  // pre-committed the opposite — "an absent or unparseable margin is NOT wowed" — and the
+  // record is what caught the code. This repo has paid for the fail-open direction once
+  // already: two live runs won with the separation unstated while `margin` was optional,
+  // which is why the schema requires it. A field that now GATES must be read as an
+  // allow-list, so an unreadable answer costs a round instead of ending the run.
+  const WOWED_MARGINS = new Set(['decisive', 'clear'])
+  const notWowed = positions.filter(p => !WOWED_MARGINS.has(p.margin))
+  const wowed = candidateWon && notWowed.length === 0
+  // Reported separately because they are different events and the log says which. A judge
+  // that called the margin narrow answered the question; one that returned nothing
+  // readable did not, and telling an operator a critic "called it narrow" when it said no
+  // such thing is a false report of what a judge did.
+  const narrowCritics = notWowed.filter(p => p.margin === 'narrow')
+  const unreadableMargins = notWowed.filter(p => p.margin !== 'narrow')
 
   // WHICH gap goes back, when more than one soldier blocked. Literal
   // restatement only: normalise whitespace and case, take the largest group of
@@ -1702,7 +1720,7 @@ async function runPiece(piece) {
   const gapLive = String(primary.gap || '').replace(/\s+/g, ' ').trim()
   const gapShown = gapLive.length > 180 ? gapLive.slice(0, 180) + '… (full text in the verdict)' : gapLive
   const sizeLive = sizeByRound.filter(x => x.round === round && x.piece === (piece.name || null)).pop()
-  log(`round ${round}${piece.name ? ` [${piece.name}]` : ''}: ${positions.length} critic(s) — ${positions.length - dissenters.length} for the candidate, ${dissenters.length} against — ${candidateWon ? (wowed ? 'CANDIDATE WINS' : `candidate preferred but NOT WOWED (${narrowCritics.length} of ${positions.length} called it narrow) — the bar is "utterly wowed", so this builds instead of arming`) : 'reference still ahead'}` +
+  log(`round ${round}${piece.name ? ` [${piece.name}]` : ''}: ${positions.length} critic(s) — ${positions.length - dissenters.length} for the candidate, ${dissenters.length} against — ${candidateWon ? (wowed ? 'CANDIDATE WINS' : `candidate preferred but NOT WOWED (${[narrowCritics.length ? `${narrowCritics.length} of ${positions.length} called it narrow` : null, unreadableMargins.length ? `${unreadableMargins.length} of ${positions.length} gave no readable margin (${unreadableMargins.map(p => JSON.stringify(p.margin)).join(', ')})` : null].filter(Boolean).join('; ')}) — the bar is "utterly wowed", so this builds instead of arming`) : 'reference still ahead'}` +
       `${sizeLive ? ` · ${sizeLive.bytes} bytes` : ''}` +
       `\n  gap: ${gapShown || '(the critic recorded no gap text)'}`)
 
@@ -1738,7 +1756,7 @@ async function runPiece(piece) {
     // report of what a judge did, and it is the kind an operator acts on.
     log(`round ${round}${piece.name ? ` [${piece.name}]` : ''}: ` +
         (candidateWon
-          ? `the confirming critic picked the candidate but called the margin narrow — NOT WOWED, so this is not a confirmation. DISARMED.`
+          ? `the confirming critic picked the candidate but ${narrowCritics.length ? 'called the margin narrow' : `gave no readable margin (${unreadableMargins.map(p => JSON.stringify(p.margin)).join(', ')})`} — NOT WOWED, so this is not a confirmation. DISARMED.`
           : `the confirming critic picked the reference — DISARMED.`) +
         ` The win at round ${armedAt} stands unconfirmed and is discarded; building on this critic's gap.`)
     history[history.length - 1].disarmed_win_at = armedAt
@@ -2551,7 +2569,7 @@ return {
   // piece count and is not a setting — no argument sets it, and raising `critics` does
   // not move it. It is reported because the operator's standing objection to this loop
   // for many sessions was "our k is too small", and until now no field in the verdict
-  // carried the k he meant.
+  // carried the k they meant.
   exit_bar: {
     // NOT ALWAYS WHOLE-ARTIFACT, and saying so unconditionally would be the same class of
     // false claim this decision was written to retract. A lead may give each piece its own
@@ -2563,7 +2581,7 @@ return {
     scope_note: PIECES_EDIT_THE_WHOLE
       ? null
       : 'The pieces were judged against their own files, not against the whole candidate and whole reference. Every judgement below is whole-against-whole for the pair its critic was shown, and NONE of them is the whole-artifact comparison the source asks for. Nothing in this run establishes that the artifacts compose.',
-    bar: 'the candidate wins the blind A/B and no critic in the line calls the margin narrow',
+    bar: 'the candidate wins the blind A/B and every critic in the line reports a margin of `clear` or `decisive`. Stated as an allow-list on purpose: a critic that omits the margin or returns a value outside the enum is NOT wowed, so an unreadable answer costs a round rather than ending the run',
     wowed_required: PIECES.length,
     wowed: PIECES.filter(p => {
       const o = results.get(p.name)

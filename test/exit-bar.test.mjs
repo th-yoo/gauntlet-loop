@@ -132,6 +132,36 @@ const TWO = { decomposes: true, split_criterion: 'each subsystem renders alone',
   console.log('exit-bar: a narrow win no longer exits OK')
 }
 
+// DELTA C, THE DIRECTION IT FAILS IN. Decision 0007 pre-committed this and the first
+// implementation did the opposite: it filtered for `margin === 'narrow'`, so a critic that
+// omitted the field, or returned a value outside the enum, was not narrow and passed the
+// bar. Both were reproduced returning WON before this block existed.
+//
+// The schema requires `margin`, but the offline runtime does not validate schemas and
+// `margin` reaches the loop as `v.margin || null` — which is exactly how two live runs
+// once won with the separation unstated. A field that GATES has to be read as an
+// allow-list, or the gate is open whenever the answer is unreadable.
+{
+  // The two cases a schema-enforcing runtime can actually deliver. OMITTING the field is
+  // deliberately not one of them: AB_SCHEMA requires `margin`, the harness defaults it on
+  // both of its paths for that reason, and a case built by omission would be testing an
+  // input the real runtime refuses. What it can deliver is a value the enum does not
+  // contain, or an explicit null — and loop.js reads `v.margin || null`, so both arrive
+  // at the same place the fail-open bug lived.
+  for (const [label, margin] of [['outside the enum', 'moderate'], ['null', null]]) {
+    let rounds = 0
+    const r = await runLoop({
+      args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+      lead: TWO,
+      breaker: () => { rounds++; return rounds <= 8 },
+      critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i', margin }),
+    })
+    ok(r.result.outcome.status !== 'WON',
+       `a margin that is ${label} is NOT wowed and does not exit — got ${r.result.outcome.status}`)
+  }
+  console.log('exit-bar: an unreadable margin fails closed, costing a round rather than ending the run OK')
+}
+
 // A decisive win does exit — the control that keeps the block above from passing because
 // the loop stopped exiting for everything.
 {

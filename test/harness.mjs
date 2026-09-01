@@ -374,7 +374,18 @@ export async function runLoop(opts) {
         // which piece stops a run, which is released afterwards — was unreachable.
         const pm = /^(.*)-round-\d+:/.exec(label)
         const spec = await opts.critic(round, { candidateSide, referenceSide, criticIndex, piece: pm ? pm[1] : null })
-        return spec
+        // MARGIN IS DEFAULTED HERE TOO. The spec path below has always done this, with the
+        // reason "AB_SCHEMA requires `margin`, so a verdict without one cannot reach the
+        // loop in production" — and this path did not, which was an inconsistency with no
+        // argument behind it. It went unnoticed while margin gated nothing. Under decision
+        // 0007 it gates, so a function-returned spec with no margin made every fixture
+        // using this path run to the runaway guard: the tests were handing the loop a
+        // shape the real runtime could not produce, and then failing on it.
+        //
+        // A test that wants to drive an UNREADABLE margin sets one explicitly — null, or a
+        // string outside the enum. Omitting the field is not how a schema-enforced runtime
+        // reports a missing answer, so omission is not the way to ask for that case.
+        return spec && spec.margin === undefined ? { ...spec, margin: 'clear' } : spec
       }
 
       // A round's spec may be a single object (broadcast to every critic in

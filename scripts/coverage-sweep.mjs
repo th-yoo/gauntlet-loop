@@ -55,7 +55,10 @@ export const PROPERTIES = [
   // --- decision 0007: the exit bar is the source's ------------------------------------
   // Each applied by hand and the suite watched to go red before being pinned here. The
   // first three are the three deltas; the fourth is the field that must not overclaim.
-  ['a narrow win does not exit — the bar is "utterly wowed"', L, 'const wowed = candidateWon && narrowCritics.length === 0', 'const wowed = candidateWon'],
+  ['a narrow win does not exit — the bar is "utterly wowed"', L, 'const wowed = candidateWon && notWowed.length === 0', 'const wowed = candidateWon'],
+  // This mutation IS the bug the review found: the shipped first draft read the margin as
+  // a deny-list, so an unreadable value passed the gate. Pinned in the shape it had.
+  ['an unreadable margin fails CLOSED, not open', L, 'const notWowed = positions.filter(p => !WOWED_MARGINS.has(p.margin))', "const notWowed = positions.filter(p => p.margin === 'narrow')"],
   ['the piece critic judges the artifacts as WHOLES, not as its slice', L, 'BUT THE WINNER YOU PICK IS ABOUT THE WHOLE ARTIFACTS.', ''],
   ['the exit bar requires one wowed sub-agent PER PIECE', L, '    wowed_required: PIECES.length,', '    wowed_required: 1,'],
   ['the exit bar does not claim whole-artifact scope it did not have', L, "    scope: PIECES_EDIT_THE_WHOLE ? 'whole-artifact' : 'per-piece paths',", "    scope: 'whole-artifact',"],
