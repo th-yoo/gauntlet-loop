@@ -65,6 +65,7 @@ export const PROPERTIES = [
   // fallback that would quietly reinstate it whenever the shortfall is missing.
   ['a not-wowed WIN builds on the shortfall, not on the loser-facing gap', L, 'const buildOn = candidateWon ? shortfallLive : primary.gap', 'const buildOn = primary.gap'],
   ['a not-wowed win with no shortfall skips the build rather than falling back', L, '  if (candidateWon && !shortfallUsable) {', '  if (false) {'],
+  ['a zero-build WIN says which of its two causes it was', L, "    ? (history.some(h => h.build_skipped)", '    ? (false'],
   ['the piece critic judges the artifacts as WHOLES, not as its slice', L, 'BUT THE WINNER YOU PICK IS ABOUT THE WHOLE ARTIFACTS.', ''],
   ['the exit bar requires one wowed sub-agent PER PIECE', L, '    wowed_required: PIECES.length,', '    wowed_required: 1,'],
   ['the exit bar does not claim whole-artifact scope it did not have', L, "    scope: PIECES_EDIT_THE_WHOLE ? 'whole-artifact' : 'per-piece paths',", "    scope: 'whole-artifact',"],

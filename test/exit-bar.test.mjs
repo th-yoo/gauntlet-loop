@@ -288,6 +288,44 @@ const TWO = { decomposes: true, split_criterion: 'each subsystem renders alone',
   console.log('exit-bar: not wowed with no shortfall named skips the build and says so OK')
 }
 
+// A run that reaches WON having built NOTHING, but did not win immediately. Until the bar
+// rose those were the same event, and `won_without_building` said "Every piece won its
+// first round, so the builder never ran" — which the skip branch made false. Reproduced at
+// 4 rounds, 0 builds, WON, still carrying that sentence.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    critic: (round, s) => ({
+      winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i',
+      margin: round < 3 ? 'narrow' : 'decisive',
+      shortfall: round < 3 ? 'none' : 'x',
+    }),
+  })
+  eq(r.result.outcome.status, 'WON', 'the run won after rounds it did not clear the bar on')
+  ok(r.result.history.length > 1 && !r.result.history.some(h => h.built),
+     `and built nothing across ${r.result.history.length} round(s)`)
+  ok(!/won its first round/.test(r.result.won_without_building),
+     'the verdict does NOT claim the run won immediately — it did not')
+  ok(/byte-identical/.test(r.result.won_without_building),
+     'it says the winning artifact is the one the run started with')
+  ok(/the critic, not the work/.test(r.result.won_without_building),
+     'and names what actually changed between the failing rounds and the winning ones')
+  console.log('exit-bar: winning with zero builds after failed rounds is reported as itself OK')
+}
+
+// The original cause still reports the original sentence — without this the block above
+// passes against a loop that prints the skip wording on every zero-build run.
+{
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    rounds: [{ candidateWins: true, gap: 'unused', margin: 'decisive' }],
+  })
+  eq(r.result.outcome.status, 'WON', 'a run that wins from round 1 still wins')
+  ok(/won its first round/.test(r.result.won_without_building),
+     'and is still described as having won immediately, because it did')
+  console.log('exit-bar: winning immediately is still reported as winning immediately OK')
+}
+
 // ---------------------------------------------------------------------------
 // THE RETRACTION. loop.js asserted, in a comment and in a pinned disclosure, that a
 // whole-artifact round is "NOT SOURCE FIDELITY" because "the source stops when every

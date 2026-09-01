@@ -2642,8 +2642,19 @@ return {
   },
 
   split_check,
+  // TWO CAUSES NOW, and they are different findings. Until the exit bar rose, a run with
+  // no build had won every round immediately and the sentence could say so flatly. The
+  // not-wowed branch created a second way to reach zero builds: rounds that ran, failed
+  // the bar, and named no shortfall to close, so the builder was skipped each time. A run
+  // can now take many rounds, build nothing, and still win — and telling its operator
+  // "every piece won its first round" would be false. Reproduced: 4 rounds, 0 builds, WON.
+  //
+  // The shared half is what matters either way — nothing iterated — so it is said on both
+  // branches rather than split across them.
   won_without_building: outcome.status === 'WON' && history.every(h => !h.built)
-    ? 'THIS RUN NEVER BUILT ANYTHING. Every piece won its first round, so the builder never ran, no gap was ever acted on, and nothing iterated. A gauntlet loop that does not loop has tested its judges and not its method. Before reading this as success, check the bar: a goal written to describe what the candidate already does cannot discriminate, and a reference that does not attempt the goal cannot lose to it fairly.'
+    ? (history.some(h => h.build_skipped)
+        ? `THIS RUN NEVER BUILT ANYTHING, over ${history.length} round(s). It did not win immediately: ${history.filter(h => h.build_skipped).length} round(s) failed the exit bar and the builder was skipped on each, because the critic that was not wowed named no shortfall to close. So the artifact that won is byte-identical to the one the run started with, and what changed between the failing rounds and the winning ones was the critic, not the work. Read this as a judgement that did not replicate, not as an artifact that improved. A gauntlet loop that does not loop has tested its judges and not its method.`
+        : 'THIS RUN NEVER BUILT ANYTHING. Every piece won its first round, so the builder never ran, no gap was ever acted on, and nothing iterated. A gauntlet loop that does not loop has tested its judges and not its method. Before reading this as success, check the bar: a goal written to describe what the candidate already does cannot discriminate, and a reference that does not attempt the goal cannot lose to it fairly.')
     : null,
 
   reading_note:
