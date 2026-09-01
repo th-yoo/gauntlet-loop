@@ -79,6 +79,26 @@ console.log('split-ledger: an empty ledger still refuses to read as a low rate')
   ok(/never a low disagreement rate/.test(out), 'and the sentence that stops it being read as evidence')
 }
 
+console.log('split-ledger: the mixed-population caveat is printed WHERE THE NUMBER IS, not only where nothing is claimed')
+{
+  // Decision 0007 changed which rounds arm, and arming is what makes an arm-confirm panel.
+  // Panels from before and after it come from different populations and this report pools
+  // them. That caveat first shipped as a COMMENT in split-extract.mjs — which is to say it
+  // shipped nowhere, since a comment is not printed and the operator reading the number
+  // never sees it. The repo's own rule is that the branch carrying the verdict is the
+  // branch that must state the residual, so this asserts it on a branch that states d.
+  const out = report([
+    { run: 'r1', piece: null, kind: 'arm-confirm', judges: 2, for_candidate: 2, against_candidate: 0, sides: ['A', 'B'] },
+    { run: 'r2', piece: null, kind: 'arm-confirm', judges: 2, for_candidate: 1, against_candidate: 1, sides: ['A', 'B'] },
+  ])
+  ok(/\d/.test(out), 'sanity: this branch does state a number, or the caveat is not being asked for where it matters')
+  ok(/MIXED POPULATION/.test(out),
+     `the report states d without disclosing that it pools panels from two different exit bars — got:\n${out}`)
+  ok(/0007/.test(out) && /narrow/.test(out),
+     'and the disclosure names the decision and the condition, so a reader can tell which panels are affected')
+  ok(/biased/i.test(out), 'and says which way the bias runs, since a caveat with no direction is not actionable')
+}
+
 console.log('split-ledger: issue 21\'s falsifiers are read off the ENDS of the interval, in both directions')
 {
   // FALSIFIER 1 — unanimity. Forty panels of two, every pair concordant: d = 0 with an

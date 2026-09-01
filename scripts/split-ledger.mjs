@@ -130,6 +130,20 @@ function report() {
   console.log('              the interval is about THIS set of runs and generalises only as far as it does.')
   console.log('              NOT ESTABLISHED — which side of any split was RIGHT. d measures disagreement;')
   console.log('              q is what it implies for a judge assumed to beat a coin, and nothing here tests that.')
+  // ON THE BRANCH THAT STATES THE NUMBER, because a caveat printed only where nothing is
+  // asserted is printed exactly where it does not matter. Decision 0007 changed which
+  // rounds ARM, and arming is what produces an arm-confirm panel: a win used to arm on its
+  // own, and now also needs no critic calling the margin narrow. So panels ingested from
+  // post-0007 runs are CONDITIONED on a non-narrow first verdict and earlier ones are not,
+  // while this report pools them. The rows do not record which bar produced them, so this
+  // cannot be corrected here — only declared.
+  console.log('              MIXED POPULATION — d POOLS PANELS FROM TWO DIFFERENT EXIT BARS. Before decision')
+  console.log('              0007 a candidate win ARMED on its own; after it, arming also requires that no critic')
+  console.log('              called the margin narrow. Post-0007 panels are therefore conditioned on a non-narrow')
+  console.log('              first verdict and earlier panels are not. If a decisive verdict replicates more often')
+  console.log('              than a narrow one — the obvious hypothesis, and untested — d over this mix is biased')
+  console.log('              LOW against the older panels. The rows do not record which bar produced them, so')
+  console.log('              nothing here can separate the two; re-deriving from the committed verdicts would.')
 }
 
 if (!has('--ingest') && !has('--report')) {

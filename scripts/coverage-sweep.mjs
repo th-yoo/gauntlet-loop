@@ -72,6 +72,7 @@ export const PROPERTIES = [
   // disclosure asserting it to every operator; the audit used indexOf and saw only the
   // first of two occurrences. This mutation puts the false claim back in the emitted one.
   ['the retracted claim does not stand in an emitted disclosure', L, 'This extra whole-artifact round is an ADDITION; the per-piece judgements are NOT.', 'The whole-artifact round is also an ADDITION — neither primary text describes one; the source stops when every sub-agent is wowed, which is what the piece verdicts already are.'],
+  ['the mixed-population caveat is printed beside the number', SL, "  console.log('              MIXED POPULATION — d POOLS PANELS FROM TWO DIFFERENT EXIT BARS. Before decision')", ''],
   ['the piece critic judges the artifacts as WHOLES, not as its slice', L, 'BUT THE WINNER YOU PICK IS ABOUT THE WHOLE ARTIFACTS.', ''],
   ['the exit bar requires one wowed sub-agent PER PIECE', L, '    wowed_required: PIECES.length,', '    wowed_required: 1,'],
   ['the exit bar does not claim whole-artifact scope it did not have', L, "    scope: PIECES_EDIT_THE_WHOLE ? 'whole-artifact' : 'per-piece paths',", "    scope: 'whole-artifact',"],
