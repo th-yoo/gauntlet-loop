@@ -77,6 +77,29 @@ function keyEventFor(name) {
 // not press Z", which is a null result wearing a measurement's clothes. Checked
 // here, over both sequences, before the browser even starts.
 const WARMUP = (process.env.PLAY_WARMUP ?? 'Enter,Space').split(',').filter(Boolean)
+
+// PLAY_WINDOW — the capture window, default UNCHANGED at 520x760. It was hard-coded, and
+// the 2026-09-01 Tetris record shows what that cost: at 520 wide the reference's own
+// responsive CSS drops its Level and Lines counters, so every critic in that run judged it
+// in the window where it hides part of itself. The default is kept exactly as it was — a
+// size change would silently move every verdict this probe has ever produced — and the
+// override exists so the viewport can be SWEPT rather than argued about, which is what
+// that record names as the thing that would settle it.
+//
+// A malformed value REFUSES rather than falling back. Falling back would run at 520x760
+// while the caller believed it had asked for something else, and the only trace would be
+// pixels nobody re-measures — the exact shape of defect this file's favicon branch exists
+// to avoid, one layer up.
+const WINDOW = (() => {
+  const v = process.env.PLAY_WINDOW
+  if (v === undefined || v === '') return '520,760'
+  const m = /^(\d{2,5})[x,](\d{2,5})$/.exec(v.trim())
+  if (!m) {
+    console.error(`play: refusing PLAY_WINDOW=${v} — expected WIDTHxHEIGHT (e.g. 1280x800). A size that does not parse would silently capture at the default and report nothing, and the difference is only visible in pixels nobody re-measures.`)
+    process.exit(2)
+  }
+  return `${m[1]},${m[2]}`
+})()
 {
   const bad = [...KEYS, ...WARMUP].map(k => k.trim()).filter(k => k && !keyEventFor(k))
   if (bad.length) {
@@ -131,7 +154,7 @@ const CHROME = process.env.PLAY_CHROME
 if (namesAModel(CHROME)) { server.close(); console.error(`play: refusing PLAY_CHROME=${CHROME} — it names a model runner, and this probe drives a browser`); process.exit(2) }
 const chrome = spawn(CHROME, [
   '--headless=new', '--disable-gpu', '--no-sandbox', '--remote-debugging-port=0',
-  `--user-data-dir=${profile}`, '--window-size=520,760', 'about:blank',
+  `--user-data-dir=${profile}`, `--window-size=${WINDOW}`, 'about:blank',
 ], { stdio: ['ignore', 'ignore', 'pipe'] })
 
 // A missing browser is an environment failure, named as one. Without this the spawn

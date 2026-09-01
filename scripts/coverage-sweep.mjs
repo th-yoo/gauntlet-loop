@@ -45,6 +45,7 @@ const CS = 'scripts/coverage-sweep.mjs'
 const FD = 'scripts/frame-draw.mjs'
 const SR = 'scripts/sampled-report.mjs'
 const CA = 'scripts/cell-anchors.mjs'
+const SB = 'scripts/side-by-side.mjs'
 
 export const PROPERTIES = [
   ['verdict counts recorded verdicts, not rounds', L, '), 0) + (split_check.ran ? 1 : 0)', '), 0)'],
@@ -73,6 +74,12 @@ export const PROPERTIES = [
   // first of two occurrences. This mutation puts the false claim back in the emitted one.
   ['the retracted claim does not stand in an emitted disclosure', L, 'This extra whole-artifact round is an ADDITION; the per-piece judgements are NOT.', 'The whole-artifact round is also an ADDITION — neither primary text describes one; the source stops when every sub-agent is wowed, which is what the piece verdicts already are.'],
   ['the mixed-population caveat is printed beside the number', SL, "  console.log('              MIXED POPULATION — d POOLS PANELS FROM TWO DIFFERENT EXIT BARS. Before decision')", ''],
+  // Decision 0008's instrument. The first mutation IS the bug it shipped with: the
+  // composite rendered at one panel's width, so the image held one artifact and a
+  // scrollbar while the exit code stayed 0. The second is the probe default that every
+  // verdict on record was captured at.
+  ['the composite is wide enough to hold both artifacts', SB, 'const [w, h] = [520 * 2 + 64, 760 + 80]', 'const [w, h] = [520, 760 + 80]'],
+  ['an unreadable PLAY_WINDOW refuses rather than falling back to the default', PL, '    console.error(`play: refusing PLAY_WINDOW=${v}', '    if (false) console.error(`play: refusing PLAY_WINDOW=${v}'],
   ['the piece critic judges the artifacts as WHOLES, not as its slice', L, 'BUT THE WINNER YOU PICK IS ABOUT THE WHOLE ARTIFACTS.', ''],
   ['the exit bar requires one wowed sub-agent PER PIECE', L, '    wowed_required: PIECES.length,', '    wowed_required: 1,'],
   ['the exit bar does not claim whole-artifact scope it did not have', L, "    scope: PIECES_EDIT_THE_WHOLE ? 'whole-artifact' : 'per-piece paths',", "    scope: 'whole-artifact',"],
