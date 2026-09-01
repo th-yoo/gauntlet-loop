@@ -76,7 +76,9 @@ when that is impossible, read `not_enforced` before believing the verdict.
 ## Step 2 — the cost decision, which is yours
 
 There is **no round cap**. The loop runs until the candidate wins the blind A/B
-or until you stop it. That is the source's design — *"Do not tell it to do three
+*and no critic in that round calls the margin narrow* — the source's bar is
+being "utterly wowed", not being preferred — or until you stop it. A narrow win
+does not end the run; it builds and goes again. That is the source's design — *"Do not tell it to do three
 rounds and stop… there should be no arbitrary final round"* — and it means the
 stop is your responsibility, not the script's.
 
@@ -201,15 +203,24 @@ overrides the evidence either way, and the record says so.
 
 **Choose `critics` deliberately — it is the exit rule's FLOOR, not a knob.** The
 candidate must get past every one of them in a single round, so k sets how
-demanding the standard is at minimum. The lead may raise a piece's line above it
+demanding the standard is at minimum.
+
+**It is NOT the source's "each sub-agent", and this file used to say it was.**
+The source's count is one item sub-agent per PIECE, each judging the whole
+candidate against the whole reference, all of them wowed — the verdict reports
+it as `exit_bar.wowed_required`, it equals the number of pieces, and `critics`
+does not move it (decision 0007). `critics` is a different number: how many
+judges look at one piece in one round. Reading them as the same thing is the
+misreading that kept this loop exiting on a single whole-artifact judgement for
+five runs. The lead may raise a piece's line above it
 with a recorded reason and can never lower it — every piece runs at
 max(`critics`, the lead's number). Ask the operator if they have a preference;
 decide yourself if they do not, and say which you chose and why in the same turn.
 
-- **1** — the literal reading of "a separate sub-agent", and the default. It
-  also means the source's stop condition ("until EACH sub-agent is utterly
-  wowed") is satisfied by one judge on one round, which is vacuous. Choose it
-  when the run is cheap, exploratory, or you want the old behaviour exactly.
+- **1** — the literal reading of "a separate sub-agent", and the default. One
+  judge per piece per round; the source's stop condition is still met across
+  pieces, because each piece's judge is comparing whole against whole. Choose it
+  when the run is cheap or exploratory.
 - **2** — the cheapest non-vacuous standard, and the natural default for real
   work. A losing round still costs one critic; only a round that could end
   costs two.

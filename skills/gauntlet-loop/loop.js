@@ -1849,7 +1849,7 @@ the single largest thing standing between them:`}
 
     ${buildOn}
 
-Fix that gap. Only that gap.
+Fix that. Only that.
 
 Closing it does not have to mean ADDING something. Most gaps are phrased as an absence —
 "it never says X", "there is no Y" — and adding a section is the obvious answer, but often
@@ -2366,11 +2366,16 @@ return {
 
   position_balance: balanced,
 
-  // A piece that wins its FIRST round was never built on: the builder never ran,
-  // no gap was ever acted on, and the loop did not loop. That is not a better
-  // result than winning after five rounds — it usually means the bar was weak or
-  // the goal was chosen to fit what the candidate already did. Counted here so
-  // the verdict cannot report it as ordinary success.
+  // A LOW COUNT HAS TWO CAUSES and they are different findings, which is why this
+  // is a count rather than a flag. A piece that wins its FIRST round was never
+  // built on: the loop did not loop, and that usually means the bar was weak or
+  // the goal was chosen to fit what the candidate already did. Since the exit bar
+  // rose there is a second cause — rounds that ran, failed the bar, and were
+  // skipped because the critic named no shortfall to close. Both leave the
+  // artifact unchanged; only the first means the run agreed with it immediately.
+  // `won_without_building` says which one happened; this comment used to assert
+  // the first, which was the same conflation the skip branch made false in that
+  // field. Counted here so the verdict cannot report either as ordinary success.
   rounds_with_a_build: history.filter(h => h.built).length,
 
   // Measured by the breaker, which is Bash-only and never speaks to a critic.
