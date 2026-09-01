@@ -68,6 +68,10 @@ export const PROPERTIES = [
   ['a zero-build WIN says which of its two causes it was', L, "    ? (history.some(h => h.build_skipped)", '    ? (false'],
   ['the round records whether it cleared the bar, not just who won', L, '    wowed,\n    shortfall: primary.shortfall,', ''],
   ['the exit-bar note does not overclaim scope either', L, "${PIECES_EDIT_THE_WHOLE ? ' comparing the whole candidate against the whole reference' : ' comparing the pair of files its piece named — see scope_note'}", ' comparing the whole candidate against the whole reference'],
+  // The EMITTED copy, not the comment. The retraction landed in the comment and left the
+  // disclosure asserting it to every operator; the audit used indexOf and saw only the
+  // first of two occurrences. This mutation puts the false claim back in the emitted one.
+  ['the retracted claim does not stand in an emitted disclosure', L, 'This extra whole-artifact round is an ADDITION; the per-piece judgements are NOT.', 'The whole-artifact round is also an ADDITION — neither primary text describes one; the source stops when every sub-agent is wowed, which is what the piece verdicts already are.'],
   ['the piece critic judges the artifacts as WHOLES, not as its slice', L, 'BUT THE WINNER YOU PICK IS ABOUT THE WHOLE ARTIFACTS.', ''],
   ['the exit bar requires one wowed sub-agent PER PIECE', L, '    wowed_required: PIECES.length,', '    wowed_required: 1,'],
   ['the exit bar does not claim whole-artifact scope it did not have', L, "    scope: PIECES_EDIT_THE_WHOLE ? 'whole-artifact' : 'per-piece paths',", "    scope: 'whole-artifact',"],

@@ -432,9 +432,22 @@ const TWO = { decomposes: true, split_criterion: 'each subsystem renders alone',
   // The claim only counts as retracted if the retraction sits with it. A file that says
   // "RETRACTED" somewhere and repeats the false equation somewhere else has not retracted
   // anything, and this is the assertion that would notice.
-  const i = LOOP.indexOf('which is what the piece verdicts already are')
-  ok(i === -1 || /RETRACTED, decision 0007/.test(LOOP.slice(Math.max(0, i - 900), i)),
-     'every surviving instance of the false equation is inside the retraction that corrects it, not standing as the file\'s own claim')
+  // EVERY OCCURRENCE, not the first. This block originally used `LOOP.indexOf(...)`, which
+  // returns one match — and there were TWO. The first was inside the retraction comment, so
+  // the check went green while the SECOND copy stood in the verdict's emitted disclosure,
+  // telling every operator the thing decision 0007 exists to retract. A comment teaching a
+  // reader something false is bad; an emitted disclosure asserting it is worse, and this
+  // audit was blind to the worse one. The same sentence — "every occurrence is checked, not
+  // the first" — was written into the README count check two commits earlier and not
+  // applied here.
+  const CLAIM = 'which is what the piece verdicts already are'
+  const at = []
+  for (let i = LOOP.indexOf(CLAIM); i !== -1; i = LOOP.indexOf(CLAIM, i + 1)) at.push(i)
+  for (const i of at) {
+    ok(/RETRACTED, decision 0007/.test(LOOP.slice(Math.max(0, i - 900), i)),
+       `an instance of the false equation at offset ${i} is NOT inside the retraction that corrects it — it stands as the file's own claim`)
+  }
+  console.log(`          ${at.length} instance(s) of the retracted claim, each inside its retraction`)
   console.log('exit-bar: the retracted claim is marked as retracted, not left standing OK')
 }
 
