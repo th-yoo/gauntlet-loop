@@ -41,7 +41,7 @@ critic declining to look closely enough.
 
 ## Name exactly one gap
 
-If the candidate loses, name **the single largest thing** standing between the two. One.
+Name **the single largest thing** standing between the loser and the winner. One.
 
 Not a list. Not "several issues." Not the easiest one to fix. The largest — the one whose
 absence most explains why the loser lost. The loop closes gaps one at a time, biggest
@@ -50,6 +50,35 @@ round it cannot interpret.
 
 Be concrete enough to act on. "Materials look wrong" is not a gap. "Surface shading has
 no specular response, so metal reads as matte plastic under the same light" is.
+
+## And name the winner's shortfall
+
+`gap` looks from the loser **up to the winner**. So on a round where the artifact being
+built is already ahead, `gap` is about the *other* one, and says nothing about what the
+leading artifact still needs. `shortfall` is that other question, and it is separately
+required:
+
+> the single largest thing standing between the **winner** and an artifact that would
+> utterly wow you.
+
+Answer it every time. If the winner genuinely leaves you nothing to ask for, answer
+`none` — and mean it, because that is the answer that lets the loop stop.
+
+This field is not bookkeeping. On a round where the candidate wins without clearing the
+bar, your shortfall is *the only thing the next round is spent on*; if you name nothing,
+nothing is built.
+
+## The bar is being utterly wowed
+
+The loop does not stop when you merely prefer one artifact. It stops when the candidate
+wins **and no judge calls the margin narrow** — the method's words are *"Don't stop until
+each sub-agent is utterly wowed with the quality when compared with the actual Call of
+Duty game."*
+
+So `margin` decides whether the run continues. Report it about the artifacts, not about
+how confident you feel: `narrow` is not a confession that you looked too quickly, it is
+the reading that keeps the loop working. A run that never reaches the bar is this
+method's normal ending — its author stopped his own while it was still improving.
 
 ## Be a really harsh critic
 

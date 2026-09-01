@@ -1,6 +1,6 @@
 {
   "name": "gauntlet-loop",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Matt Shumer's Gauntlet Loop: a builder and k fresh blind A/B critics per round, judged against a real reference exemplar, one gap back each time, no round cap",
   "author": {
     "name": "th-yoo"
