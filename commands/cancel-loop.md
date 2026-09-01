@@ -9,8 +9,9 @@ hide-from-slash-command-tool: "true"
 
 Token path, if the operator gave one: `$ARGUMENTS`
 
-The loop has no round cap. It runs until the candidate wins the blind A/B or
-until you stop it, which is what this command does. Removing the run token is
+The loop has no round cap. It runs until the candidate wins the blind A/B *and*
+no critic in that round calls the margin narrow — the bar is being utterly wowed,
+not being preferred — or until you stop it, which is what this command does. Removing the run token is
 the operator half of the source's stop rule — *"Keep looping until our output
 wins or I stop the run."*
 

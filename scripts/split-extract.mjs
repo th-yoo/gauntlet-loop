@@ -46,11 +46,27 @@
 //
 //   within-round — k judges on the same bytes in one round. Available only when
 //     the operator sets args.critics > 1.
-//   arm-confirm  — #18's confirmation. A win ARMS the exit; the next round spawns
-//     a FRESH critic against the UNCHANGED artifact with the sides flipped, and
-//     only a second win fires. That is two independently spawned judges on
-//     identical bytes at opposite positions: exactly the paired observation q
+//   arm-confirm  — #18's confirmation. A WOWED win ARMS the exit; the next round
+//     spawns a FRESH critic against the UNCHANGED artifact with the sides flipped,
+//     and only a second wowed win fires. That is two independently spawned judges
+//     on identical bytes at opposite positions: exactly the paired observation q
 //     needs, produced by every armed run at k=1, at no additional cost.
+//
+//     THE POPULATION CHANGED AT DECISION 0007 and pooling has to account for it.
+//     Arming used to require only that the candidate won; it now also requires that
+//     no critic called the margin narrow. So panels collected after 0007 are
+//     CONDITIONED on a non-narrow first verdict, and panels collected before it are
+//     not. If a decisive first verdict is more reproducible than a narrow one — the
+//     obvious hypothesis, and untested — then d measured on the new population is
+//     biased low against the old. Nothing here can detect that from the rows, so
+//     the report DISCLOSES the mix rather than correcting for it.
+//
+//     ALSO UNCOLLECTED, and named so it is not mistaken for an oversight: a round
+//     that is not wowed and whose critic names no shortfall skips its build, so the
+//     NEXT round judges identical bytes with a fresh critic — another paired
+//     observation, free, that `h.armed` does not gate in. Collecting it would widen
+//     the population again, which is a decision about what this instrument measures
+//     and belongs in a decision record, not in a parser.
 //
 // The arm-confirm shape postdates this issue. It is the reason the accumulator is
 // worth building at the default k rather than only for operators who raise it.

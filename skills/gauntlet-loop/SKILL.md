@@ -115,7 +115,12 @@ the check declines and the verdict names the paths the pieces actually edited.
 
 The check is asymmetric on purpose. A loss is a positive detection. A win is
 consistency and **not** proof the seam was correct, and the verdict says so. It
-is also an addition: neither source text describes a whole-artifact round, and
+is also an addition — but only THIS extra one is. Decision 0007 retracted the
+claim that the source describes no whole-artifact round: its fifth sentence is
+"Don't stop until each sub-agent is utterly wowed with the quality when compared
+with the actual Call of Duty game", so every piece critic already judges whole
+against whole and `exit_bar.wowed_required` of them gate the run. What is added
+here is one FURTHER critic, holding no item at all, and
 runs that were never split do not pay for one.
 
 ## Before the first round: is the comparison even blind?
@@ -226,9 +231,15 @@ separate sub-agent", singular — so this is your call, not his, and it is only 
 minimum: the lead may raise a piece above it (never below), with a recorded reason.
 Who should set k is not settled by any measurement (issue 63); the verdict says so.
 
-- **1** — the literal reading, and the default. It also makes the stop condition
-  vacuous: "every judge is satisfied" is satisfied by one judge on one round.
-- **2** — the cheapest non-vacuous standard. A losing round still costs one critic.
+- **1** — the literal reading, and the default. One judge per piece per round;
+  the source's stop condition is still met across pieces, because each piece's
+  judge compares whole against whole. `critics` is NOT the source's "each
+  sub-agent" — that is `exit_bar.wowed_required`, which equals the piece count
+  and which `critics` does not move (decision 0007).
+- **2** — the cheapest non-vacuous standard. A round that cannot end still costs
+  one critic — whether the first judge picked the reference or picked the
+  candidate without clearing the bar — and only a round that could still end
+  pays for the rest of the line.
 - **4** — for something you would not want to ship on one favourable verdict.
   Even numbers split positions evenly.
 - **more** — only with a stated reason. A long line can fail by never converging,

@@ -15,7 +15,7 @@
 // stays exactly as wide as it was after five trials.
 //
 // WHAT MAKES THIS WORK AT k=1, which the issue could not have known: #18's
-// confirmation arm. A win ARMS the exit; the next round spawns a fresh critic
+// confirmation arm. A WOWED win ARMS the exit; the next round spawns a fresh critic
 // against the UNCHANGED artifact with the sides flipped. That is two independently
 // spawned judges on identical bytes at opposite positions — a paired q-trial —
 // and every armed run produces one at the default k=1, at no extra cost.

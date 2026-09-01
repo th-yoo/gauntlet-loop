@@ -28,7 +28,8 @@
 // block. `margin` is required in AB_SCHEMA today for record-keeping, and gating on
 // it is refused on evidence.
 //
-// THE PROPERTY. A win ARMS the exit; it does not fire it.
+// THE PROPERTY. A WOWED win ARMS the exit; it does not fire it. (Since decision 0007 a
+// win that any critic calls narrow does not arm at all — it builds and goes again.)
 //
 //   1. one win does not end the run — the loop continues;
 //   2. NO BUILD happens between the armed round and the confirming round, so the
