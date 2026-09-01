@@ -59,6 +59,12 @@ export const PROPERTIES = [
   // This mutation IS the bug the review found: the shipped first draft read the margin as
   // a deny-list, so an unreadable value passed the gate. Pinned in the shape it had.
   ['an unreadable margin fails CLOSED, not open', L, 'const notWowed = positions.filter(p => !WOWED_MARGINS.has(p.margin))', "const notWowed = positions.filter(p => p.margin === 'narrow')"],
+  // The builder's one channel. The first mutation IS the defect the review found: on a
+  // round the candidate won, `gap` describes the REFERENCE, and routing it to the builder
+  // is a false premise plus a fix aimed at the wrong artifact. The second forbids the
+  // fallback that would quietly reinstate it whenever the shortfall is missing.
+  ['a not-wowed WIN builds on the shortfall, not on the loser-facing gap', L, 'const buildOn = candidateWon ? shortfallLive : primary.gap', 'const buildOn = primary.gap'],
+  ['a not-wowed win with no shortfall skips the build rather than falling back', L, '  if (candidateWon && !shortfallUsable) {', '  if (false) {'],
   ['the piece critic judges the artifacts as WHOLES, not as its slice', L, 'BUT THE WINNER YOU PICK IS ABOUT THE WHOLE ARTIFACTS.', ''],
   ['the exit bar requires one wowed sub-agent PER PIECE', L, '    wowed_required: PIECES.length,', '    wowed_required: 1,'],
   ['the exit bar does not claim whole-artifact scope it did not have', L, "    scope: PIECES_EDIT_THE_WHOLE ? 'whole-artifact' : 'per-piece paths',", "    scope: 'whole-artifact',"],

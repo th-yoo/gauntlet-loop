@@ -255,13 +255,22 @@ console.log('drift-guard: the build prompt carries the gap and nothing else from
     const body = loop.slice(i, loop.indexOf('agentType:', i))
     const interpolated = [...body.matchAll(/\$\{([^}]+)\}/g)].map(m => m[1].trim())
     const fromVerdict = interpolated.filter(x => /^(primary|verdict|entry|v)\./.test(x))
+    // The property is ONE verdict-derived text and no second channel (issue #11), not the
+    // spelling `primary.gap`. Since the exit bar rose there are two fields it can be —
+    // `gap` on a round the candidate lost, `shortfall` on one it won without clearing the
+    // bar — and `buildOn` is the single variable that chooses between them. Checking the
+    // old spelling would now fail on correct code while still passing on a build prompt
+    // that interpolated both fields at once, which is the thing #11 forbids.
     for (const x of fromVerdict) {
-      if (x !== 'primary.gap') {
-        fail(`the build prompt interpolates ${x} — the enforced list claims the builder gets the gap and nothing else from the verdict, and every extra field is a second, unbounded gap channel aimed at the one control this loop has (issue #11)`)
-      }
+      fail(`the build prompt interpolates ${x} directly — the enforced list claims the builder gets ONE text and nothing else from the verdict, and every extra field is a second, unbounded gap channel aimed at the one control this loop has (issue #11). Route it through buildOn or do not send it`)
     }
-    if (!interpolated.includes('primary.gap')) {
-      fail('the build prompt no longer interpolates primary.gap — the builder is being told to fix a gap it was never given')
+    if (!interpolated.includes('buildOn')) {
+      fail('the build prompt no longer interpolates buildOn — the builder is being told to fix something it was never given')
+    }
+    // And buildOn must be exactly that choice. Without this the check above is satisfied
+    // by any local at all, including one concatenating both fields.
+    if (!/const buildOn = candidateWon \? shortfallLive : primary\.gap\b/.test(loop)) {
+      fail('buildOn is no longer the single choice between the shortfall (candidate won, not wowed) and the gap (candidate lost) — the builder\'s one channel is defined somewhere this scan cannot verify')
     }
   }
 }

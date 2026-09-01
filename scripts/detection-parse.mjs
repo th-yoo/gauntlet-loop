@@ -40,7 +40,7 @@
 // three responses used that form would be one pattern per incident; deriving the
 // labels from the template covers the form nobody has emitted yet, and follows
 // the prompt if the prompt is rewritten.
-export const DEPLOYED_LABELS = ['WINNER', 'WHY', 'GAP', 'INSPECTED']
+export const DEPLOYED_LABELS = ['WINNER', 'WHY', 'GAP', 'INSPECTED', 'SHORTFALL']
 
 // Read the numbered items out of a prompt. A pin covers what someone thought to
 // enumerate; test/winner-parse.test.mjs crosses DEPLOYED_LABELS against this on

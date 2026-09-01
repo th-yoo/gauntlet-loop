@@ -313,6 +313,7 @@ export async function runLoop(opts) {
         gap: spec.gap !== undefined ? spec.gap : 'whole-artifact gap',
         inspected: spec.inspected !== undefined ? spec.inspected : 'read both whole artifacts',
         margin: spec.margin !== undefined ? spec.margin : 'clear',
+        shortfall: spec.shortfall !== undefined ? spec.shortfall : 'a shortfall the critic named',
       })
     }
 
@@ -385,7 +386,10 @@ export async function runLoop(opts) {
         // A test that wants to drive an UNREADABLE margin sets one explicitly — null, or a
         // string outside the enum. Omitting the field is not how a schema-enforced runtime
         // reports a missing answer, so omission is not the way to ask for that case.
-        return spec && spec.margin === undefined ? { ...spec, margin: 'clear' } : spec
+        // `shortfall` defaulted for the same reason as `margin`: AB_SCHEMA requires it, so a
+        // verdict without one cannot reach the loop in production. It is only consumed on a
+        // round the candidate won without clearing the bar, so most fixtures never see it.
+        return spec ? { margin: 'clear', shortfall: 'a shortfall the critic named', ...spec } : spec
       }
 
       // A round's spec may be a single object (broadcast to every critic in
@@ -404,6 +408,7 @@ export async function runLoop(opts) {
         // one cannot reach the loop in production. A test that does not care about
         // margin should still hand the loop a shape the runtime could produce.
         margin: spec.margin !== undefined ? spec.margin : 'clear',
+        shortfall: spec.shortfall !== undefined ? spec.shortfall : 'a shortfall the critic named',
       })
     }
 

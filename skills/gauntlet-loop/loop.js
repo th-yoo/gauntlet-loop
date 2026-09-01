@@ -618,7 +618,7 @@ command cannot be run, return -1 — a size that cannot be measured is not a siz
 
 const AB_SCHEMA = {
   type: 'object',
-  required: ['winner', 'why', 'gap', 'inspected', 'margin'],
+  required: ['winner', 'why', 'gap', 'inspected', 'margin', 'shortfall'],
   properties: {
     winner: { type: 'string', enum: ['A', 'B'], description: 'which artifact is better. You must choose; there is no tie.' },
     why: { type: 'string', description: 'what separates them, concretely' },
@@ -627,7 +627,8 @@ const AB_SCHEMA = {
       description: 'THE SINGLE LARGEST thing standing between the loser and the winner, stated concretely enough to act on. Exactly one. A gap can be an EXCESS as readily as an absence — something present that should go, or material buried where it cannot be found — and is not required to be something missing. If the winner is already the better artifact by a wide margin, this is still one gap: the biggest.',
     },
     inspected: { type: 'string', description: 'what you actually opened, ran or rendered to reach this verdict' },
-    margin: { type: 'string', enum: ['decisive', 'clear', 'narrow'], description: 'REQUIRED. How far apart they are. This does not gate the exit — a narrow win still ends a round — but a win with the separation unstated cannot be audited afterwards, and the first two live runs of this loop both produced exactly that.' },
+    margin: { type: 'string', enum: ['decisive', 'clear', 'narrow'], description: 'REQUIRED. How far apart they are. This GATES THE EXIT: the loop stops only when the winner is the candidate and no critic calls the margin narrow, because the bar is being utterly wowed rather than merely preferring one. Answer it about the artifacts, not about how confident you feel — a narrow margin is not a criticism of your own judgement, it is the reading that keeps the loop working.' },
+    shortfall: { type: 'string', description: 'REQUIRED. The single largest thing standing between the WINNER and an artifact that would utterly wow you, or "none" if nothing does. Distinct from `gap`, which looks from the loser up to the winner: on a round where the winner is already ahead, `gap` describes the LOSER and this is the only field that says what the leading artifact still needs. The loop builds on this whenever the candidate won but did not clear the bar.' },
   },
 }
 
@@ -1278,6 +1279,14 @@ Then:
 
 4. INSPECTED — what you actually opened, ran or rendered.
 
+5. SHORTFALL — the single largest thing standing between the WINNER and an artifact that
+   would utterly wow you. This is not the same question as GAP. Gap looks from the loser
+   up to the winner; shortfall looks from the winner up to first-rate, and on a round where
+   the winner is already the better artifact it is the only one of the two that says
+   anything about the artifact that is ahead. If the winner genuinely leaves you with
+   nothing to ask for, say "none" and mean it — the bar this loop stops at is being utterly
+   wowed, and a shortfall you name here is what the next round is spent on.
+
 Do not try to work out which artifact was generated and which is the reference. If you
 find yourself reasoning about provenance instead of quality, throw that reasoning away and
 look again.`
@@ -1573,6 +1582,7 @@ async function runPiece(piece) {
       winner: v.winner,
       candidateWon: v.winner === s.candidateSide,
       margin: v.margin || null,
+      shortfall: v.shortfall || null,
       why: v.why,
       gap: v.gap,
       inspected: v.inspected,
@@ -1763,6 +1773,41 @@ async function runPiece(piece) {
     armedAt = null
   }
 
+  // WHICH TEXT THE BUILDER IS ACTUALLY GIVEN, and this is a defect the exit-bar change
+  // introduced and a review caught before any live run.
+  //
+  // `gap` is defined by AB_SCHEMA as "the single largest thing standing between the LOSER
+  // and the winner". Before the bar rose, the builder only ever ran on a round the
+  // candidate LOST, so `gap` always described the candidate and the prompt could say so
+  // flatly. Raising the bar created a branch that had never existed: the candidate wins
+  // narrowly, does not clear the bar, and the round goes to the builder anyway. On that
+  // branch `gap` describes the REFERENCE — and the builder was being handed it under a
+  // sentence asserting the candidate had lost. Reproduced before this was written: a
+  // critic whose gap read "THE REFERENCE lacks a table of contents" produced a build
+  // prompt telling the builder the candidate lost and to fix exactly that.
+  //
+  // `shortfall` is the field that answers the question this branch actually asks — what
+  // the WINNER still needs — and it exists because this branch needs it.
+  //
+  // FALLING BACK TO `gap` IS NOT AN OPTION HERE. On a candidate win that text is about the
+  // other artifact, so a fallback would quietly reinstate the defect on exactly the rounds
+  // where the field is missing. When there is nothing usable the round is skipped and the
+  // reason is recorded, because building on a critic that named nothing is building on
+  // noise, and a round that spends a builder on noise is worse than one that does not run.
+  const shortfallLive = String((primary && primary.shortfall) || '').trim()
+  const shortfallUsable = shortfallLive.length > 0 && !/^none[.!]?$/i.test(shortfallLive)
+  const buildOn = candidateWon ? shortfallLive : primary.gap
+  if (candidateWon && !shortfallUsable) {
+    // Not an error and not a win. The critic preferred the candidate, did not clear the
+    // bar, and named nothing to close — so there is nothing to build and the next round
+    // asks a fresh critic. Recorded on the round so a reader can see the builder was
+    // skipped on purpose rather than silently.
+    history[history.length - 1].build_skipped =
+      `the critic picked the candidate but was not wowed, and named no shortfall to close (${shortfallLive ? `it answered ${JSON.stringify(shortfallLive)}` : 'the field was empty'}). Nothing was built this round; a fresh critic judges the same bytes next round. The loser-facing "gap" is deliberately NOT used as a fallback here — on a round the candidate won it describes the reference.`
+    log(`round ${round}${piece.name ? ` [${piece.name}]` : ''}: not wowed, but no shortfall was named — nothing built, next round asks a fresh critic`)
+    continue
+  }
+
   // --- build -------------------------------------------------------------
   // One gap. The builder never sees the critic's identity or the run's history,
   // and never learns whether it is A or B.
@@ -1788,10 +1833,14 @@ ${GOAL}
 
 THE CANDIDATE: ${PC}
 ${round === 1 ? '\nIf it does not exist yet, build the first version now.\n' : ''}
-A critic compared it blind against a reference and the candidate lost. It named ONE gap —
-the single largest thing standing between them:
+${candidateWon
+  ? `A critic compared it blind against a reference and picked the candidate — but was NOT
+utterly wowed by it, which is the bar this loop stops at, so the work is not finished. It
+named ONE thing still standing between the candidate and an artifact that would wow it:`
+  : `A critic compared it blind against a reference and the candidate lost. It named ONE gap —
+the single largest thing standing between them:`}
 
-    ${primary.gap}
+    ${buildOn}
 
 Fix that gap. Only that gap.
 

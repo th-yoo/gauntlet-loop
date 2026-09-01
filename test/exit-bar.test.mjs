@@ -205,6 +205,90 @@ const TWO = { decomposes: true, split_criterion: 'each subsystem renders alone',
 }
 
 // ---------------------------------------------------------------------------
+// WHAT THE BUILDER IS TOLD ON A ROUND THE CANDIDATE WON BUT DID NOT CLEAR THE BAR.
+//
+// This branch did not exist before the bar rose: the builder only ever ran on a round the
+// candidate LOST, so the prompt could assert that flatly and hand over `gap`. AB_SCHEMA
+// defines `gap` as "the single largest thing standing between the LOSER and the winner",
+// so on a candidate win it describes the REFERENCE. The first version of the exit-bar
+// change routed that text to the builder under the sentence "the candidate lost" — a false
+// premise and a gap pointing at the wrong artifact, on every narrow-win round. Reproduced
+// before this block was written: a critic whose gap read "THE REFERENCE lacks a table of
+// contents" produced exactly that prompt.
+//
+// `shortfall` is the field that answers what the WINNER still needs, and it exists for
+// this branch.
+// ---------------------------------------------------------------------------
+{
+  let rounds = 0
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: () => { rounds++; return rounds <= 3 },
+    critic: (round, s) => ({
+      winner: s.candidateSide, why: 'w', inspected: 'i', margin: 'narrow',
+      gap: 'THE REFERENCE lacks a table of contents',
+      shortfall: 'THE CANDIDATE still has no worked example',
+    }),
+  })
+  const b = r.prompts.find(p => /:build$/.test(p.label))
+  ok(b, 'a not-wowed win still sends the round to the builder — "keep going" means building')
+  ok(!/the candidate lost/.test(b.prompt),
+     'the builder is NOT told the candidate lost on a round the candidate won')
+  ok(/was NOT\s+utterly wowed/.test(b.prompt),
+     'it is told what actually happened: the critic picked the candidate and was not wowed')
+  ok(b.prompt.includes('THE CANDIDATE still has no worked example'),
+     'and it is handed the SHORTFALL — what the winner still needs')
+  ok(!b.prompt.includes('THE REFERENCE lacks a table of contents'),
+     'not the gap, which on a round the candidate won describes the reference')
+  console.log('exit-bar: a not-wowed win builds on the shortfall, under a true premise OK')
+}
+
+// The other side of that branch: the candidate LOST, so `gap` is the right text and the
+// original premise is the true one. Without this the block above passes against a loop
+// that sends the shortfall on every round, including the ones it must not.
+{
+  let rounds = 0
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    // Bounded by the breaker, not by the harness runaway guard. Letting the guard stop it
+    // makes runLoop THROW, and the first draft of this block caught that and carried on
+    // with an empty prompt list — an assertion about a prompt that was never collected.
+    breaker: () => { rounds++; return rounds <= 2 },
+    rounds: [{ candidateWins: false, gap: 'THE CANDIDATE has no error handling', why: 'w', inspected: 'i', margin: 'clear', shortfall: 'unused on this branch' }],
+  })
+  const b = (r.prompts || []).find(p => /:build$/.test(p.label))
+  ok(b, 'a lost round builds too')
+  ok(/the candidate lost/.test(b.prompt), 'and is told so, because it did')
+  ok(b.prompt.includes('THE CANDIDATE has no error handling'), 'and gets the gap, not the shortfall')
+  ok(!b.prompt.includes('unused on this branch'), 'the shortfall does not reach the builder on a lost round')
+  console.log('exit-bar: a lost round still builds on the gap, under the original premise OK')
+}
+
+// A critic that is not wowed and names NOTHING to close. Falling back to `gap` here would
+// reinstate the defect on exactly the rounds where the field is missing, so the round is
+// skipped and the reason recorded — building on a critic that named nothing is building
+// on noise.
+{
+  let rounds = 0
+  const r = await runLoop({
+    args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN },
+    breaker: () => { rounds++; return rounds <= 3 },
+    critic: (round, s) => ({
+      winner: s.candidateSide, why: 'w', inspected: 'i', margin: 'narrow',
+      gap: 'THE REFERENCE lacks a table of contents',
+      shortfall: 'none',
+    }),
+  })
+  ok(!r.prompts.some(p => /:build$/.test(p.label)),
+     'no builder ran — there was nothing to build')
+  ok((r.result.history || []).some(h => h.build_skipped),
+     'and the round records that the builder was skipped, rather than the skip being silent')
+  ok(/describes the reference/.test((r.result.history || []).find(h => h.build_skipped).build_skipped),
+     'the record says why the loser-facing gap was not used as a fallback')
+  console.log('exit-bar: not wowed with no shortfall named skips the build and says so OK')
+}
+
+// ---------------------------------------------------------------------------
 // THE RETRACTION. loop.js asserted, in a comment and in a pinned disclosure, that a
 // whole-artifact round is "NOT SOURCE FIDELITY" because "the source stops when every
 // sub-agent is wowed, which is what the piece verdicts already are." Piece verdicts were
