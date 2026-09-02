@@ -116,7 +116,7 @@ export const PROPERTIES = [
   ['concurrent pieces cannot each spend the last round', L, 'budgetLeft() < ROUND_RESERVE * (roundsInFlight + 1)', 'budgetLeft() < ROUND_RESERVE'],
   ['the in-flight budget reservation is released', L, '  } finally { roundsInFlight-- }', '  } finally { }'],
   ['an unreadable budget stops the run', L, 'treating the budget as exhausted rather than guessing`)\n    return 0', 'treating the budget as exhausted rather than guessing`)\n    return Infinity'],
-  ['a critic that throws cannot shorten the line', L, 'for (const p of rest) { if (p) positions.push(p); else critic_died = true }', 'for (const p of rest) if (p) positions.push(p)'],
+  ['a critic that throws cannot shorten the line', L, 'for (const p of line) { if (p) positions.push(p); else critic_died = true }', 'for (const p of rest) if (p) positions.push(p)'],
   ['a piece whose run dies is not counted as a win', L, '  if (!o && !outcome) {', '  if (false) {'],
   ['a skipped piece is not blamed for crashing', L, '    if (!skippedNames.has(name)) {', '    if (true) {'],
   ['pieces must have distinct names', L, '    if (seenNames.has(key)) return false', '    if (false) return false'],
@@ -200,8 +200,13 @@ export const PROPERTIES = [
   // will not call better than narrow, so the condition moved into `firstCanStillEnd`.
   // Both halves are pinned, because dropping either one buys critics that cannot change
   // the round — the dissent half is the original property, the margin half is the new one.
-  ['the escalation line is only bought on a winning round', L, 'const firstCanStillEnd = firstVerdict && firstVerdict.candidateWon && WOWED_MARGINS.has(firstVerdict.margin)', 'const firstCanStillEnd = firstVerdict && WOWED_MARGINS.has(firstVerdict.margin)'],
-  ['the escalation line is not bought once the bar is already missed', L, 'const firstCanStillEnd = firstVerdict && firstVerdict.candidateWon && WOWED_MARGINS.has(firstVerdict.margin)', 'const firstCanStillEnd = firstVerdict && firstVerdict.candidateWon'],
+  // REPLACED when the line was parallelised: the two escalation needles pinned a
+  // short-circuit that no longer exists. What replaces them is the property that took
+  // its place — the whole line goes out at once, so a round costs its slowest judge
+  // rather than the sum of the line, and every dissent is recorded rather than the first.
+  ['a verdict whose letter and path disagree is refused', L, '    if (claimedLoser && claimedLoser !== expectedLoser) {', '    if (false) {'],
+  ['the refused verdict is recorded, not merely dropped', L, '        claimed_loser: claimedLoser, loser_by_side: expectedLoser,', '        claimed_loser: null, loser_by_side: null,'],
+  ['the whole critic line is spawned at once, not one-then-rest', L, 'const line = await parallel(Array.from({ length: K }, (_, n) => () => spawnCritic(n)))', 'const line = [await spawnCritic(0)]'],
   ['the exit requires every critic, not most', L, 'const candidateWon = dissenters.length === 0', 'const candidateWon = dissenters.length < positions.length'],
 
 

@@ -359,30 +359,28 @@ const TWO = { decomposes: true, split_criterion: 'each subsystem renders alone',
   console.log('exit-bar: the note does not overclaim scope the run did not have OK')
 }
 
-// THE LINE IS ONLY PAID FOR WHILE THE ROUND CAN STILL END. The escalation guard stopped
-// at a first-critic dissent, because a lost round is lost whatever the rest say. The bar
-// created a second settled case — a candidate win the first critic calls narrow cannot be
-// wowed by anything that follows — and the guard did not know about it, so a k=4 run
-// bought three verdicts per narrow round that could not change the outcome. It also made
-// commands/loop.md's cost promise false: "only a round that could end costs two".
+// THE WHOLE LINE IS BOUGHT, and this block asserted the opposite until 2026-09-02. The
+// escalation guard stopped at a first-critic dissent, and yesterday it was extended to stop
+// on a first-critic narrow too — a candidate win nobody calls better than narrow cannot be
+// wowed by anything that follows. Both were true and both were removed, because the guard
+// bought a saved critic at the price of a serialised round: `parallel()` over K-1 items is
+// one item at k=2, so the "parallel" branch ran a single critic AFTER the first returned.
+// Measured on the wide-goal run, max simultaneous agents after the lead was 1.
+//
+// The exit bar itself is unchanged — a narrow win still does not exit, which the blocks
+// above assert. What changed is only whether the rest of the line is paid for once the
+// round is already settled.
 {
   const spawned = margin => runLoop({
     args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 4 },
-    // Stops after round 1: the token reads present for round 1 and absent for round 2, so
-    // exactly one round's critic line is spawned and counted. A never-tripping breaker
-    // here ran to the harness runaway guard instead, which throws and counts nothing.
     breaker: round => round <= 1,
     critic: (round, s) => ({ winner: s.candidateSide, why: 'w', gap: 'g', inspected: 'i', margin, shortfall: 's' }),
   }).then(r => r.labels.filter(l => /^round-1:ab/.test(l)).length)
 
-  // A narrow first verdict settles the round: one critic, not four.
-  eq(await spawned('narrow'), 1,
-     'a round that can no longer clear the bar stops after the first critic')
-  // The control. Without it this passes against a loop that never escalates at all, which
-  // would silently reduce every k>1 run to k=1 — the failure this check must not permit.
-  eq(await spawned('decisive'), 4,
-     'a round that can still end pays for the whole line — the guard narrowed, it did not close')
-  console.log('exit-bar: the critic line is paid for only while the round can still end OK')
+  eq(await spawned('narrow'), 4,
+     'a round that cannot clear the bar still buys its whole line — the dissenting or narrow verdicts are the paired observations the ledger wants')
+  eq(await spawned('decisive'), 4, 'and so does a round that can end')
+  console.log('exit-bar: the critic line is spawned in full, in parallel, whatever the first verdict says OK')
 }
 
 // The allow-list must stay a SUBSET of the schema's enum. Two literals that must agree,

@@ -537,23 +537,28 @@ console.log('loop: required args throw, and the reference error explains why a b
       ],
     ],
   })
-  // Counts updated deliberately for #18's second half: the exit arms on the
-  // first winning round and fires on a second. Round 1 loses with 1 critic
-  // (escalation declines to buy the second), round 2 wins on both and ARMS,
-  // round 3 wins on both and CONFIRMS. What this case is about — that the
-  // bullet counts actual spawns rather than history.length — is unchanged, and
-  // the divergence it needs is wider now, not narrower.
+  // COUNT CHANGED 5 -> 6 when the critic line was parallelised. It used to be 5 because
+  // the losing round bought only its first critic: the line was spawned one-then-rest, and
+  // a dissent settled the round before the rest were paid for. Every critic in a round now
+  // goes out at once, because they judge the same bytes and none needs another's answer —
+  // the sequencing was a cost optimisation, and at k=2 it bought no parallelism at all
+  // while costing a full critic latency per round. So a losing round pays its whole line
+  // too. What this case is actually about — that the bullet counts actual SPAWNS rather
+  // than history.length — is untouched by either behaviour.
   eq(r.result.outcome.status, 'WON', 'the candidate wins with both critics, confirmed at round 3')
   eq(r.result.history.length, 3, 'three rounds ran — lose, arm, confirm')
   const spawned = r.labels.filter(l => /:ab:\d+$/.test(l)).length
-  eq(spawned, 5, 'escalation spawned 1 critic on the losing round and 2 on each of the two winning ones')
+  eq(spawned, 6, 'the full line of 2 is spawned on every one of the three rounds')
   const recorded = r.result.history.reduce((n, h) => n + h.split.positions.length, 0)
-  eq(recorded, 5, 'all five critics produced a recorded verdict')
+  eq(recorded, 6, 'every spawned critic produced a recorded verdict — spawns and positions agree')
+  // The pair this case exists for: SPAWNS and RECORDED POSITIONS must move together. When
+  // they diverged, the verdict reported a line the run had not actually bought.
+  eq(recorded, spawned, 'the count the verdict reports is the count that was spawned')
   const spawnBullet = r.result.enforced.find(b => /separate critic spawn/i.test(b))
   ok(spawnBullet, 'a spawn-count bullet is present')
-  ok(/\b5 separate critic spawn/.test(spawnBullet), 'the bullet reports 5 spawns')
-  ok(/5 produced a recorded verdict/.test(spawnBullet),
-     'the bullet reports 3 recorded verdicts, not history.length (2) — understating them reads as if a critic returned nothing')
+  ok(/\b6 separate critic spawn/.test(spawnBullet), 'the bullet reports 6 spawns — the number actually bought, not history.length')
+  ok(/6 produced a recorded verdict/.test(spawnBullet),
+     'the bullet reports the recorded verdicts, not history.length — understating them reads as if a critic returned nothing')
   console.log('loop: the spawn bullet counts recorded VERDICTS, not rounds, when escalation fires OK')
 }
 
@@ -2112,19 +2117,28 @@ console.log('loop: protocol-relative, Windows, relative and tilde references all
   console.log('loop: k=3 unanimous line wins and reports the split OK')
 }
 
-// ESCALATION. The first soldier blocks it, so the rest are never spawned —
-// a round the candidate loses could not have exited whatever they said.
+// THE WHOLE LINE IS BOUGHT, INCLUDING ON A LOSING ROUND. This block asserted the
+// opposite until 2026-09-02: the first critic was awaited alone and a dissent settled the
+// round before the rest were paid for. That saved a critic and cost a full critic latency
+// per round, and at k=2 it bought no parallelism whatever — `parallel()` over K-1 items is
+// one item. Measured on the wide-goal run: max simultaneous agents after the lead was 1.
+//
+// The saving also fell on exactly the rounds where a second opinion is most informative: a
+// dissent at k>1 is the paired observation the split ledger wants, and the short-circuit
+// discarded the rest of it. So the trade was inverted deliberately — spend rises on losing
+// rounds, wall clock falls to the slowest judge rather than the sum of the line, and the
+// dissent is recorded in full.
 {
   const r = await runLoop({
     args: { goal: GOAL, candidate: CANDIDATE, reference: REFERENCE, token: TOKEN, critics: 4 },
     breaker: n => n <= 1,
     rounds: [{ candidateWins: false, gap: 'THE-FIRST-SOLDIERS-GAP' }],
   })
-  eq(r.labels.filter(l => /:ab(:\d+)?$/.test(l)).length, 1, 'only one critic spawned — the line was not bought')
+  eq(r.labels.filter(l => /:ab(:\d+)?$/.test(l)).length, 4, 'the full line of 4 is spawned even though the round cannot end')
   const build = r.prompts.find(p => p.label === 'round-1:build')
   ok(build && build.prompt.includes('THE-FIRST-SOLDIERS-GAP'), 'the builder got that critic\'s gap')
-  eq(r.result.history[0].split.against_candidate, 1, 'the split records the single dissent')
-  console.log('loop: a losing round spends one critic, not k OK')
+  eq(r.result.history[0].split.against_candidate, 4, 'and every dissent is recorded, not just the first')
+  console.log('loop: a losing round buys its whole line and records every dissent OK')
 }
 
 // A dissenter later in the line still loses the round, and its gap is the one

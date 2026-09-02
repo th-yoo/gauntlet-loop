@@ -629,7 +629,7 @@ const WOWED_MARGINS = new Set(['decisive', 'clear'])
 
 const AB_SCHEMA = {
   type: 'object',
-  required: ['winner', 'why', 'gap', 'inspected', 'margin', 'shortfall'],
+  required: ['winner', 'why', 'gap', 'inspected', 'margin', 'shortfall', 'loser_path'],
   properties: {
     winner: { type: 'string', enum: ['A', 'B'], description: 'which artifact is better. You must choose; there is no tie.' },
     why: { type: 'string', description: 'what separates them, concretely' },
@@ -639,6 +639,7 @@ const AB_SCHEMA = {
     },
     inspected: { type: 'string', description: 'what you actually opened, ran or rendered to reach this verdict' },
     margin: { type: 'string', enum: ['decisive', 'clear', 'narrow'], description: 'REQUIRED. How far apart they are. This GATES THE EXIT: the loop stops only when the winner is the candidate and no critic calls the margin narrow, because the bar is being utterly wowed rather than merely preferring one. Answer it about the artifacts, not about how confident you feel — a narrow margin is not a criticism of your own judgement, it is the reading that keeps the loop working.' },
+    loser_path: { type: 'string', description: 'REQUIRED. The full path of the artifact you did NOT pick, copied exactly from the ARTIFACT line above. This is not bookkeeping: A and B are assigned afresh every round, so the letters carry no meaning across rounds, and a judge that has silently mapped them the wrong way round produces a verdict that is coherent, well-argued, and exactly backwards. Naming the file is the one statement that cannot be inverted, and the loop checks it against the side you picked.' },
     shortfall: { type: 'string', description: 'REQUIRED. The single largest thing standing between the WINNER and an artifact that would utterly wow you, or "none" if nothing does. Distinct from `gap`, which looks from the loser up to the winner: on a round where the winner is already ahead, `gap` describes the LOSER and this is the only field that says what the leading artifact still needs. The loop builds on this whenever the candidate won but did not clear the bar.' },
   },
 }
@@ -1290,7 +1291,17 @@ Then:
 
 4. INSPECTED — what you actually opened, ran or rendered.
 
-5. SHORTFALL — the single largest thing standing between the WINNER and an artifact that
+5. LOSER_PATH — the full path of the artifact you did NOT pick, copied exactly from the
+   ARTIFACT lines above.
+
+   A AND B ARE ASSIGNED AFRESH EVERY ROUND. The letters mean nothing beyond position in
+   this prompt and carry nothing from any other round. This has gone wrong in a real run:
+   two verdicts described both artifacts accurately and then attached the descriptions to
+   the wrong letters, so the side the judge actually preferred was recorded as the loser.
+   Both were coherent, well argued, and exactly backwards. Writing the PATH is the one
+   statement that cannot invert, and it is checked against the letter you picked.
+
+6. SHORTFALL — the single largest thing standing between the WINNER and an artifact that
    would utterly wow you. This is not the same question as GAP. Gap looks from the loser
    up to the winner; shortfall looks from the winner up to first-rate, and on a round where
    the winner is already the better artifact it is the only one of the two that says
@@ -1572,6 +1583,7 @@ async function runPiece(piece) {
   // which is the same defect as the old exit, one level down. k is fixed
   // before the round starts and a split is a loss.
   const positions = []
+  const inconsistent = []   // verdicts whose letter and path disagree; counted nowhere, reported in full
   let critic_died = false
 
   async function spawnCritic(i) {
@@ -1587,9 +1599,40 @@ async function runPiece(piece) {
       }
     )
     if (!v) { critic_died = true; return null }
+    // THE LETTER AND THE PATH MUST AGREE, and when they do not the verdict is not one.
+    //
+    // Observed, not hypothesised: on the 2026-09-02 wide-goal run, three rounds put the
+    // REFERENCE at A and two of them came back describing the artifacts correctly while
+    // attaching the descriptions to the wrong letters. A judge that plainly preferred the
+    // reference — it quoted `LINE_SCORES[count] * level`, a string that exists only in the
+    // reference, as the WINNER's shortfall — returned `winner: B`, and the loop read B as
+    // the candidate and ARMED THE EXIT on it. Twice. Nothing downstream could tell those
+    // from real preferences: valid enum, coherent prose, a genuine defect named.
+    //
+    // The critic now also names the losing FILE. A path cannot be inverted the way a
+    // positional letter can, so the two are independent expressions of one fact and are
+    // required to agree — an over-determined check the loop can run with no filesystem,
+    // against no answer key, using only what it already knows about which side it dealt.
+    //
+    // A MISMATCH IS REFUSED, NOT REPAIRED. Trusting the path and overriding the letter
+    // would be this loop silently deciding what a judge meant, which is the thing it
+    // exists not to do. The position is dropped, the disagreement is recorded verbatim,
+    // and if that empties the line the round fails loudly — "we cannot tell what the
+    // judges meant" is the honest verdict there.
+    const expectedLoser = v.winner === 'A' ? s.B : s.A
+    const claimedLoser = String(v.loser_path || '').trim()
+    if (claimedLoser && claimedLoser !== expectedLoser) {
+      inconsistent.push({
+        i, winner: v.winner, side: s.candidateSide,
+        claimed_loser: claimedLoser, loser_by_side: expectedLoser,
+        why: `the critic picked ${v.winner} and named ${claimedLoser} as the loser, but ${expectedLoser} was on the other side. Its letter and its path disagree, so which artifact it preferred is unknown and this position is not counted.`,
+      })
+      return null
+    }
     return {
       i,
       side: s.candidateSide,
+      loser_path: claimedLoser || null,
       winner: v.winner,
       candidateWon: v.winner === s.candidateSide,
       margin: v.margin || null,
@@ -1600,38 +1643,32 @@ async function runPiece(piece) {
     }
   }
 
-  const firstVerdict = await spawnCritic(0)
-  if (firstVerdict) positions.push(firstVerdict)
-
-  // THE LINE IS ONLY PAID FOR WHILE THE ROUND CAN STILL END. This guard has always
-  // stopped at a first-critic dissent, because a lost round is lost whatever the other
-  // K-1 say. Raising the exit bar created a SECOND way for the round to be settled by the
-  // first verdict — a candidate win the first critic will not call better than narrow
-  // cannot be wowed no matter what follows — and the guard did not know about it, so a
-  // k=4 run paid three extra critics on every narrow round for verdicts that could not
-  // change the outcome.
+  // THE WHOLE LINE IS SPAWNED AT ONCE. Every critic in a round judges the SAME bytes and
+  // answers independently, so nothing in the round needs one verdict before asking for the
+  // next — the sequencing that used to be here was a COST optimisation, not a dependency.
   //
-  // That also made an operator-facing promise false. commands/loop.md tells whoever
-  // chooses k that "a losing round still costs one critic; only a round that could end
-  // costs two", and a narrow round could no longer end while still costing the full line.
-  // Fixing the code rather than the sentence, because the sentence is the better property.
+  // WHAT IT COST TO KEEP: at k=2 it bought nothing at all. `parallel()` over K-1 items is
+  // one item, so the "parallel" branch ran a single critic after the first had returned,
+  // and a k=2 round took two critic latencies end to end. Measured on the 2026-09-02 run:
+  // every agent after the lead ran strictly sequentially, max simultaneous 1, with the two
+  // k=2 critics of `mechanics-feel` at 514-828 s and 831-1203 s — back to back, never
+  // overlapping. A round's wall clock was the sum of its line rather than its slowest judge.
   //
-  // The cost is measurement, and it is the cost this guard already accepts: a short line
-  // records fewer positions for the split ledger. Stopping on dissent has always made that
-  // trade, so this is the existing decision applied to the case that now behaves the same
-  // way, not a new one.
-  const firstCanStillEnd = firstVerdict && firstVerdict.candidateWon && WOWED_MARGINS.has(firstVerdict.margin)
-  if (firstCanStillEnd && K > 1) {
-    const rest = await parallel(
-      Array.from({ length: K - 1 }, (_, n) => () => spawnCritic(n + 1))
-    )
-    // A null here is a critic that THREW, not one that returned nothing:
-    // parallel() converts a throw per the runtime contract, so it never reached
-    // the `critic_died` line inside spawnCritic. Dropping it silently shortened
-    // the line, and a shorter line can satisfy the exit rule — the run then
-    // reported "all N critics picked the candidate" with fewer than N votes.
-    for (const p of rest) { if (p) positions.push(p); else critic_died = true }
-  }
+  // WHAT REMOVING IT COSTS, stated because it is a real trade and it inverts a property
+  // this file previously argued for: a round that cannot end now pays for the whole line
+  // anyway. Under the old guard a first-critic dissent, or a first-critic narrow, ended the
+  // round for one critic. That saving only ever existed at k>1, and it bought latency with
+  // spend on exactly the rounds where a second opinion is most informative — a dissent at
+  // k=2 is the paired observation the split ledger wants, and the guard was throwing the
+  // second half of it away. The operator-facing cost line in commands/loop.md and SKILL.md
+  // is corrected to match rather than left describing the old behaviour.
+  const line = await parallel(Array.from({ length: K }, (_, n) => () => spawnCritic(n)))
+  // A null here is a critic that THREW, not one that returned nothing: parallel() converts
+  // a throw per the runtime contract, so it never reached the `critic_died` line inside
+  // spawnCritic. Dropping it silently shortened the line, and a shorter line can satisfy
+  // the exit rule — the run then reported "all N critics picked the candidate" with fewer
+  // than N votes.
+  for (const p of line) { if (p) positions.push(p); else critic_died = true }
 
   // Fails SAFE, like the breaker and the budget: a round decided on a SHORTER
   // line than the operator asked for is a quietly weaker standard, applied at
@@ -1639,9 +1676,23 @@ async function runPiece(piece) {
   if (critic_died || positions.length === 0) {
     pieceOutcome = {
       status: 'ERROR',
-      why: (K === 1
-        ? `critic returned nothing at round ${round}`
-        : `a critic returned nothing at round ${round} — a round is not decided on a partial line of ${K}`) +
+      // THE PIECE IS NAMED HERE NOW. Before the line was parallelised, spawnCritic(0) was a
+      // bare await, so a critic that THREW propagated out of runPiece and landed in the
+      // piece-level handler, which names the piece that died. Inside parallel() a throw
+      // becomes null instead, so it arrives here — and this message named the round but not
+      // the piece, leaving an operator with a decomposed run told only that "a critic
+      // returned nothing" somewhere. The information was free and was being dropped.
+      //
+      // CARRIED ON THE OUTCOME TOO, not only on the round record. A round whose whole line
+      // is refused breaks before its history entry is written, so the refused readings
+      // would have survived only inside a prose `why` — unparseable, on exactly the branch
+      // a reader most needs them.
+      inconsistent_verdicts: inconsistent,
+      why: (inconsistent.length
+        ? `every verdict at round ${round}${piece.name ? ` of piece "${piece.name}"` : ''} named a loser that was not on the losing side — ${inconsistent.map(x => x.why).join(' ')} A judge whose letter and path disagree has not told this loop which artifact it preferred, and guessing is worse than stopping.`
+        : K === 1
+        ? `critic returned nothing at round ${round}${piece.name ? ` of piece "${piece.name}"` : ''}`
+        : `a critic returned nothing at round ${round}${piece.name ? ` of piece "${piece.name}"` : ''} — a round is not decided on a partial line of ${K}`) +
         silenceNote('gauntlet-loop:gauntlet-ab-critic'),
     }
     break
@@ -1725,6 +1776,10 @@ async function runPiece(piece) {
     winner: primary.winner,
     candidateWon,
     margin: primary.margin,
+    // Recorded even when empty, because the rate is the interesting number: a run where
+    // this stays [] says the letters held, and one where it fills up says the blind A/B is
+    // being decided by a coin the loop cannot see.
+    inconsistent_verdicts: inconsistent,
     // RECORDED BECAUSE THEY NOW DECIDE. `wowed` is what the exit turns on and it is not
     // recoverable from `candidateWon` alone; `shortfall` is what the builder was given on
     // a round the candidate won, and a reader auditing `buildOn` cannot check it against

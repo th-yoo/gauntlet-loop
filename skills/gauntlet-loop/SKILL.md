@@ -236,10 +236,10 @@ Who should set k is not settled by any measurement (issue 63); the verdict says 
   judge compares whole against whole. `critics` is NOT the source's "each
   sub-agent" — that is `exit_bar.wowed_required`, which equals the piece count
   and which `critics` does not move (decision 0007).
-- **2** — the cheapest non-vacuous standard. A round that cannot end still costs
-  one critic — whether the first judge picked the reference or picked the
-  candidate without clearing the bar — and only a round that could still end
-  pays for the rest of the line.
+- **2** — the cheapest non-vacuous standard. Every round costs its whole line:
+  the k critics go out at once and a round takes its slowest judge, not the sum.
+  A losing round pays k as well, and records every dissent rather than only the
+  first — at k>1 a dissent is the paired observation the split ledger wants.
 - **4** — for something you would not want to ship on one favourable verdict.
   Even numbers split positions evenly.
 - **more** — only with a stated reason. A long line can fail by never converging,

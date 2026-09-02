@@ -314,6 +314,9 @@ export async function runLoop(opts) {
         inspected: spec.inspected !== undefined ? spec.inspected : 'read both whole artifacts',
         margin: spec.margin !== undefined ? spec.margin : 'clear',
         shortfall: spec.shortfall !== undefined ? spec.shortfall : 'a shortfall the critic named',
+        loser_path: spec.loser_path !== undefined ? spec.loser_path
+          : (() => { const A=/ARTIFACT A: (\S+)/.exec(prompt), B=/ARTIFACT B: (\S+)/.exec(prompt)
+                     return A && B ? (winner === 'A' ? B[1] : A[1]) : '' })(),
       })
     }
 
@@ -389,7 +392,15 @@ export async function runLoop(opts) {
         // `shortfall` defaulted for the same reason as `margin`: AB_SCHEMA requires it, so a
         // verdict without one cannot reach the loop in production. It is only consumed on a
         // round the candidate won without clearing the bar, so most fixtures never see it.
-        return spec ? { margin: 'clear', shortfall: 'a shortfall the critic named', ...spec } : spec
+        // `loser_path` defaulted from the PROMPT's own ARTIFACT lines and the chosen winner,
+        // so every existing fixture stays internally consistent without knowing the field
+        // exists. A test that wants to simulate the label inversion the 2026-09-02 run hit
+        // sets it explicitly to the other path.
+        if (!spec) return spec
+        const A = /ARTIFACT A: (\S+)/.exec(prompt), B = /ARTIFACT B: (\S+)/.exec(prompt)
+        const win = spec.winner !== undefined ? spec.winner : (spec.candidateWins ? candidateSide : referenceSide)
+        const loser = A && B ? (win === 'A' ? B[1] : A[1]) : ''
+        return { margin: 'clear', shortfall: 'a shortfall the critic named', loser_path: loser, ...spec }
       }
 
       // A round's spec may be a single object (broadcast to every critic in
@@ -409,6 +420,9 @@ export async function runLoop(opts) {
         // margin should still hand the loop a shape the runtime could produce.
         margin: spec.margin !== undefined ? spec.margin : 'clear',
         shortfall: spec.shortfall !== undefined ? spec.shortfall : 'a shortfall the critic named',
+        loser_path: spec.loser_path !== undefined ? spec.loser_path
+          : (() => { const A=/ARTIFACT A: (\S+)/.exec(prompt), B=/ARTIFACT B: (\S+)/.exec(prompt)
+                     return A && B ? (winner === 'A' ? B[1] : A[1]) : '' })(),
       })
     }
 
