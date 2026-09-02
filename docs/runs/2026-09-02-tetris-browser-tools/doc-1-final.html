@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<meta charset="utf-8"  >
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tetris</title>
+<style>
+  :root {
+    --bg-deep: #090b14;
+    --panel: #161c30;
+    --panel-2: #1d2440;
+    --border: #313a5e;
+    --accent: #5ad1ff;
+    --accent-2: #b892ff;
+    --text: #eef1fb;
+    --text-dim: #8a92b8;
+  }
+  * { box-sizing: border-box }
+  html, body { max-width: 100%; overflow-x: hidden }
+  body {
+    background:
+      radial-gradient(ellipse at 50% -10%, #1c2450 0%, var(--bg-deep) 55%);
+    color: var(--text);
+    font-family: 'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif;
+    text-align: center;
+    margin: 0;
+    min-height: 100vh;
+    padding: 28px 12px 40px;
+  }
+  .shell {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 20px 26px 26px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.04);
+  }
+  h1 {
+    margin: 0 0 2px;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: 8px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .tagline {
+    margin: 0 0 16px;
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .hud {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin: 0 0 16px;
+  }
+  .stat {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 6px 16px;
+    min-width: 74px;
+  }
+  .stat-label {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 0 0 2px;
+  }
+  .stat-value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  #field { display:flex; justify-content:center; align-items:flex-start; gap:16px; flex-wrap: wrap }
+  .panel {
+    width: 96px;
+    flex: 0 0 auto;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px;
+  }
+  .panel-label {
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin: 0 0 6px;
+  }
+  .panel canvas { border: none; display: block; margin: 0 auto }
+  .board-frame {
+    background: #000;
+    border: 2px solid var(--border);
+    border-radius: 6px;
+    padding: 3px;
+    box-shadow: 0 0 0 1px rgba(90,209,255,0.08), inset 0 0 24px rgba(0,0,0,0.6);
+  }
+  .board-frame canvas { display: block; border: none }
+  @keyframes levelFlash { 0% { color:#ffe066; text-shadow:0 0 10px #ffe066 } 100% { color: var(--text); text-shadow:none } }
+  .stat-value.level-up { animation: levelFlash 600ms ease-out }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 14px;
+    max-width: 420px;
+    margin: 18px auto 6px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border);
+  }
+  .ctrl { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim) }
+  kbd {
+    display: inline-block;
+    min-width: 20px;
+    padding: 3px 6px;
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    font: 11px/1 'Segoe UI', system-ui, sans-serif;
+    color: var(--text);
+    box-shadow: 0 1px 0 rgba(0,0,0,0.4);
+  }
+  .hint { margin: 8px 0 0; font-size: 11px; color: var(--text-dim) }
+  .pause-overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: rgba(6,8,16,0.82);
+    backdrop-filter: blur(2px);
+    border-radius: 18px;
+    z-index: 20;
+  }
+  .pause-panel {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 26px 20px;
+    min-width: 220px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+  }
+  .pause-title {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 4px;
+    margin: 0 0 12px;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .pause-menu { list-style: none; margin: 0; padding: 0; text-align: left }
+  .pause-menu li {
+    padding: 8px 10px;
+    margin: 2px 0;
+    border-radius: 6px;
+    font-size: 13px;
+    color: var(--text-dim);
+    cursor: pointer;
+    transition: background 0.1s, color 0.1s;
+  }
+  .pause-menu li.sel {
+    background: var(--panel);
+    color: var(--text);
+    box-shadow: inset 0 0 0 1px var(--accent);
+  }
+  .pause-hint { margin: 12px 0 0; font-size: 10.5px; color: var(--text-dim); text-align: center }
+  .start-label {
+    margin: 0 0 10px;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+  .level-pick {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    font-size: 34px;
+    font-weight: 800;
+    margin: 0 0 14px;
+    font-variant-numeric: tabular-nums;
+  }
+  .level-arrow { color: var(--text-dim); font-size: 15px }
+
+  /* Narrow viewports: collapse the HUD/side-panel layout into a compact
+     stacked arrangement instead of overflowing horizontally. */
+  @media (max-width: 480px) {
+    body { padding: 14px 6px 28px }
+    .shell { padding: 14px 10px 18px; border-radius: 14px }
+    h1 { font-size: 22px; letter-spacing: 5px }
+    .tagline { font-size: 9.5px; margin-bottom: 12px }
+    .hud { gap: 6px; margin-bottom: 12px }
+    .stat { padding: 4px 8px; min-width: 0; flex: 1 1 60px }
+    .stat-label { font-size: 8.5px }
+    .stat-value { font-size: 15px }
+    #field {
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .panel {
+      width: auto;
+      max-width: 180px;
+    }
+    .panel canvas {
+      width: 84px;
+      height: auto;
+    }
+    #next {
+      width: 84px;
+    }
+    .board-frame canvas {
+      width: min(70vw, 200px);
+      height: auto;
+    }
+    .controls { max-width: 280px; gap: 6px 10px; margin-top: 14px }
+    .ctrl { font-size: 10.5px }
+    .hint { font-size: 10px; padding: 0 4px }
+  }
+</style>
+<div class="shell">
+  <h1>TETRIS</h1>
+  <p class="tagline">clear lines &middot; chase the high score</p>
+  <div class="hud">
+    <div class="stat">
+      <div class="stat-label">Score</div>
+      <div class="stat-value" id="score">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Best</div>
+      <div class="stat-value" id="best">0</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Level</div>
+      <div class="stat-value" id="level">1</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Lines</div>
+      <div class="stat-value" id="lines">0</div>
+    </div>
+  </div>
+  <div id="field">
+    <div class="panel">
+      <div class="panel-label">Hold</div>
+      <canvas id="hold" width="96" height="96"></canvas>
+    </div>
+    <div class="board-frame">
+      <canvas id="c" width="240" height="480"></canvas>
+    </div>
+    <div class="panel">
+      <div class="panel-label">Next</div>
+      <canvas id="next" width="96" height="300"></canvas>
+    </div>
+  </div>
+  <div class="controls">
+    <div class="ctrl"><kbd>&larr;</kbd><kbd>A</kbd><kbd>&rarr;</kbd><kbd>D</kbd><span>Move</span></div>
+    <div class="ctrl"><kbd>&uarr;</kbd><kbd>W</kbd><kbd>X</kbd><span>Rotate CW</span></div>
+    <div class="ctrl"><kbd>Z</kbd><span>Rotate CCW</span></div>
+    <div class="ctrl"><kbd>&darr;</kbd><kbd>S</kbd><span>Soft drop</span></div>
+    <div class="ctrl"><kbd>Space</kbd><span>Hard drop</span></div>
+    <div class="ctrl"><kbd>C</kbd><kbd>Shift</kbd><span>Hold</span></div>
+    <div class="ctrl"><kbd>Esc</kbd><span>Pause</span></div>
+  </div>
+  <p class="hint">Shaded outline shows where the piece will land &middot; arrow keys or WASD/Z/X/C/Shift both work &middot; press any key after Game Over to pick a level and play again</p>
+  <div class="pause-overlay" id="pauseOverlay">
+    <div class="pause-panel">
+      <div class="pause-title">PAUSED</div>
+      <ul class="pause-menu" id="pauseMenu"></ul>
+      <p class="pause-hint">&uarr;&darr; Select &middot; Enter Confirm &middot; Esc Resume</p>
+    </div>
+  </div>
+  <div class="pause-overlay" id="startOverlay" style="display:flex">
+    <div class="pause-panel">
+      <div class="pause-title">TETRIS</div>
+      <p class="start-label">Starting level</p>
+      <div class="level-pick">
+        <span class="level-arrow">&#9664;</span>
+        <span id="levelPickValue">1</span>
+        <span class="level-arrow">&#9654;</span>
+      </div>
+      <p class="pause-hint">&larr;/A &rarr;/D Change &middot; Enter/Space Start</p>
+    </div>
+  </div>
+  <audio id="bgMusic" loop preload="auto" style="display:none"></audio>
+  <audio id="sfxLineClear" preload="auto" style="display:none"></audio>
+</div>
+<script>
+const C = 10, R = 20, S = 24
+const ctx = document.getElementById('c').getContext('2d')
+const holdCtx = document.getElementById('hold').getContext('2d')
+const nextCtx = document.getElementById('next').getContext('2d')
+const scoreEl = document.getElementById('score')
+const bestEl = document.getElementById('best')
+const levelEl = document.getElementById('level')
+const linesEl = document.getElementById('lines')
+const pauseOverlay = document.getElementById('pauseOverlay')
+const pauseMenuEl = document.getElementById('pauseMenu')
+const startOverlay = document.getElementById('startOverlay')
+const levelPickValueEl = document.getElementById('levelPickValue')
+const bgMusicEl = document.getElementById('bgMusic')
+const sfxLineClearEl = document.getElementById('sfxLineClear')
+const SHAPES = [
+  [[1,1,1,1]],
+  [[1,1],[1,1]],
+  [[0,1,0],[1,1,1]],
+  [[1,0,0],[1,1,1]],
+  [[0,0,1],[1,1,1]],
+  [[0,1,1],[1,1,0]],
+  [[1,1,0],[0,1,1]],
+]
+const COLORS = ['#0ff','#ff0','#a0f','#00f','#fa0','#0f0','#f00']
+const NEXT_COUNT = 3
+let board = Array.from({length:R}, () => Array(C).fill(0))
+// Standard guideline scoring for movement, not just line clears: 1 point per row
+// the player pushes down manually (soft drop), 2 points per row a hard drop
+// skips over. Both are paid out immediately, cell by cell, so a player who plays
+// efficiently — hard-dropping instead of idling on gravity — earns more than one
+// who just waits, the same way LINE_SCORES rewards clearing lines over leaving them.
+const SOFT_DROP_SCORE = 1, HARD_DROP_SCORE = 2
+let piece = null, score = 0, over = false, dropMs = 700, last = 0
+let lines = 0, level = 1
+let lockStart = null, lockResets = 0
+const LOCK_DELAY = 500, MAX_LOCK_RESETS = 15
+let queue = [], holdType = null, holdUsed = false
+let bag = []
+let particles = [], lockFlash = null, shakeUntil = 0, shakeMag = 0, prevFrameT = 0
+// --- Pause/settings layer: persisted best score, mute toggles, a visuals
+// toggle, and Escape-triggered menu that genuinely freezes the sim (the game
+// loop skips both gravity/input update and particle update while paused).
+let best = Number(localStorage.getItem('tetris-best')) || 0
+let paused = false, menuIndex = 0
+let musicMuted = false, sfxMuted = false, visualsEnabled = true
+bestEl.textContent = best
+
+// --- Pre-game level select: the sim (loop/spawn) does not start until beginGame()
+// runs, so the very first piece — and every piece after a Game Over restart — spawns
+// only after a starting level has been chosen, never before. MAX_START_LEVEL is
+// capped at 9 because dropMs = 700 - (level-1)*60 already hits its 120ms floor by
+// level 10, so higher picks would silently collapse to the same speed.
+let gameStarted = false, startLevel = 1
+const MAX_START_LEVEL = 9
+function renderLevelPick() { levelPickValueEl.textContent = startLevel }
+function changeStartLevel(d) { startLevel = Math.min(MAX_START_LEVEL, Math.max(1, startLevel + d)); renderLevelPick() }
+function showStartScreen() { gameStarted = false; startOverlay.style.display = 'flex'; renderLevelPick() }
+function beginGame() { gameStarted = true; startOverlay.style.display = 'none'; reset(); draw(); syncMusic() }
+
+function reset() {
+  board = Array.from({length:R}, () => Array(C).fill(0))
+  score = 0; lines = 0; level = startLevel; over = false
+  dropMs = Math.max(120, 700 - (startLevel - 1) * 60); last = now()
+  heldDir = 0; dasActive = false
+  queue = []; holdType = null; holdUsed = false; bag = []
+  particles = []; lockFlash = null; shakeUntil = 0
+  levelEl.classList.remove('level-up')
+  scoreEl.textContent = score
+  bestEl.textContent = best
+  levelEl.textContent = level
+  linesEl.textContent = lines
+  spawn()
+}
+// Standard 7-bag randomizer: each of the 7 piece types appears exactly once
+// per bag (Fisher-Yates shuffle), and a fresh bag is drawn only once the
+// previous one is exhausted — so the same piece can repeat at most twice in a
+// row (end of one bag, start of the next) and no type can be withheld for
+// more than 12 spawns. Replaces a uniform-random per-slot draw, which could
+// legally repeat or withhold any piece indefinitely.
+function refillBag() {
+  bag = SHAPES.map((_, i) => i)
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = bag[i]; bag[i] = bag[j]; bag[j] = tmp
+  }
+}
+function nextPiece() {
+  if (bag.length === 0) refillBag()
+  return bag.pop()
+}
+// Keeps a lookahead buffer of upcoming piece types so the NEXT panel always
+// has NEXT_COUNT pieces to show, however many spawn() has just consumed.
+function fillQueue() { while (queue.length < NEXT_COUNT) queue.push(nextPiece()) }
+function placeNewPiece(t) {
+  piece = { g: SHAPES[t], t, c: t + 1, x: 3, y: 0, r: 0 }
+  lockStart = null; lockResets = 0
+  if (hits(piece.g, piece.x, piece.y)) triggerGameOver()
+}
+function spawn() {
+  fillQueue()
+  const t = queue.shift()
+  fillQueue()
+  placeNewPiece(t)
+  holdUsed = false
+}
+// Swap the live piece into the hold slot (or with whatever's already
+// there), once per piece — locked back out until the next piece locks.
+function holdSwap() {
+  if (over || !piece || holdUsed) return
+  const curT = piece.t
+  if (holdType === null) {
+    holdType = curT
+    fillQueue()
+    const t = queue.shift()
+    fillQueue()
+    placeNewPiece(t)
+  } else {
+    const t = holdType
+    holdType = curT
+    placeNewPiece(t)
+  }
+  holdUsed = true
+}
+function hits(g, x, y) {
+  for (let r = 0; r < g.length; r++) for (let c = 0; c < g[r].length; c++) {
+    if (!g[r][c]) continue
+    const nx = x + c, ny = y + r
+    if (nx < 0 || nx >= C || ny >= R) return true
+    if (ny >= 0 && board[ny][nx]) return true
+  }
+  return false
+}
+function lockPiece() {
+  let offTop = false
+  piece.g.forEach((row, r) => row.forEach((v, c) => { if (v && piece.y + r < 0) offTop = true }))
+  if (offTop) { triggerGameOver(); return }
+  const lockedCells = []
+  piece.g.forEach((row, r) => row.forEach((v, c) => { if (v && piece.y + r >= 0) { board[piece.y + r][piece.x + c] = piece.c; lockedCells.push([piece.x + c, piece.y + r]) } }))
+  if (visualsEnabled) lockFlash = { cells: lockedCells, start: now(), dur: 160 }
+  let cleared = 0
+  const clearedRows = []
+  for (let r = R - 1; r >= 0; r--) {
+    if (board[r].every(v => v)) { clearedRows.push({ row: r, cells: board[r].slice() }); board.splice(r, 1); board.unshift(Array(C).fill(0)); cleared++; r++ }
+  }
+  if (cleared) {
+    score += [0,100,300,500,800][cleared] * level
+    lines += cleared
+    const prevLevel = level
+    level = Math.floor(lines / 10) + 1
+    dropMs = Math.max(120, 700 - (level - 1) * 60)
+    clearedRows.forEach(({ row, cells }) => spawnParticles(row, cells))
+    playLineClearSound(cleared)
+    if (cleared >= 4) triggerShake(6, 300)
+    if (level > prevLevel) {
+      playLevelUpSound()
+      levelEl.classList.remove('level-up'); void levelEl.offsetWidth; levelEl.classList.add('level-up')
+    }
+  } else {
+    playLockSound()
+  }
+  if (score > best) { best = score; localStorage.setItem('tetris-best', String(best)); bestEl.textContent = best }
+  scoreEl.textContent = score
+  levelEl.textContent = level
+  linesEl.textContent = lines
+  spawn()
+}
+// Grounded check: true when the piece cannot fall any further this frame.
+function grounded() { return hits(piece.g, piece.x, piece.y + 1) }
+// Where the piece would land if hard-dropped right now — the row the ghost is drawn on.
+function ghostY() {
+  let gy = piece.y
+  while (!hits(piece.g, piece.x, gy + 1)) gy++
+  return gy
+}
+
+// SRS-style kick tables, indexed by piece type and by the rotation-state
+// transition ("from>to"). Offsets are (dx, dy) with +y = down (canvas space,
+// the mirror of the guideline's +y-up tables). O has no meaningful rotation.
+const KICKS_JLSTZ = {
+  '0>1': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+  '1>0': [[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+  '1>2': [[0,0],[1,0],[1,1],[0,-2],[1,-2]],
+  '2>1': [[0,0],[-1,0],[-1,-1],[0,2],[-1,2]],
+  '2>3': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+  '3>2': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+  '3>0': [[0,0],[-1,0],[-1,1],[0,-2],[-1,-2]],
+  '0>3': [[0,0],[1,0],[1,-1],[0,2],[1,2]],
+}
+const KICKS_I = {
+  '0>1': [[0,0],[-2,0],[1,0],[-2,1],[1,-2]],
+  '1>0': [[0,0],[2,0],[-1,0],[2,-1],[-1,2]],
+  '1>2': [[0,0],[-1,0],[2,0],[-1,-2],[2,1]],
+  '2>1': [[0,0],[1,0],[-2,0],[1,2],[-2,-1]],
+  '2>3': [[0,0],[2,0],[-1,0],[2,-1],[-1,2]],
+  '3>2': [[0,0],[-2,0],[1,0],[-2,1],[1,-2]],
+  '3>0': [[0,0],[1,0],[-2,0],[1,2],[-2,-1]],
+  '0>3': [[0,0],[-1,0],[2,0],[-1,-2],[2,1]],
+}
+const KICKS_O = { '0>1':[[0,0]], '1>0':[[0,0]], '1>2':[[0,0]], '2>1':[[0,0]], '2>3':[[0,0]], '3>2':[[0,0]], '3>0':[[0,0]], '0>3':[[0,0]] }
+function kickTableFor(pieceType) {
+  if (pieceType === 0) return KICKS_I
+  if (pieceType === 1) return KICKS_O
+  return KICKS_JLSTZ
+}
+function rotateCW(g) { return g[0].map((_, i) => g.map(r => r[i]).reverse()) }
+function rotateCCW(g) { return g[0].map((_, i) => g.map(r => r[r.length - 1 - i])) }
+function refreshLock() { if (grounded()) { lockStart = now(); lockResets = Math.min(lockResets + 1, MAX_LOCK_RESETS) } }
+function rotate(dir) {
+  const n = dir > 0 ? rotateCW(piece.g) : rotateCCW(piece.g)
+  const from = piece.r, to = (piece.r + (dir > 0 ? 1 : 3)) % 4
+  const table = kickTableFor(piece.t)[`${from}>${to}`] || [[0,0]]
+  for (const [dx, dy] of table) {
+    if (!hits(n, piece.x + dx, piece.y + dy)) {
+      piece.g = n; piece.x += dx; piece.y += dy; piece.r = to
+      refreshLock()
+      return
+    }
+  }
+}
+function move(dx) { if (!hits(piece.g, piece.x + dx, piece.y)) { piece.x += dx; refreshLock() } }
+function awardDrop(points) {
+  if (!points) return
+  score += points
+  if (score > best) { best = score; localStorage.setItem('tetris-best', String(best)); bestEl.textContent = best }
+  scoreEl.textContent = score
+}
+// Soft drop: every manual row-down that actually moves the piece (not the final
+// press that only locks an already-grounded piece) pays SOFT_DROP_SCORE.
+function down() { if (grounded()) lockPiece(); else { piece.y++; awardDrop(SOFT_DROP_SCORE); lockStart = null; lockResets = 0 } }
+// Hard drop: pays HARD_DROP_SCORE per row actually skipped, then locks through
+// the normal path so line-clear scoring still applies on top of the drop bonus.
+function hard() {
+  let rows = 0
+  while (!hits(piece.g, piece.x, piece.y + 1)) { piece.y++; rows++ }
+  awardDrop(rows * HARD_DROP_SCORE)
+  lockPiece()
+}
+function now() { return performance.now() }
+
+// --- Audio: tiny synthesized SFX via WebAudio, no external asset files needed.
+// The context starts 'suspended' in most browsers until a user gesture; ensureAudio()
+// is called from the keydown handler so the very first keypress unlocks it.
+let audioCtx = null
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)()
+  if (audioCtx.state === 'suspended') audioCtx.resume()
+  return audioCtx
+}
+function beep(freq, dur, type, peak, delay) {
+  const ac = ensureAudio()
+  const t0 = ac.currentTime + (delay || 0)
+  const osc = ac.createOscillator(), gain = ac.createGain()
+  osc.type = type || 'square'
+  osc.frequency.setValueAtTime(freq, t0)
+  gain.gain.setValueAtTime(0, t0)
+  gain.gain.linearRampToValueAtTime(peak != null ? peak : 0.2, t0 + 0.01)
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + dur)
+  osc.connect(gain); gain.connect(ac.destination)
+  osc.start(t0); osc.stop(t0 + dur + 0.02)
+}
+function playLockSound() { if (sfxMuted) return; beep(140, 0.06, 'square', 0.12) }
+function playLineClearSound(n) {
+  if (sfxMuted) return
+  sfxLineClearEl.currentTime = 0
+  sfxLineClearEl.play().catch(() => {}) // the dedicated line-clear <audio> cue
+  for (let i = 0; i < n; i++) beep(523.25 * Math.pow(2, i * 3 / 12), 0.12, 'square', 0.18, i * 0.05)
+  if (n >= 4) beep(1046.5, 0.3, 'sawtooth', 0.22, 0.18) // extra flourish for a Tetris
+}
+function playLevelUpSound() { if (sfxMuted) return; [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => beep(f, 0.12, 'triangle', 0.16, i * 0.07)) }
+function playGameOverSound() { if (sfxMuted) return; [392, 349.23, 293.66, 196].forEach((f, i) => beep(f, 0.28, 'sawtooth', 0.18, i * 0.13)) }
+
+// --- Background music: a real <audio> element (#bgMusic) looping a soft bass
+// line, independent of the SFX mute so the two can be muted separately. The
+// track itself is synthesized once at load time (see "WAV synthesis" below)
+// so the file stays a single self-contained HTML document with no external
+// asset fetch, but it plays back through an actual <audio loop> element
+// rather than a raw oscillator — gated on paused/over/musicMuted via
+// syncMusic() instead of being started and stopped outright, which keeps the
+// pause menu's toggle a simple flag flip. Autoplay is blocked by the browser
+// until a user gesture; ensureAudio() (called from keydown) retries the
+// play() each keypress, so the very first key after load unlocks it exactly
+// like the WebAudio SFX context does.
+const MUSIC_NOTES = [130.81, 130.81, 196.00, 164.81]
+bgMusicEl.volume = 0.35
+function syncMusic() {
+  bgMusicEl.muted = musicMuted
+  if (!gameStarted || over || paused || musicMuted) bgMusicEl.pause()
+  else bgMusicEl.play().catch(() => {}) // rejected until a gesture has occurred; retried on next keydown
+}
+
+// --- WAV synthesis: renders the same additive sine/square tone shapes the
+// WebAudio SFX use into raw PCM, once, at load time, and hands the result to
+// the two <audio> elements as object-URL sources. This is what makes
+// #bgMusic and #sfxLineClear real audio elements with real, playable content
+// instead of empty tags — no network fetch, no binary asset shipped
+// alongside the HTML file.
+function synthPCM(sampleRate, totalDur, events) {
+  const n = Math.ceil(sampleRate * totalDur)
+  const data = new Float32Array(n)
+  events.forEach(({ freq, start, dur, peak, wave }) => {
+    const s0 = Math.floor(start * sampleRate)
+    const s1 = Math.min(n, Math.floor((start + dur) * sampleRate))
+    for (let i = s0; i < s1; i++) {
+      const t = (i - s0) / sampleRate
+      const env = Math.min(1, t / 0.008) * Math.exp(-t / (dur * 0.35)) * (peak || 0.2)
+      const ph = freq * t
+      let s
+      if (wave === 'square') s = Math.sign(Math.sin(2 * Math.PI * ph))
+      else if (wave === 'sawtooth') s = 2 * (ph % 1) - 1
+      else s = Math.sin(2 * Math.PI * ph)
+      data[i] += s * env
+    }
+  })
+  return data
+}
+function pcmToWavURL(sampleRate, data) {
+  const bytesPerSample = 2, dataSize = data.length * bytesPerSample
+  const buf = new ArrayBuffer(44 + dataSize)
+  const view = new DataView(buf)
+  const str = (off, s) => { for (let i = 0; i < s.length; i++) view.setUint8(off + i, s.charCodeAt(i)) }
+  str(0, 'RIFF'); view.setUint32(4, 36 + dataSize, true); str(8, 'WAVE')
+  str(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * bytesPerSample, true); view.setUint16(32, bytesPerSample, true)
+  view.setUint16(34, 16, true); str(36, 'data'); view.setUint32(40, dataSize, true)
+  let off = 44
+  for (let i = 0; i < data.length; i++) {
+    const s = Math.max(-1, Math.min(1, data[i]))
+    view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true)
+    off += 2
+  }
+  return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }))
+}
+bgMusicEl.src = pcmToWavURL(44100, synthPCM(44100, 0.48 * MUSIC_NOTES.length,
+  MUSIC_NOTES.map((f, i) => ({ freq: f, start: i * 0.48, dur: 0.42, peak: 0.5, wave: 'sine' }))))
+sfxLineClearEl.src = pcmToWavURL(44100, synthPCM(44100, 0.34, [
+  { freq: 523.25, start: 0, dur: 0.14, peak: 0.9, wave: 'square' },
+  { freq: 659.25, start: 0.05, dur: 0.14, peak: 0.9, wave: 'square' },
+  { freq: 783.99, start: 0.10, dur: 0.18, peak: 0.9, wave: 'square' },
+]))
+
+// --- Particles: a handful of colored chips fly out of each cleared row and fade.
+function spawnParticles(row, cells) {
+  if (!visualsEnabled) return
+  for (let c = 0; c < C; c++) {
+    const colorIdx = cells[c]
+    if (!colorIdx) continue
+    const color = COLORS[colorIdx - 1]
+    for (let k = 0; k < 4; k++) {
+      particles.push({
+        x: c * S + S / 2, y: row * S + S / 2,
+        vx: (Math.random() - 0.5) * 5, vy: -Math.random() * 3 - 1,
+        life: 1, color,
+      })
+    }
+  }
+}
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i]
+    p.vy += 0.18; p.x += p.vx; p.y += p.vy
+    p.life -= dt / 450
+    if (p.life <= 0) particles.splice(i, 1)
+  }
+}
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.globalAlpha = Math.max(0, p.life)
+    ctx.fillStyle = p.color
+    ctx.fillRect(p.x - 2, p.y - 2, 4, 4)
+  })
+  ctx.globalAlpha = 1
+}
+
+// --- Screen shake: a brief random jitter of the whole board canvas, strongest on a Tetris.
+function triggerShake(mag, ms) { if (!visualsEnabled) return; shakeMag = mag; shakeUntil = now() + ms }
+function currentShakeOffset() {
+  const remain = shakeUntil - now()
+  if (remain <= 0) return [0, 0]
+  const amt = shakeMag * (remain / 300)
+  return [(Math.random() - 0.5) * 2 * amt, (Math.random() - 0.5) * 2 * amt]
+}
+
+// Sets the game-over state and gives it the same audio/visual payoff as every other
+// event: a descending sting plus a shake, instead of a silent flag flip.
+function triggerGameOver() {
+  over = true
+  playGameOverSound()
+  triggerShake(4, 250)
+  syncMusic()
+}
+
+// Custom delayed-auto-shift (DAS) / auto-repeat-rate (ARR) for held
+// left/right movement, independent of the OS/browser's own key-repeat
+// timing. Pressing a direction moves once immediately; if it is still held
+// after DAS_DELAY the piece then repeats every currentARR() ms, and ARR
+// tightens as the game speeds up (tracks dropMs) so held movement stays
+// responsive at higher levels instead of lagging behind faster gravity.
+let heldDir = 0, dasStart = 0, dasActive = false, nextRepeat = 0
+const DAS_DELAY = 170
+function currentARR() { return Math.max(20, Math.round(dropMs / 8)) }
+function startHeld(dir) {
+  if (heldDir === dir) return
+  heldDir = dir; dasActive = false; dasStart = now()
+  move(dir)
+}
+function releaseHeld(dir) { if (heldDir === dir) { heldDir = 0; dasActive = false } }
+function updateAutoRepeat(t) {
+  if (heldDir === 0) return
+  if (!dasActive) {
+    if (t - dasStart >= DAS_DELAY) { dasActive = true; nextRepeat = t; move(heldDir) }
+  } else if (t - nextRepeat >= currentARR()) {
+    nextRepeat = t; move(heldDir)
+  }
+}
+
+// --- Pause menu: Escape opens it. The render loop (see loop() below) skips
+// both simulation update and particle update whenever paused is true, so
+// stepping away genuinely halts the run instead of leaving gravity ticking
+// against a frozen screen. Resuming resets the drop/lock timestamps to "now"
+// rather than trying to preserve exact elapsed progress, so an arbitrarily
+// long pause never causes a snap-drop or a stolen lock window on return.
+const MENU_ACTIONS = [
+  { label: () => 'Resume', run: () => closeMenu() },
+  { label: () => (musicMuted ? 'Unmute Music' : 'Mute Music'), run: () => { musicMuted = !musicMuted; syncMusic(); renderMenu() } },
+  { label: () => (sfxMuted ? 'Unmute SFX' : 'Mute SFX'), run: () => { sfxMuted = !sfxMuted; renderMenu() } },
+  { label: () => (visualsEnabled ? 'Disable Visuals' : 'Enable Visuals'), run: () => { visualsEnabled = !visualsEnabled; renderMenu() } },
+  { label: () => 'Restart', run: () => { reset(); closeMenu(); draw() } },
+  { label: () => 'Quit', run: () => { paused = false; over = true; pauseOverlay.style.display = 'none'; draw() } },
+]
+function renderMenu() {
+  pauseMenuEl.innerHTML = ''
+  MENU_ACTIONS.forEach((item, i) => {
+    const li = document.createElement('li')
+    li.textContent = item.label()
+    if (i === menuIndex) li.classList.add('sel')
+    li.addEventListener('click', () => { menuIndex = i; item.run() })
+    pauseMenuEl.appendChild(li)
+  })
+}
+function openMenu() {
+  if (over || paused) return
+  paused = true
+  heldDir = 0; dasActive = false
+  menuIndex = 0
+  renderMenu()
+  pauseOverlay.style.display = 'flex'
+  syncMusic()
+}
+function closeMenu() {
+  paused = false
+  last = now()
+  if (lockStart !== null) lockStart = now()
+  pauseOverlay.style.display = 'none'
+  syncMusic()
+}
+
+// KEYED ON e.code, THE PHYSICAL KEY, not e.key, the character produced. e.key runs
+// through the active input source: with a Korean IME the Z key reports 'ㅋ' and the
+// rotate binding never fires, while the arrows and space keep working because their
+// e.key is layout-independent. The result is a game that plays and cannot rotate, with
+// the on-screen instructions still promising that it can. e.key is kept as a fallback so
+// nothing that worked before stops working.
+// Every action has two independent physical keys bound to it — the arrow-key set and
+// a WASD/Z/X/C/Shift set — so a player who prefers either layout gets full control:
+// A/D mirror Left/Right, W mirrors Up, S mirrors Down, and Shift mirrors C for Hold.
+const held = e => e.code || ''
+addEventListener('keydown', e => {
+  ensureAudio() // first real user gesture unlocks the WebAudio context
+  syncMusic() // ...and retries the <audio> background track, blocked until now by the same gesture rule
+  const c = held(e)
+  if (!gameStarted) {
+    if (c === 'ArrowLeft' || c === 'KeyA' || e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') changeStartLevel(-1)
+    else if (c === 'ArrowRight' || c === 'KeyD' || e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') changeStartLevel(1)
+    else if (c === 'Enter' || c === 'Space' || e.key === 'Enter' || e.key === ' ') beginGame()
+    else return
+    e.preventDefault()
+    return
+  }
+  if (c === 'Escape' || e.key === 'Escape') {
+    e.preventDefault()
+    if (paused) closeMenu(); else if (!over) openMenu()
+    return
+  }
+  if (paused) {
+    if (c === 'ArrowUp' || e.key === 'ArrowUp') { menuIndex = (menuIndex - 1 + MENU_ACTIONS.length) % MENU_ACTIONS.length; renderMenu() }
+    else if (c === 'ArrowDown' || e.key === 'ArrowDown') { menuIndex = (menuIndex + 1) % MENU_ACTIONS.length; renderMenu() }
+    else if (c === 'Enter' || c === 'Space' || e.key === 'Enter' || e.key === ' ') MENU_ACTIONS[menuIndex].run()
+    e.preventDefault()
+    return
+  }
+  if (over) { e.preventDefault(); showStartScreen(); return }
+  if (c === 'ArrowLeft' || c === 'KeyA' || e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') startHeld(-1)
+  else if (c === 'ArrowRight' || c === 'KeyD' || e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') startHeld(1)
+  else if (c === 'ArrowUp' || c === 'KeyX' || c === 'KeyW' || e.key === 'ArrowUp' || e.key === 'x' || e.key === 'X' || e.key === 'w' || e.key === 'W') rotate(1)
+  else if (c === 'KeyZ' || e.key === 'z' || e.key === 'Z') rotate(-1)
+  else if (c === 'ArrowDown' || c === 'KeyS' || e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') down()
+  else if (c === 'Space' || e.key === ' ') hard()
+  else if (c === 'KeyC' || c === 'ShiftLeft' || c === 'ShiftRight' || e.key === 'c' || e.key === 'C' || e.key === 'Shift') holdSwap()
+  else return
+  e.preventDefault(); draw()
+})
+addEventListener('keyup', e => {
+  const c = held(e)
+  if (c === 'ArrowLeft' || c === 'KeyA' || e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') releaseHeld(-1)
+  else if (c === 'ArrowRight' || c === 'KeyD' || e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') releaseHeld(1)
+})
+addEventListener('blur', () => { heldDir = 0; dasActive = false })
+
+// Draws one piece type centered inside a w-by-h box on a side-panel canvas
+// (used for both the HOLD box and each slot of the NEXT queue).
+function drawMini(mctx, x, y, w, h, type) {
+  mctx.fillStyle = '#000'; mctx.fillRect(x, y, w, h)
+  if (type == null) return
+  const g = SHAPES[type], rows = g.length, cols = g[0].length, cell = 20
+  const offX = x + (w - cols * cell) / 2, offY = y + (h - rows * cell) / 2
+  mctx.fillStyle = COLORS[type]
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    if (g[r][c]) mctx.fillRect(offX + c * cell, offY + r * cell, cell - 1, cell - 1)
+  }
+}
+// Faint cell grid drawn under the board so an empty play area doesn't read as a
+// blank canvas — the same reason a real board has gridlines etched into the well.
+function drawGrid() {
+  ctx.strokeStyle = 'rgba(255,255,255,0.05)'
+  ctx.lineWidth = 1
+  for (let c = 1; c < C; c++) { ctx.beginPath(); ctx.moveTo(c * S + 0.5, 0); ctx.lineTo(c * S + 0.5, R * S); ctx.stroke() }
+  for (let r = 1; r < R; r++) { ctx.beginPath(); ctx.moveTo(0, r * S + 0.5); ctx.lineTo(C * S, r * S + 0.5); ctx.stroke() }
+}
+function draw() {
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, C * S, R * S)
+  ctx.save()
+  const [sx, sy] = currentShakeOffset()
+  ctx.translate(sx, sy)
+  drawGrid()
+  for (let r = 0; r < R; r++) for (let c = 0; c < C; c++) {
+    if (board[r][c]) { ctx.fillStyle = COLORS[board[r][c] - 1]; ctx.fillRect(c * S, r * S, S - 1, S - 1) }
+  }
+  // Lock flash: the just-placed piece's cells pulse white for a moment instead of the
+  // board just silently gaining blocks.
+  if (lockFlash) {
+    const el = now() - lockFlash.start
+    if (el < lockFlash.dur) {
+      ctx.globalAlpha = (1 - el / lockFlash.dur) * 0.6
+      ctx.fillStyle = '#fff'
+      lockFlash.cells.forEach(([x, y]) => ctx.fillRect(x * S, y * S, S - 1, S - 1))
+      ctx.globalAlpha = 1
+    } else lockFlash = null
+  }
+  if (piece) {
+    const gy = ghostY()
+    ctx.globalAlpha = 0.25
+    piece.g.forEach((row, r) => row.forEach((v, c) => {
+      if (v) { ctx.fillStyle = COLORS[piece.c - 1]; ctx.fillRect((piece.x + c) * S, (gy + r) * S, S - 1, S - 1) }
+    }))
+    ctx.globalAlpha = 1
+    piece.g.forEach((row, r) => row.forEach((v, c) => {
+      if (v) { ctx.fillStyle = COLORS[piece.c - 1]; ctx.fillRect((piece.x + c) * S, (piece.y + r) * S, S - 1, S - 1) }
+    }))
+  }
+  drawParticles()
+  if (over) {
+    ctx.fillStyle = 'rgba(0,0,0,0.75)'; ctx.fillRect(0, 190, C * S, 100)
+    ctx.fillStyle = '#fff'; ctx.textAlign = 'center'
+    ctx.font = '24px sans-serif'; ctx.fillText('GAME OVER', C * S / 2, 220)
+    ctx.font = '16px sans-serif'; ctx.fillText('Score ' + score, C * S / 2, 248)
+    ctx.font = '13px sans-serif'; ctx.fillText('Press any key to continue', C * S / 2, 272)
+    ctx.textAlign = 'left'
+  }
+  ctx.restore()
+  holdCtx.globalAlpha = holdUsed ? 0.4 : 1
+  drawMini(holdCtx, 0, 0, 96, 96, holdType)
+  holdCtx.globalAlpha = 1
+  for (let i = 0; i < NEXT_COUNT; i++) drawMini(nextCtx, 0, i * 100, 96, 100, queue[i])
+}
+function loop(t) {
+  const dt = prevFrameT ? t - prevFrameT : 16
+  prevFrameT = t
+  if (gameStarted) {
+    if (!paused) updateParticles(dt)
+    if (!over && !paused) {
+      updateAutoRepeat(t)
+      if (grounded()) {
+        // Lock-delay grace window: the piece has landed but does not merge
+        // instantly. It stays live until the timer expires (or the reset
+        // budget from move/rotate is spent), so a last-moment slide or spin
+        // still counts.
+        if (lockStart === null) lockStart = t
+        else if (t - lockStart >= LOCK_DELAY || lockResets >= MAX_LOCK_RESETS) { lockPiece(); last = t }
+      } else {
+        lockStart = null; lockResets = 0
+        if (t - last > dropMs) { piece.y++; last = t }
+      }
+      draw()
+    }
+  }
+  requestAnimationFrame(loop)
+}
+// The sim stays idle — no spawn(), no gravity — until beginGame() runs from the
+// level-select screen, so the very first piece never appears before a starting
+// level has been chosen.
+renderLevelPick()
+requestAnimationFrame(loop)
+
+// --- Verification hook: not wired to any key or UI element, so it changes nothing
+// about how the game is played or looks. It exists so the row-complete -> clear ->
+// shift-down -> score/lines event can be forced and inspected on demand, through the
+// SAME code path a real hard drop takes (hard() -> lockPiece(), the exact function
+// that scores, splices the row, and unshifts a new empty one) rather than a
+// re-implementation of it that could pass while the real path is broken. Fills the
+// bottom row to one cell short, drops a vertical I into the gap, and returns the
+// board/score/lines before and after so the result can be read back and checked
+// against the formula in lockPiece (score += [0,100,300,500,800][cleared]*level)
+// PLUS the hard-drop distance bonus that same hard() call pays out on the way down
+// (rows actually skipped * HARD_DROP_SCORE, from spawn row 0 to the R-4 landing row
+// for a vertical I) — the two are additive, since the drop bonus fires in hard()
+// before lockPiece() runs, not instead of the clear formula — without trusting
+// anything this hook itself asserts.
+window.__tetrisDebug = {
+  getState: () => ({ board: board.map(row => row.slice()), piece, score, lines, level, over, gameStarted }),
+  forceLineClear() {
+    if (!gameStarted) beginGame()
+    over = false
+    const before = { board: board.map(row => row.slice()), score, lines, level }
+    for (let c = 0; c < C - 1; c++) board[R - 1][c] = ((c % 7) + 1)
+    board[R - 1][C - 1] = 0
+    piece = { g: [[1],[1],[1],[1]], t: 0, c: 1, x: C - 1, y: 0, r: 1 }
+    lockStart = null; lockResets = 0
+    hard()
+    draw()
+    return { before, after: { board: board.map(row => row.slice()), score, lines, level } }
+  },
+}
+</script>
