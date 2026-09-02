@@ -629,7 +629,7 @@ const WOWED_MARGINS = new Set(['decisive', 'clear'])
 
 const AB_SCHEMA = {
   type: 'object',
-  required: ['winner', 'why', 'gap', 'inspected', 'margin', 'shortfall', 'loser_path'],
+  required: ['winner', 'why', 'gap', 'inspected', 'margin', 'shortfall', 'loser_path', 'shortfall_path'],
   properties: {
     winner: { type: 'string', enum: ['A', 'B'], description: 'which artifact is better. You must choose; there is no tie.' },
     why: { type: 'string', description: 'what separates them, concretely' },
@@ -640,6 +640,7 @@ const AB_SCHEMA = {
     inspected: { type: 'string', description: 'what you actually opened, ran or rendered to reach this verdict' },
     margin: { type: 'string', enum: ['decisive', 'clear', 'narrow'], description: 'REQUIRED. How far apart they are. This GATES THE EXIT: the loop stops only when the winner is the candidate and no critic calls the margin narrow, because the bar is being utterly wowed rather than merely preferring one. Answer it about the artifacts, not about how confident you feel — a narrow margin is not a criticism of your own judgement, it is the reading that keeps the loop working.' },
     loser_path: { type: 'string', description: 'REQUIRED. The full path of the artifact you did NOT pick, copied exactly from the ARTIFACT line above. This is not bookkeeping: A and B are assigned afresh every round, so the letters carry no meaning across rounds, and a judge that has silently mapped them the wrong way round produces a verdict that is coherent, well-argued, and exactly backwards. Naming the file is the one statement that cannot be inverted, and the loop checks it against the side you picked.' },
+    shortfall_path: { type: 'string', description: 'REQUIRED. The full path of the artifact your SHORTFALL is about, copied exactly from the ARTIFACT lines above — which is the artifact you picked as winner, since shortfall looks from the winner up to first-rate. If your shortfall is not about an artifact at all — if it is something YOU could not manage to inspect, reach or reproduce — write "none" here and say so in `inspected` instead. A limit of your inspection is a fact about you, and the loop spends the next round on whatever this field points at.' },
     shortfall: { type: 'string', description: 'REQUIRED. The single largest thing standing between the WINNER and an artifact that would utterly wow you, or "none" if nothing does. Distinct from `gap`, which looks from the loser up to the winner: on a round where the winner is already ahead, `gap` describes the LOSER and this is the only field that says what the leading artifact still needs. The loop builds on this whenever the candidate won but did not clear the bar.' },
   },
 }
@@ -1349,7 +1350,19 @@ Then:
    Both were coherent, well argued, and exactly backwards. Writing the PATH is the one
    statement that cannot invert, and it is checked against the letter you picked.
 
-6. SHORTFALL — the single largest thing standing between the WINNER and an artifact that
+6. SHORTFALL_PATH — the full path of the artifact your shortfall is about, copied exactly
+   from the ARTIFACT lines above. That is the one you picked as winner, since shortfall
+   looks from the winner up to first-rate.
+
+   IF YOUR SHORTFALL IS NOT ABOUT AN ARTIFACT — if it is something YOU could not manage to
+   reach, reproduce or witness — write "none" here and put that limit in INSPECTED instead.
+   A limit of your inspection is a fact about you, and it is worth reporting; it is just not
+   a shortfall. This has gone wrong in a real run: a judge wrote "I was not able to force a
+   line clear within this session" as its shortfall, and the next round was spent handing a
+   builder "fix: I could not manage to clear a line". Nothing in the artifact could satisfy
+   it. The judge was being honest and the honesty was spent on the wrong field.
+
+7. SHORTFALL — the single largest thing standing between the WINNER and an artifact that
    would utterly wow you. This is not the same question as GAP. Gap looks from the loser
    up to the winner; shortfall looks from the winner up to first-rate, and on a round where
    the winner is already the better artifact it is the only one of the two that says
@@ -1685,6 +1698,7 @@ async function runPiece(piece) {
       candidateWon: v.winner === s.candidateSide,
       margin: v.margin || null,
       shortfall: v.shortfall || null,
+      shortfall_path: String(v.shortfall_path || '').trim() || null,
       why: v.why,
       gap: v.gap,
       inspected: v.inspected,
@@ -1835,6 +1849,10 @@ async function runPiece(piece) {
     // one version of this loop ago.
     wowed,
     shortfall: primary.shortfall,
+    // The anchor beside the thing it anchors. Recording the shortfall without the artifact
+    // it named would leave a reader unable to check the one property that decides whether
+    // the loop built on it — the same reason `margin` is recorded next to the verdict.
+    shortfall_path: primary.shortfall_path,
     why: primary.why,
     gap: primary.gap,
     inspected: primary.inspected,
@@ -1933,7 +1951,31 @@ async function runPiece(piece) {
   // reason is recorded, because building on a critic that named nothing is building on
   // noise, and a round that spends a builder on noise is worse than one that does not run.
   const shortfallLive = String((primary && primary.shortfall) || '').trim()
-  const shortfallUsable = shortfallLive.length > 0 && !/^none[.!]?$/i.test(shortfallLive)
+  // THE SHORTFALL MUST NAME THE ARTIFACT IT IS ABOUT, and that name is checked against the
+  // side this loop dealt. Same anchor as `loser_path`, applied to its sibling field, and
+  // for the same reason: a self-report with nothing to check it against is not evidence.
+  //
+  // OBSERVED, live, on the 2026-09-02 browser run. Round 9: the candidate won narrowly on a
+  // real defect in the other artifact, and its shortfall read "I was not able to force and
+  // directly witness a clean row-complete → line-clear → shift-down event on doc-1 within
+  // this session; my attempts repeatedly created holes under overhangs." That is a fact
+  // about the CRITIC. It was fluent, non-empty and not the word "none", so the old test
+  // passed it straight to a builder, which was handed "fix: I could not manage to clear a
+  // line" as the round's work. The critic was being HONEST — it admitted a limit rather
+  // than inventing a defect, exactly as its prompt asks — and the loop spent a build on it.
+  //
+  // A shortfall about an artifact can name that artifact. One about the critic cannot, and
+  // the schema tells it to write "none" and put the limit in `inspected` where it belongs.
+  // The path must be the WINNER's, because shortfall looks from the winner up to first-rate;
+  // naming the loser is the same incoherence `loser_path` catches one field over.
+  // Recomputed from the primary critic's OWN index, because sides alternate per critic
+  // within a round as well as per round — `sides(round, i, ...)`. Using the round's first
+  // assignment would name the wrong file whenever the primary is not critic 0.
+  const ps = primary ? sides(round, primary.i, PC, PR) : null
+  const winnerPath = ps && primary.winner === 'A' ? ps.A : (ps ? ps.B : null)
+  const sfPath = (primary && primary.shortfall_path) || ''
+  const sfNamesWinner = sfPath === winnerPath
+  const shortfallUsable = shortfallLive.length > 0 && !/^none[.!]?$/i.test(shortfallLive) && sfNamesWinner
   const buildOn = candidateWon ? shortfallLive : primary.gap
   if (candidateWon && !shortfallUsable) {
     // Not an error and not a win. The critic preferred the candidate, did not clear the
@@ -1941,7 +1983,10 @@ async function runPiece(piece) {
     // asks a fresh critic. Recorded on the round so a reader can see the builder was
     // skipped on purpose rather than silently.
     history[history.length - 1].build_skipped =
-      `the critic picked the candidate but was not wowed, and named no shortfall to close (${shortfallLive ? `it answered ${JSON.stringify(shortfallLive)}` : 'the field was empty'}). Nothing was built this round; a fresh critic judges the same bytes next round. The loser-facing "gap" is deliberately NOT used as a fallback here — on a round the candidate won it describes the reference.`
+      `the critic picked the candidate but was not wowed, and gave nothing this loop can build on (${
+        !shortfallLive ? 'the shortfall field was empty'
+        : !sfNamesWinner ? `its shortfall named ${sfPath ? JSON.stringify(sfPath) : 'no artifact'} rather than the artifact it picked (${JSON.stringify(winnerPath)}) — a shortfall that cannot name the artifact it is about is a fact about the critic, not about the work`
+        : `it answered ${JSON.stringify(shortfallLive)}`}). Nothing was built this round; a fresh critic judges the same bytes next round. The loser-facing "gap" is deliberately NOT used as a fallback here — on a round the candidate won it describes the reference.`
     log(`round ${round}${piece.name ? ` [${piece.name}]` : ''}: not wowed, but no shortfall was named — nothing built, next round asks a fresh critic`)
     continue
   }

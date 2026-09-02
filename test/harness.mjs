@@ -317,6 +317,11 @@ export async function runLoop(opts) {
         loser_path: spec.loser_path !== undefined ? spec.loser_path
           : (() => { const A=/ARTIFACT A: (\S+)/.exec(prompt), B=/ARTIFACT B: (\S+)/.exec(prompt)
                      return A && B ? (winner === 'A' ? B[1] : A[1]) : '' })(),
+        // Defaulted to the WINNER's path, since shortfall looks from the winner up. Every
+        // existing fixture stays internally coherent without knowing the field exists.
+        shortfall_path: spec.shortfall_path !== undefined ? spec.shortfall_path
+          : (() => { const A=/ARTIFACT A: (\S+)/.exec(prompt), B=/ARTIFACT B: (\S+)/.exec(prompt)
+                     return A && B ? (winner === 'A' ? A[1] : B[1]) : '' })(),
       })
     }
 
@@ -400,7 +405,8 @@ export async function runLoop(opts) {
         const A = /ARTIFACT A: (\S+)/.exec(prompt), B = /ARTIFACT B: (\S+)/.exec(prompt)
         const win = spec.winner !== undefined ? spec.winner : (spec.candidateWins ? candidateSide : referenceSide)
         const loser = A && B ? (win === 'A' ? B[1] : A[1]) : ''
-        return { margin: 'clear', shortfall: 'a shortfall the critic named', loser_path: loser, ...spec }
+        const winnerPath = A && B ? (win === 'A' ? A[1] : B[1]) : ''
+        return { margin: 'clear', shortfall: 'a shortfall the critic named', loser_path: loser, shortfall_path: winnerPath, ...spec }
       }
 
       // A round's spec may be a single object (broadcast to every critic in
@@ -423,6 +429,11 @@ export async function runLoop(opts) {
         loser_path: spec.loser_path !== undefined ? spec.loser_path
           : (() => { const A=/ARTIFACT A: (\S+)/.exec(prompt), B=/ARTIFACT B: (\S+)/.exec(prompt)
                      return A && B ? (winner === 'A' ? B[1] : A[1]) : '' })(),
+        // Defaulted to the WINNER's path, since shortfall looks from the winner up. Every
+        // existing fixture stays internally coherent without knowing the field exists.
+        shortfall_path: spec.shortfall_path !== undefined ? spec.shortfall_path
+          : (() => { const A=/ARTIFACT A: (\S+)/.exec(prompt), B=/ARTIFACT B: (\S+)/.exec(prompt)
+                     return A && B ? (winner === 'A' ? A[1] : B[1]) : '' })(),
       })
     }
 

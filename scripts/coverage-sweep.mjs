@@ -65,6 +65,9 @@ export const PROPERTIES = [
   // is a false premise plus a fix aimed at the wrong artifact. The second forbids the
   // fallback that would quietly reinstate it whenever the shortfall is missing.
   ['a not-wowed WIN builds on the shortfall, not on the loser-facing gap', L, 'const buildOn = candidateWon ? shortfallLive : primary.gap', 'const buildOn = primary.gap'],
+  // The anchor. This mutation IS the live defect: without the path check, an inspection
+  // limit written as a fluent sentence passes as work and a builder is handed it.
+  ['a shortfall must name the artifact it is about', L, '&& sfNamesWinner', ''],
   ['a not-wowed win with no shortfall skips the build rather than falling back', L, '  if (candidateWon && !shortfallUsable) {', '  if (false) {'],
   ['a zero-build WIN says which of its two causes it was', L, "    ? (history.some(h => h.build_skipped)", '    ? (false'],
   ['the round records whether it cleared the bar, not just who won', L, '    wowed,\n    shortfall: primary.shortfall,', ''],
