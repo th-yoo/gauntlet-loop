@@ -1242,8 +1242,44 @@ number at all.`,
   // lead is a language model; duplicate names are ordinary output. Later
   // duplicates are dropped here, which feeds the existing `kept.length < 2` rule,
   // so a "split" that was really one piece under two names runs whole instead.
+  // A PIECE OWNS BOTH SIDES OF ITS COMPARISON, OR NEITHER.
+  //
+  // `checkComparability()` runs ONCE, before the lead, against args.candidate and
+  // args.reference. A piece resolves its sides independently — PC = piece.candidate ||
+  // CANDIDATE, PR = piece.reference || REFERENCE — so a piece given its own candidate file
+  // and no matching reference fragment sends its critic a MODULE against a WHOLE ARTIFACT.
+  // Reproduced on the unfixed loop: a piece with candidate `/tmp/x/engine.js` and no
+  // reference had its critic handed "ARTIFACT A: /tmp/x/whole.html  ARTIFACT B:
+  // /tmp/x/engine.js", and the run reported WON. That is the same category error the
+  // top-level check refuses, one level down where it cannot see.
+  //
+  // STRUCTURAL, NOT A PROBE. Running comparability per piece would cost two spawns each and
+  // is not needed: the contradiction is in the PATHS. A piece naming its own candidate
+  // asserts that this part is separable; were that true of the reference too, it would have
+  // a counterpart to name. Naming exactly one side is the assertion refuting itself, and no
+  // agent has to open a file to see it.
+  //
+  // DROPPED, not repaired. Filling in the missing side would mean this loop inventing a
+  // path — either a reference fragment that may not exist, or a candidate the builder never
+  // wrote. Dropping feeds the existing `kept.length < 2` rule, so a split that was really
+  // one usable piece runs the artifact WHOLE instead: one honest whole-vs-whole comparison
+  // in place of two meaningless ones.
+  const halfPaired = []
+  const bothOrNeither = withObservable.filter(p => {
+    const c = typeof p.candidate === 'string' && p.candidate.trim()
+    const r = typeof p.reference === 'string' && p.reference.trim()
+    if (!c === !r) return true
+    halfPaired.push({
+      piece: p.name,
+      why: c
+        ? `it names its own candidate (${p.candidate}) and no reference, so its critic would compare that part against the WHOLE reference — a part of one thing against all of another, which is not a comparison. Name the matching part of the reference, or name neither and let the piece be judged whole against whole.`
+        : `it names its own reference (${p.reference}) and no candidate, so its critic would compare the WHOLE candidate against a part of the reference — a part of one thing against all of another, which is not a comparison. Name the matching part of the candidate, or name neither.`,
+    })
+    return false
+  })
+
   const seenNames = new Set()
-  const kept = withObservable.filter(p => {
+  const kept = bothOrNeither.filter(p => {
     const key = String(p.name).trim().toLowerCase()
     if (seenNames.has(key)) return false
     seenNames.add(key)
@@ -1266,8 +1302,8 @@ number at all.`,
     p.invalid_citations = p.covers.filter(n => !valid.has(n))
     p.covers = [...new Set(p.covers.filter(n => valid.has(n)))].sort((a, b) => a - b)
   }
-  if (kept.length < 2) return { refused: true, why: `fewer than two pieces survived with an observable and a distinct name (${kept.length} of ${(plan.pieces || []).length}); one piece is not a decomposition${withObservable.length > kept.length ? `, and ${withObservable.length - kept.length} shared a name with an earlier piece` : ''}`, dropped }
-  return { pieces: kept, split_criterion: plan.split_criterion, dropped }
+  if (kept.length < 2) return { refused: true, halfPaired, why: `fewer than two pieces survived with an observable and a distinct name (${kept.length} of ${(plan.pieces || []).length}); one piece is not a decomposition${withObservable.length > kept.length ? `, and ${withObservable.length - kept.length} shared a name with an earlier piece` : ''}`, dropped }
+  return { pieces: kept, split_criterion: plan.split_criterion, dropped, halfPaired }
 }
 
 function criticPrompt(s, piece) {
@@ -1470,7 +1506,7 @@ if (decomposition && decomposition.refused) {
 } else if (!decomposition) {
   log(`WARNING: the lead returned nothing, so nothing decided whether this artifact should be split. Running it whole — which is also what a lead that REFUSED to split produces, so do not read this run as a decomposition judgement.${silenceNote('gauntlet-loop:gauntlet-lead')}`)
 } else if (decomposition) {
-  log(`decomposed into ${decomposition.pieces.length} piece(s): ${decomposition.pieces.map(p => p.name).join(', ')}${decomposition.dropped ? ` (${decomposition.dropped} dropped for naming no observable)` : ''}`)
+  log(`decomposed into ${decomposition.pieces.length} piece(s): ${decomposition.pieces.map(p => p.name).join(', ')}${decomposition.dropped ? ` (${decomposition.dropped} dropped: no observable, a duplicate name, or one side of a pairing named without the other)` : ''}`)
 }
 
 // One implicit piece when nothing decomposed: the whole artifact, unnamed, so
@@ -2572,13 +2608,18 @@ return {
     : null,
 
   decomposition: decomposition && decomposition.pieces
-    ? { split_criterion: decomposition.split_criterion, pieces: decomposition.pieces.map(p => ({ name: p.name, observable: p.observable, critics: { floor: CRITICS, asked: p.critics_asked, why: p.critics_why, used: lineFor(p) } })), dropped_for_no_observable: decomposition.dropped || 0, lead_spawns: leadSpawns }
+    ? { split_criterion: decomposition.split_criterion, pieces: decomposition.pieces.map(p => ({ name: p.name, observable: p.observable, critics: { floor: CRITICS, asked: p.critics_asked, why: p.critics_why, used: lineFor(p) } })), dropped_count: decomposition.dropped || 0, dropped_half_paired: decomposition.halfPaired || [], lead_spawns: leadSpawns }
     : {
         split_criterion: null,
         pieces: [],
         // Only a lead that ANSWERED can refuse. Silence goes in its own field so a
         // reader cannot mistake it for a judgement the lead never made.
         refused: decomposition ? decomposition.why : null,
+        // CARRIED ON THIS BRANCH TOO. Dropping every half-paired piece is exactly what
+        // pushes a split below two survivors, so the run that most needs these reasons is
+        // the one that lands here — and the first version recorded them only on the branch
+        // where the split SURVIVED, which is the branch that needs them least.
+        dropped_half_paired: (decomposition && decomposition.halfPaired) || [],
         no_plan_returned: decomposition ? null : 'the lead returned nothing, so no decomposition judgement was made at all — this run was NOT decomposed, and that is not the same as a lead deciding it should not be' + silenceNote('gauntlet-loop:gauntlet-lead'),
         lead_spawns: leadSpawns,
       },

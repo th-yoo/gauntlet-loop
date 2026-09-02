@@ -1678,8 +1678,12 @@ console.log('loop: required args throw, and the reference error explains why a b
     breaker: rd => rd <= 1,
     rounds: [],
   })
-  eq(r.result.decomposition.dropped_for_no_observable, 1,
-     'the verdict reports how many proposed pieces were dropped for naming no observable')
+  // RENAMED from dropped_for_no_observable. Pieces are dropped for THREE reasons — no
+  // observable, a duplicate name, and (since the per-piece pairing rule) naming one side of
+  // a comparison without the other — and the old name asserted every drop was the first of
+  // them. The count is unchanged; what it is called no longer misattributes the cause.
+  eq(r.result.decomposition.dropped_count, 1,
+     'the verdict counts dropped pieces, under a name that does not claim which of the three causes it was')
   ok(/stopping on cancelled or budget is not failure/i.test(r.result.reading_note || ''),
      'and carries the note that stops a cancel being read as a failure — the source stopped its own run')
   console.log('loop: five reported facts an operator reads a verdict by are pinned OK')

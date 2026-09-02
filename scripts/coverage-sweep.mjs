@@ -80,6 +80,10 @@ export const PROPERTIES = [
   // verdict on record was captured at.
   ['the composite is wide enough to hold both artifacts', SB, 'const [w, h] = [520 * 2 + 64, 760 + 80]', 'const [w, h] = [520, 760 + 80]'],
   ['an unreadable PLAY_WINDOW refuses rather than falling back to the default', PL, '    console.error(`play: refusing PLAY_WINDOW=${v}', '    if (false) console.error(`play: refusing PLAY_WINDOW=${v}'],
+  // The per-piece pairing rule. This mutation IS the defect it was built for: a piece
+  // owning its own candidate with no matching reference had its critic compare a MODULE
+  // against the WHOLE reference, and the run reported WON.
+  ['a piece owns both sides of its comparison or neither', L, '    if (!c === !r) return true', '    return true'],
   ['the piece critic judges the artifacts as WHOLES, not as its slice', L, 'BUT THE WINNER YOU PICK IS ABOUT THE WHOLE ARTIFACTS.', ''],
   ['the exit bar requires one wowed sub-agent PER PIECE', L, '    wowed_required: PIECES.length,', '    wowed_required: 1,'],
   ['the exit bar does not claim whole-artifact scope it did not have', L, "    scope: PIECES_EDIT_THE_WHOLE ? 'whole-artifact' : 'per-piece paths',", "    scope: 'whole-artifact',"],
@@ -179,7 +183,7 @@ export const PROPERTIES = [
   ['args.inspect reaches the critic', L, 'ARTIFACT B: ${s.B}\n${INSPECT', "ARTIFACT B: ${s.B}\n${'' && INSPECT"],
   ['args.inspect reaches the lead', L, 'THE REFERENCE IT IS JUDGED AGAINST: ${REFERENCE}\n${INSPECT', "THE REFERENCE IT IS JUDGED AGAINST: ${REFERENCE}\n${'' && INSPECT"],
   ['round 1 offers to build from nothing', L, "${round === 1 ? '\\nIf it does not exist yet", "${false ? '\\nIf it does not exist yet"],
-  ['dropped pieces are counted in the verdict', L, 'dropped_for_no_observable: decomposition.dropped || 0', 'dropped_for_no_observable: 0'],
+  ['dropped pieces are counted in the verdict', L, 'dropped_count: decomposition.dropped || 0', 'dropped_count: 0'],
 
   // --- inputs refused before anything is spawned ---------------------------
   ['a round-cap argument is refused, not ignored', L, "for (const cap of ['maxRounds', 'max_rounds', 'rounds', 'maxIterations', 'roundCap']) {", 'for (const cap of []) {'],

@@ -17,3 +17,18 @@
 # source is the shape this repository recomputes rather than trusts. 86d442a committed it while
 # its own README said not to; this line is what stops the next `git add`.
 runs/splits.jsonl
+
+# Artifacts written into the working tree BY A LIVE RUN, not by anyone editing this repo.
+# Critics hold browser tools and write screenshots, snapshots and console logs to relative
+# paths, which land in whatever directory the run was launched from. On 2026-09-02 a
+# `git add -A` during a live run swept ~250 of them into a commit alongside a five-file
+# source change. They are outputs of a measurement, not part of the instrument.
+.playwright-mcp/
+# ROOT-LEVEL image and log droppings only. Critics choose their own filenames — the
+# 2026-09-02 run wrote doc1-start.png, A-after-harddrop.png, B-stack1.png and 70 more — so a
+# name-pattern list cannot hold. Anchored to the root with a leading slash because the
+# repo's REAL images are committed evidence under docs/runs/**, and a bare *.png would
+# ignore those too: 13 tracked images live there and none at the root.
+/*.png
+/*.jpg
+/*.log
