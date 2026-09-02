@@ -1545,6 +1545,39 @@ async function runPiece(piece) {
   const PR = piece.reference || REFERENCE
   let round = 0
   let pieceOutcome = null
+  // PER PIECE, not per round: a regression check started in round N is recorded during
+  // round N+1, so its state has to outlive the round that started it. Declared inside the
+  // round loop first, which reset it every iteration and quietly restored the old
+  // serial behaviour while looking parallel.
+  let pendingRegression = null
+  let regressionThrew = null
+
+  async function settleRegression() {
+    if (!pendingRegression) return
+    const { promise, entry, rs, snapshot, round } = pendingRegression
+    pendingRegression = null
+    const verdict = await promise
+    if (regressionThrew) {
+      entry.regression = null
+      entry.regression_why_not = `the regression check threw (${regressionThrew}), so this round is unchecked — the run's own verdicts are unaffected, since nothing acts on this measurement`
+      regressionThrew = null
+      return
+    }
+    {
+    if (!verdict) {
+      entry.regression = null
+      entry.regression_why_not = 'the regression check returned nothing' + silenceNote('gauntlet-loop:gauntlet-ab-critic')
+    } else {
+      const prefers = verdict.winner === rs.candidateSide ? 'new' : 'previous'
+      entry.regression = { prefers, why: verdict.why, snapshot }
+      entry.regressed = prefers === 'previous'
+      if (prefers === 'previous') {
+        log(`REGRESSION at round ${round}${piece.name ? ` of piece "${piece.name}"` : ''}: a fresh critic preferred the version from before this round. ${verdict.why}\n` +
+            `NOT REVERTED — this loop measures regressions and does not roll them back (#18). The previous version is at ${snapshot}; the next round builds on the current one.`)
+      }
+    }
+    }
+  }
   // THE EXIT ARMS RATHER THAN FIRES — #18's second half.
   //
   // A win used to break the loop. #18's second comment measured what one win is
@@ -1731,6 +1764,12 @@ async function runPiece(piece) {
   // the exit rule — the run then reported "all N critics picked the candidate" with fewer
   // than N votes.
   for (const p of line) { if (p) positions.push(p); else critic_died = true }
+
+  // THE OVERLAP HAPPENS HERE. The previous round's regression check has been running while
+  // this round's critic line ran; this is where it is collected and written onto the round
+  // it belongs to. Awaiting it AFTER the line rather than before is the whole change — the
+  // two questions are independent, so the only thing the old ordering bought was latency.
+  await settleRegression()
 
   // Fails SAFE, like the breaker and the budget: a round decided on a SHORTER
   // line than the operator asked for is a quietly weaker standard, applied at
@@ -2095,7 +2134,23 @@ know, and a fresh critic decides next round. Report what you changed, factually.
     entry.regression_why_not = 'the builder reported no snapshot, so there was no previous version to compare this round against'
   } else {
     const rs = sides(round, 0, PC, snapshot)
-    const verdict = await agent(
+    // STARTED, NOT AWAITED. The regression check reads the bytes the builder just wrote and
+    // compares them against the snapshot taken before it. The NEXT round's A/B critic reads
+    // those same bytes and compares them against the reference. Both only read, neither
+    // needs the other's answer, and they were run in series purely because this line
+    // awaited. Measured on wf_b1395dfb-e04: A/B critics 195 min over 9 spawns, regression
+    // checks 134 min over 15 — 36% of the whole run's agent time, spent waiting on a
+    // question nothing was blocked on.
+    //
+    // SAFE BECAUSE NOTHING ACTS ON IT. Decision 0003 settled that there is no automatic
+    // revert: the verdict is RECORDED and the operator decides. So no branch below waits
+    // for it, and deferring it changes when it is written, not what it says. If it ever
+    // became a gate — if a regression sent the round back — this overlap would have to go,
+    // because the loop would then be building on bytes a pending check might reject.
+    //
+    // The promise carries its own `entry` and `rs`, so a deferred result lands on the round
+    // it belongs to rather than on whichever round happens to be current when it resolves.
+    const regressionStarted = agent(
       `Two versions of one artifact. They are the same file at two moments, and you are not told which is which.
 
 THE GOAL both are trying to reach:
@@ -2114,23 +2169,38 @@ If they are equally close, pick the one you would rather ship and say that they 
 There is no draw: a draw here would be read as "no regression", which is a claim about the
 artifact rather than about your uncertainty.`,
       { label: `${TAG}:regression-check`, phase: 'Loop', schema: REGRESSION_SCHEMA, agentType: 'gauntlet-loop:gauntlet-ab-critic' }
-    )
+    ).then(v => {
+      // READ AT THE CALL SITE, deliberately. drift-guard checks that every schema field is
+      // consumed within a forward window of the call that produces it — directional,
+      // because a backward window once let a neighbouring probe's read cover a dropped
+      // field. Deferring the recording moved the reads into settleRegression, out of that
+      // window, and the guard failed. It was right: the fix is not a wider window but
+      // extracting here, at the source, and carrying plain values forward. A promise that
+      // resolves to the two fields is also a smaller thing to hold across a round than a
+      // whole verdict object.
+      return v ? { winner: v.winner, why: v.why } : null
+    }).catch(e => {
+      // A throw here used to propagate out of runPiece and kill the piece. It is a
+      // DIAGNOSTIC — nothing depends on it — so it degrades to an absent verdict, the same
+      // way measureSize does, rather than failing the thing it was measuring.
+      regressionThrew = (e && e.message) || String(e)
+      return null
+    })
     regressionCheckSpawns++
-    if (!verdict) {
-      entry.regression = null
-      entry.regression_why_not = 'the regression check returned nothing' + silenceNote('gauntlet-loop:gauntlet-ab-critic')
-    } else {
-      const prefers = verdict.winner === rs.candidateSide ? 'new' : 'previous'
-      entry.regression = { prefers, why: verdict.why, snapshot }
-      entry.regressed = prefers === 'previous'
-      if (prefers === 'previous') {
-        log(`REGRESSION at round ${round}${piece.name ? ` of piece "${piece.name}"` : ''}: a fresh critic preferred the version from before this round. ${verdict.why}\n` +
-            `NOT REVERTED — this loop measures regressions and does not roll them back (#18). The previous version is at ${snapshot}; the next round builds on the current one.`)
-      }
-    }
+    pendingRegression = { promise: regressionStarted, entry, rs, snapshot, round }
   }
+
+  // Resolve any regression check left running from the PREVIOUS round. Called after that
+  // round's successor has finished its own critic line, which is what makes the two overlap;
+  // and called again on every exit path, because a piece that stops with one in flight would
+  // otherwise drop the record silently.
+
   } finally { roundsInFlight-- }
   }
+  // The last round's check, if one is still running when the loop exits — won, cancelled,
+  // out of budget or errored. Without this a piece that ends on a built round drops its
+  // final regression record, and the verdict would show a build with no check beside it.
+  await settleRegression()
 
   if (piece.name && pieceOutcome && pieceOutcome.status === 'WON') log(`piece "${piece.name}" won after ${round} round(s)`)
   return pieceOutcome

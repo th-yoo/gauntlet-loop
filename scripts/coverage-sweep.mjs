@@ -68,6 +68,11 @@ export const PROPERTIES = [
   // The anchor. This mutation IS the live defect: without the path check, an inspection
   // limit written as a fluent sentence passes as work and a builder is handed it.
   ['a shortfall must name the artifact it is about', L, '&& sfNamesWinner', ''],
+  // The deferral's correctness property. The first mutation puts the await back where it
+  // was (serial again); the second drops the exit-path settle, which loses the LAST
+  // round's check — the round an operator reads first.
+  ['the regression check is collected after the next round\'s critic, not before it', L, '  await settleRegression()\n\n  // Fails SAFE, like the breaker', '\n  // Fails SAFE, like the breaker'],
+  ['a run ending with a regression check in flight still records it', L, '  await settleRegression()\n\n  if (piece.name && pieceOutcome', '\n  if (piece.name && pieceOutcome'],
   ['a not-wowed win with no shortfall skips the build rather than falling back', L, '  if (candidateWon && !shortfallUsable) {', '  if (false) {'],
   ['a zero-build WIN says which of its two causes it was', L, "    ? (history.some(h => h.build_skipped)", '    ? (false'],
   ['the round records whether it cleared the bar, not just who won', L, '    wowed,\n    shortfall: primary.shortfall,', ''],
