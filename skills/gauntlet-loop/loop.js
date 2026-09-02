@@ -1188,6 +1188,18 @@ For every piece you propose, name the OBSERVABLE: what would be inspected to jud
 piece alone — a command to run, a file to open, an output to look at. If you cannot name
 one, it is not a piece.
 
+WHERE A PIECE REALLY IS ITS OWN FILE, SAY SO in the candidate and reference fields — and know
+what it buys, because nothing else in this prompt told you. Pieces that name DIFFERENT
+candidate paths run AT THE SAME TIME. Pieces that share one path run STRICTLY ONE AFTER
+ANOTHER, however independent their observables are, because two builders writing one file
+race and the loser's work vanishes. Measured on a real run: four pieces on one file, every
+agent after this one ran alone, and the run's maximum concurrency was 1.
+
+Do not invent paths to buy that. A piece pointed at a file it does not own gets a builder
+editing the wrong thing, and a piece pointed at a file that does not exist stops the run
+before round 1. Where the artifact genuinely is one file, serial execution is the honest cost of it. Where it is one file, the focus field is the
+correct answer.
+
 Refusing to split is a correct answer. Most prose, specs and decisions do not decompose:
 their defects are properties of the whole — what is missing, what order things come in —
 and no single section is wrong. Say so and the loop will run the artifact whole.
