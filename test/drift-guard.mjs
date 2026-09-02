@@ -158,6 +158,34 @@ for (const a of ALLOWLIST) {
   }
 }
 
+// AN AGENT'S PROSE NAMES TOOLS; ITS FRONTMATTER GRANTS THEM; THEY MUST AGREE.
+//
+// The forbidden-tool loop above asks whether an agent was given something it must not
+// have. This asks the other direction, which is how the real defect arrived: the critic's
+// body was rewritten to say "You hold headless browser tools: browser_navigate,
+// browser_snapshot, ..." and the grant is a comma-separated string nobody validates. A
+// mistyped or absent grant leaves the agent with no such tool and a system prompt telling
+// it to use one — it then either flails or silently falls back, and the verdict says
+// nothing. The loop's own inspect text had exactly this defect for months: it told critics
+// "if you have Playwright browser tools, use those" while agents/gauntlet-ab-critic.md
+// granted none, so that branch was dead in every run ever made.
+//
+// Only `browser_*` names are checked, and deliberately: they are the ones an agent body
+// can name unambiguously as tools. A general "any backticked word might be a tool" scan
+// would fire on prose and teach people to write around the check.
+for (const a of ALLOWLIST) {
+  let text
+  try { text = readFileSync(join(ROOT, 'agents', `${a.agent}.md`), 'utf8') } catch { continue }
+  const grantLine = (text.match(/^tools:\s*(.+)$/m) || [])[1] || ''
+  const body = text.replace(/^---[\s\S]*?^---/m, '')
+  const named = [...new Set([...body.matchAll(/`(browser_[a-z_]+)`/g)].map(m => m[1]))]
+  for (const t of named) {
+    if (!grantLine.includes(t)) {
+      fail(`agents/${a.agent}.md tells the agent it holds \`${t}\` and the tools: line does not grant it — the agent is instructed to use a capability it does not have, which is how the loop's "if you have Playwright browser tools" branch stayed dead in every run ever made`)
+    }
+  }
+}
+
 // Every repo-relative path a LIVE file cites must exist. Deleting a file does not
 // delete the sentences that name it, and a citation a reader cannot open is the
 // same defect whether it points at a deleted module or a renamed one.

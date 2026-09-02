@@ -93,6 +93,17 @@ function mutations() {
       expect: c.what,
     })
   }
+  // AN AGENT'S PROSE AND ITS GRANT. The mutation damages the AGENT FILE, not loop.js:
+  // it withdraws one granted browser tool while the body still tells the agent it holds
+  // it. Pinned here rather than in coverage-sweep because the check lives INSIDE
+  // drift-guard, and a coverage-sweep needle that disables it merely stops drift-guard
+  // checking — measured NOT CAUGHT, which is what a guard with no guard looks like.
+  out.push({
+    list: 'AGENT_TOOL_GRANTS', entry: 'browser_snapshot', file: 'agents/gauntlet-ab-critic.md',
+    apply: src => src.replace(', mcp__plugin_playwright_playwright__browser_snapshot', ''),
+    expect: 'browser_snapshot',
+  })
+
   for (const c of CONTRACT_STATED) {
     out.push({
       // Each entry names its OWN file, unlike the lists above which all mutate

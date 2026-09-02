@@ -3,6 +3,38 @@
 **Status:** decided, 2026-09-02.
 **Decided by:** the operator asked for it; written up by Claude with the constraint that blocks the obvious implementation.
 
+> **AMENDED 2026-09-02, later the same day — this record's decision was OVERRIDDEN by the
+> operator, who directed building it, and its own reopen condition has now been MEASURED.**
+>
+> The measurement this record called for — "run four builders on four copies and try the
+> merge" — was run. Four agents, four isolated git worktrees, one 8,033 B seed, each adding
+> one feature (7-bag+NEXT queue, HOLD slot, ghost piece, game-over overlay), then real
+> three-way merges with the seed as common ancestor:
+>
+> | pair | result |
+> |---|---|
+> | hold + queue | **CONFLICT**, 1 hunk |
+> | hold + over | **CONFLICT**, 1 hunk |
+> | ghost + queue | clean |
+> | ghost + hold | clean |
+> | ghost + over | clean |
+> | over + queue | clean |
+>
+> **2 of 6 pairs conflict; 4 merge clean.** So the argument below is directionally right and
+> quantitatively overstated: it says conflicts arrive "in the general case rather than as an
+> edge case", and a third of pairs is neither. The conflicts also cluster — both involve
+> `hold`, the largest edit at 9,732 B against a 8,033 B original. That is a real pattern and
+> not noise: the bigger the region a piece rewrites, the more it collides.
+>
+> What the measurement does NOT overturn is the reason the conflicts matter. A resolved
+> conflict is bytes no critic judged, whether it happens once in three merges or every time.
+> Whether step 5 — judging the merged artifact and sending a loss back for another round —
+> actually repairs that is the open question, and it is under adversarial review now rather
+> than settled here.
+>
+> This block is the record of the override and the evidence. The reasoning below stands as
+> written; it was not edited to agree with the outcome.
+
 ## The question
 
 The 2026-09-02 wide-goal run decomposed into four pieces and ran them **strictly one at a
