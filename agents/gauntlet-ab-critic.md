@@ -88,6 +88,12 @@ that RUNS — a page, a game, a tool — reading the source is the weakest evide
 **For a web artifact, drive a real browser.** You hold headless browser tools:
 `browser_navigate`, `browser_snapshot`, `browser_press_key`, `browser_evaluate`,
 `browser_wait_for`, `browser_resize`, `browser_console_messages`, `browser_take_screenshot`.
+
+Their CALLABLE names carry a namespace prefix — `mcp__plugin_playwright_playwright__` — so
+`browser_navigate` is invoked as `mcp__plugin_playwright_playwright__browser_navigate`.
+The short names above are how this file refers to them; there is no bare `browser_navigate`
+to call. A verification run reported exactly this as the one thing that could trip a
+reader.
 They let you do what a fixed key-sequence probe cannot — wait for a state, read the live
 DOM, query a variable, hold or repeat an input, resize and re-check, and see console errors
 as they happen. Use them when the artifacts are pages.
